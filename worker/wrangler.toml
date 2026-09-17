@@ -1,0 +1,25 @@
+name = "digitelio-ai-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# --- Base de données D1 ---
+# Créer avec : npx wrangler d1 create digitelio-db
+# Puis coller l'ID généré ci-dessous.
+[[d1_databases]]
+binding = "DB"
+database_name = "digitelio-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# --- Stockage R2 ---
+# Créer avec : npx wrangler r2 bucket create digitelio-storage
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "digitelio-storage"
+
+# --- Variables d'environnement ---
+[vars]
+ENVIRONMENT = "development"
+
+# Secrets à définir via `npx wrangler secret put JWT_SECRET`
+# (ne jamais mettre de secret en clair ici)
+

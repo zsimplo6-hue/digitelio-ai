@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply font-sans bg-white text-digi-navy dark:bg-digi-navy dark:text-white transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-digi-gradient bg-clip-text text-transparent;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-digi-gradient px-6 py-3 font-semibold text-white shadow-digi-glow transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-digi-navy/10 bg-white px-6 py-3 font-semibold text-digi-navy transition-colors duration-200 hover:bg-digi-navy/5 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10;
+  }
+  .card {
+    @apply rounded-2xl border border-digi-navy/5 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/5;
+  }
+}
+
