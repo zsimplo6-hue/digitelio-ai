@@ -150,3 +150,89 @@ export async function handleLogout() {
   );
 }
 
+export async function handleGoogleLogin(request, env) {
+  const redirectUri = `${new URL(request.url).origin}/api/auth/callback/google`;
+
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    access_type: "offline",
+    prompt: "consent",
+  });
+
+  return Response.redirect(
+    `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    302
+  );
+}
+
+export async function handleGoogleCallback(request, env) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+
+  if (!code) {
+    return Response.json({ error: "Code d'autorisation manquant." }, { status: 400 });
+  }
+
+  const redirectUri = `${url.origin}/api/auth/callback/google`;
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    }),
+  });
+
+  const tokenData = await tokenResponse.json();
+  if (!tokenData.access_token) {
+    return Response.json({ error: "Échec de l'authentification Google." }, { status: 400 });
+  }
+
+  const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+  });
+  const googleUser = await userInfoResponse.json();
+
+  if (!googleUser.email) {
+    return Response.json({ error: "Impossible de récupérer l'email Google." }, { status: 400 });
+  }
+
+  const email = googleUser.email.toLowerCase();
+
+  let user = await env.DB.prepare(
+    "SELECT id, full_name, email, plan FROM users WHERE email = ?"
+  )
+    .bind(email)
+    .first();
+
+  if (!user) {
+    const userId = generateId();
+    const fullName = googleUser.name || email.split("@")[0];
+
+    await env.DB.prepare(
+      `INSERT INTO users (id, full_name, email, password_hash, plan, language)
+       VALUES (?, ?, ?, ?, 'free', 'fr')`
+    )
+      .bind(userId, fullName, email, "")
+      .run();
+
+    user = { id: userId, full_name: fullName, email, plan: "free" };
+  }
+
+  const token = await signJWT({ sub: user.id, email: user.email }, env.JWT_SECRET);
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Set-Cookie": buildAuthCookie(token),
+      Location: `${url.origin}/dashboard`,
+    },
+  });
+      }
