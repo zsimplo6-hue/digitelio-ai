@@ -232,7 +232,7 @@ export async function handleGoogleCallback(request, env) {
     status: 302,
     headers: {
       "Set-Cookie": buildAuthCookie(token),
-      Location: `${url.origin}/dashboard`,
+      Location: "https://digitelio-ai-frontend.zsimplo6.workers.dev/dashboard",
     },
   });
-      }
+}
