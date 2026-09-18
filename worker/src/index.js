@@ -1,5 +1,12 @@
 import { getCorsHeaders, withCors } from "./utils/cors.js";
-import { handleSignup, handleLogin, handleMe, handleLogout } from "./routes/auth.js";
+import {
+  handleSignup,
+  handleLogin,
+  handleMe,
+  handleLogout,
+  handleGoogleLogin,
+  handleGoogleCallback,
+} from "./routes/auth.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -37,6 +44,14 @@ export default {
         return withCors(await handleLogout(), request);
       }
 
+      // --- Authentification Google (redirections, pas de CORS) ---
+      if (url.pathname === "/api/auth/google" && request.method === "GET") {
+        return await handleGoogleLogin(request, env);
+      }
+      if (url.pathname === "/api/auth/callback/google" && request.method === "GET") {
+        return await handleGoogleCallback(request, env);
+      }
+
       // Placeholders des routes à venir (Sprint 3+)
       // /api/projects
       // /api/generate/ebook
@@ -53,4 +68,3 @@ export default {
     }
   },
 };
-
