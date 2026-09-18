@@ -28,6 +28,10 @@ export default function Login() {
     }
   }
 
+  function handleGoogleLogin() {
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-digi-gradient-radial px-6 py-12 dark:bg-digi-navy">
       <div className="absolute right-6 top-6">
@@ -115,7 +119,7 @@ export default function Login() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <button className="btn-secondary w-full" disabled>
+            <button onClick={handleGoogleLogin} className="btn-secondary w-full">
               Continuer avec Google
             </button>
             <button className="btn-secondary w-full" disabled>
@@ -133,5 +137,4 @@ export default function Login() {
       </div>
     </div>
   );
-}
-
+          }
