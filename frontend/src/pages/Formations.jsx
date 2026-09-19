@@ -21,10 +21,17 @@ const EXAMPLES = [
   "Maîtriser le marketing sur TikTok",
 ];
 
+function youtubeId(url) {
+  const m = (url || "").match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/
+  );
+  return m ? m[1] : null;
+}
+
 function embedUrl(url) {
   if (!url) return null;
-  const yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const yt = youtubeId(url);
+  if (yt) return `https://www.youtube.com/embed/${yt}`;
   const vm = url.match(/vimeo\.com\/(\d+)/);
   if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
   return null;
@@ -41,7 +48,9 @@ function LessonEditor({ formation, module, onChange }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  const embed = embedUrl(videoUrl.trim());
+  const cleanVideo = videoUrl.trim();
+  const embed = embedUrl(cleanVideo);
+  const ytId = youtubeId(cleanVideo);
   const cleanResources = resources.filter((r) => r.label.trim() && r.url.trim());
 
   async function save() {
@@ -51,7 +60,7 @@ function LessonEditor({ formation, module, onChange }) {
     try {
       const data = await api(`/formations/${formation.id}/modules/${module.id}`, {
         method: "PUT",
-        body: JSON.stringify({ content, video_url: videoUrl.trim(), resources: cleanResources }),
+        body: JSON.stringify({ content, video_url: cleanVideo, resources: cleanResources }),
       });
       onChange(data.module);
       setResources(data.module.resources);
@@ -133,8 +142,8 @@ function LessonEditor({ formation, module, onChange }) {
               <iframe src={embed} title="Vidéo de la leçon" allowFullScreen />
             </div>
           )}
-          {videoUrl.trim() && !embed && (
-            <a className="fm-link" href={videoUrl} target="_blank" rel="noreferrer">
+          {cleanVideo && !embed && (
+            <a className="fm-link" href={cleanVideo} target="_blank" rel="noreferrer">
               Ouvrir la vidéo ↗
             </a>
           )}
@@ -181,23 +190,45 @@ function LessonEditor({ formation, module, onChange }) {
       <div className="fm-sheet">
         <div className="fm-sheet-kicker">{formation.title}</div>
         <h1 className="fm-sheet-title">{module.title}</h1>
+
         <div
           className="fm-lesson"
           dangerouslySetInnerHTML={{ __html: renderMarkdown(content || "") }}
         />
+
+        {cleanVideo && (
+          <div className="fm-sheet-videobox">
+            <h2 className="fm-sheet-h2">Vidéo de la leçon</h2>
+            {ytId && (
+              <a className="fm-sheet-thumb" href={cleanVideo} target="_blank" rel="noreferrer">
+                <img
+                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                  alt="Miniature de la vidéo"
+                  loading="eager"
+                />
+                <span className="fm-play">▶</span>
+              </a>
+            )}
+            <a className="fm-sheet-btn" href={cleanVideo} target="_blank" rel="noreferrer">
+              ▶ Regarder la vidéo de la leçon
+            </a>
+          </div>
+        )}
+
         {cleanResources.length > 0 && (
-          <>
+          <div className="fm-sheet-res">
             <h2 className="fm-sheet-h2">Ressources</h2>
             <ul>
               {cleanResources.map((r, i) => (
                 <li key={i}>
-                  {r.label} : {r.url}
+                  <a href={r.url} target="_blank" rel="noreferrer">
+                    {r.label}
+                  </a>
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
-        {videoUrl.trim() && <p className="fm-sheet-video">Vidéo : {videoUrl}</p>}
       </div>
     </>
   );
@@ -471,7 +502,7 @@ export default function Formations() {
         /* Feuille PDF : invisible à l'écran */
         .fm-sheet { display: none; }
 
-               @media print {
+        @media print {
           @page { size: A4; margin: 15mm; }
           html, body { background: #fff !important; }
           .no-print, .fm-screen, header, aside { display: none !important; }
@@ -516,4 +547,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-} 
+}
