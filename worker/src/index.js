@@ -8,6 +8,12 @@ import {
   handleGoogleCallback,
 } from "./routes/auth.js";
 import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
+import {
+  handleCreateFormation,
+  handleListFormations,
+  handleGetFormation,
+  handleDeleteFormation,
+} from "./routes/formations.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -57,6 +63,23 @@ export default {
       if (url.pathname.startsWith("/api/ebooks/") && request.method === "GET") {
         const ebookId = url.pathname.split("/api/ebooks/")[1];
         return withCors(await handleGetEbook(request, env, ebookId), request);
+      }
+
+      // ===== FORMATIONS =====
+      if (url.pathname === "/api/formations" && request.method === "GET") {
+        return withCors(await handleListFormations(request, env), request);
+      }
+      if (url.pathname === "/api/formations" && request.method === "POST") {
+        return withCors(await handleCreateFormation(request, env), request);
+      }
+      if (url.pathname.startsWith("/api/formations/")) {
+        const formationId = url.pathname.split("/api/formations/")[1];
+        if (request.method === "GET") {
+          return withCors(await handleGetFormation(request, env, formationId), request);
+        }
+        if (request.method === "DELETE") {
+          return withCors(await handleDeleteFormation(request, env, formationId), request);
+        }
       }
 
       return withCors(
