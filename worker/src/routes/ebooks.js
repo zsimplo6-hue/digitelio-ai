@@ -37,35 +37,29 @@ export async function handleGenerateEbook(request, env) {
 
   const langLabel = language === "en" ? "English" : "français";
 
-  const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `Rédige le plan détaillé et l'introduction d'un eBook en ${langLabel}, intitulé "${title}". Description du sujet : ${description}. Structure la réponse avec une introduction complète et un sommaire détaillé en chapitres.`,
-        },
-      ],
-    }),
-  });
+  const prompt = `Tu es un rédacteur professionnel spécialisé dans les eBooks. Rédige le plan détaillé et l'introduction d'un eBook en ${langLabel}, intitulé "${title}". Description du sujet : ${description}. Structure ta réponse avec une introduction complète (3-4 paragraphes) suivie d'un sommaire détaillé en chapitres (au moins 5 chapitres avec sous-sections).`;
 
-  if (!aiResponse.ok) {
-    const errText = await aiResponse.text();
+  let content;
+  try {
+    const aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      messages: [
+        { role: "system", content: "Tu es un rédacteur professionnel expert en création de contenu structuré pour eBooks." },
+        { role: "user", content: prompt },
+      ],
+      max_tokens: 2000,
+    });
+
+    content = aiResponse.response || "";
+
+    if (!content) {
+      throw new Error("Réponse vide de l'IA.");
+    }
+  } catch (err) {
     return Response.json(
-      { error: "Erreur lors de la génération IA.", details: errText },
+      { error: "Erreur lors de la génération IA.", details: err.message },
       { status: 502 }
     );
   }
-
-  const aiData = await aiResponse.json();
-  const content = aiData.content?.[0]?.text || "";
 
   const ebookId = generateId();
 
@@ -94,4 +88,4 @@ export async function handleListEbooks(request, env) {
     .all();
 
   return Response.json({ ebooks: results });
-      }
+}
