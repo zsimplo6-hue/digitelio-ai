@@ -54,18 +54,6 @@ export default {
       if (url.pathname === "/api/ebooks" && request.method === "GET") {
         return withCors(await handleListEbooks(request, env), request);
       }
-      // 🔧 ROUTE DE TEST TEMPORAIRE — à retirer après debug
-      if (url.pathname === "/api/test/ai" && request.method === "GET") {
-        try {
-          const testResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-            messages: [{ role: "user", content: "Dis juste bonjour." }],
-            max_tokens: 50,
-          });
-          return Response.json({ success: true, result: testResponse });
-        } catch (err) {
-          return Response.json({ success: false, error: err.message, stack: err.stack });
-        }
-      }
 
       return withCors(
         Response.json({ error: "Route non trouvée" }, { status: 404 }),
