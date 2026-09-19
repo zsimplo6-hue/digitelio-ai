@@ -7,6 +7,9 @@ binding = "DB"
 database_name = "digitelio-db"
 database_id = "0f4ad020-dc3c-45bd-8a88-baca0e2aec75"
 
+[ai]
+binding = "AI"
+
 # R2 sera activé au sprint suivant
 # [[r2_buckets]]
 # binding = "STORAGE"
