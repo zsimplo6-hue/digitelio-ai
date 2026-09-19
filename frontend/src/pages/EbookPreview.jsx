@@ -5,7 +5,6 @@ import { renderMarkdown, extractChapterTitles } from "../utils/markdown.js";
 
 /* ---------- Helpers pour la page de titre ---------- */
 
-// Sépare l'accroche de la description (ex: "... avec l'IA Cet ebook montre ...")
 function splitDescription(desc = "") {
   const text = desc.trim();
   const m = text.match(/^(.*?)[\s.]+((?:Cet|Ce|Cette|Ces)\s+(?:ebook|e-book|livre|guide|ouvrage)\b[\s\S]*)$/i);
@@ -15,7 +14,6 @@ function splitDescription(desc = "") {
   return { tagline: text, description: "" };
 }
 
-// Met en or le groupe de mots clé de l'accroche (ex: "vidéos virales cinématiques")
 function renderTagline(tagline) {
   const re = /(?:créer|produire|maîtriser|réaliser|créez)\s+(?:des|de|du|la|le|les|l['’])\s*/i;
   const start = tagline.match(re);
@@ -34,7 +32,6 @@ function renderTagline(tagline) {
   );
 }
 
-// Met en or les noms de domaine (ex: Higgsfield.ai) dans la description
 function renderDescription(text) {
   const parts = text.split(/(\b[\w-]+\.(?:ai|com|io|app|co)\b)/gi);
   return parts.map((p, i) => (i % 2 === 1 ? <b key={i}>{p}</b> : p));
@@ -78,11 +75,8 @@ export default function EbookPreview() {
   }
 
   const chapterTitles = extractChapterTitles(ebook.content);
-
-  // On découpe le contenu par chapitre pour donner à chacun sa propre page avec grand numéro
   const rawChapters = ebook.content.split(/^## /m).slice(1);
 
-  // Page de titre : titre principal + sous-titre (dernier mot si le titre a 3 mots ou plus)
   const words = (ebook.title || "").trim().split(/\s+/);
   const subtitle = words.length > 2 ? words.pop() : "";
   const mainTitle = words.join(" ");
@@ -142,7 +136,7 @@ export default function EbookPreview() {
           </section>
         )}
 
-        {/* CHAPITRES — chacun sur sa propre page avec un grand numéro */}
+        {/* CHAPITRES */}
         {rawChapters.map((raw, i) => {
           const isIntro = /^Introduction/i.test(raw);
           const isConclusion = /^Conclusion/i.test(raw);
@@ -150,7 +144,10 @@ export default function EbookPreview() {
           const label = isIntro ? "" : isConclusion ? "" : `${i}`;
 
           return (
-            <section key={i} className="ebook-chapter">
+            <section
+              key={i}
+              className={`ebook-chapter${isIntro ? " is-intro" : ""}${isConclusion ? " is-conclusion" : ""}`}
+            >
               {!isIntro && !isConclusion && <div className="ebook-chapter-number">{label}</div>}
               <div className="ebook-body" dangerouslySetInnerHTML={{ __html: html }} />
             </section>
@@ -201,7 +198,7 @@ export default function EbookPreview() {
           margin-bottom: 1.5rem;
         }
 
-        /* ===== PAGE DE TITRE PREMIUM (page 1 uniquement) ===== */
+        /* ===== PAGE DE TITRE PREMIUM ===== */
         .ebook-cover {
           position: relative;
           overflow: hidden;
@@ -217,7 +214,6 @@ export default function EbookPreview() {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
-        /* grain premium */
         .ebook-cover::before {
           content: "";
           position: absolute;
@@ -226,7 +222,6 @@ export default function EbookPreview() {
           pointer-events: none;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
         }
-        /* rubans lumineux dorés dans les coins */
         .cv-ribbon {
           position: absolute;
           width: 75%;
@@ -346,7 +341,7 @@ export default function EbookPreview() {
         }
         .ebook-toc-icon { color: var(--digi-gold); font-size: 0.7rem; }
 
-        /* ===== CHAPITRES (inchangés, espacements réduits) ===== */
+        /* ===== CHAPITRES ===== */
         .ebook-chapter {
           padding: 2.5rem 3rem;
           page-break-before: always;
@@ -435,14 +430,72 @@ export default function EbookPreview() {
         }
         .ebook-copyright p { margin: 0; }
 
+        /* ===== IMPRESSION PDF ===== */
         @media print {
+          @page { size: A4; margin: 0; }
+
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+
           .no-print, header, aside { display: none !important; }
-          body { background: white; }
-          @page { margin: 0; }
-          .ebook-doc { background: white; }
-          .ebook-cover, .cv-ribbon {
+
+          /* Neutralise la mise en page du dashboard autour de l'ebook */
+          *:has(#ebook-print-area) {
+            display: block !important;
+            position: static !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: auto !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            border: 0 !important;
+            background: transparent !important;
+            transform: none !important;
+          }
+
+          .ebook-doc { background: #fff; width: 100%; }
+
+          /* Couverture et dernière page : une page A4 exacte */
+          .ebook-cover, .ebook-cta {
+            height: 296mm;
+            min-height: 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+          }
+          .cv-ribbon {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          /* Sommaire + introduction sur la même page, conclusion à la suite */
+          .ebook-toc { padding: 12mm 3rem 4mm; }
+          .ebook-chapter {
+            padding: 12mm 3rem;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+          }
+          .ebook-chapter.is-intro,
+          .ebook-chapter.is-conclusion {
+            page-break-before: auto;
+            break-before: auto;
+            padding-top: 4mm;
+          }
+
+          /* Texte un peu plus compact à l'impression */
+          .ebook-chapter-number { font-size: 4rem; }
+          .ebook-body h2 { font-size: 1.5rem; margin-bottom: 1rem; break-after: avoid; }
+          .ebook-body h3 { break-after: avoid; }
+          .ebook-body p {
+            font-size: 0.92rem;
+            line-height: 1.7;
+            margin: 0.8rem 0;
           }
         }
       `}</style>
