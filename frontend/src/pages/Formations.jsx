@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
 
@@ -243,6 +243,16 @@ export default function Formations() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [gen, setGen] = useState({
+    running: false,
+    done: 0,
+    total: 0,
+    currentTitle: "",
+    failed: [],
+    cancelled: false,
+    finished: false,
+  });
+  const cancelRef = useRef(false);
 
   async function loadList() {
     try {
@@ -259,9 +269,21 @@ export default function Formations() {
     loadList();
   }, []);
 
+  function resetGen() {
+    setGen({
+      running: false,
+      done: 0,
+      total: 0,
+      currentTitle: "",
+      failed: [],
+      cancelled: false,
+      finished: false,
+    });
+  }
+
   async function createFormation(e) {
     e?.preventDefault();
-    if (topic.trim().length < 5 || creating) return;
+    if (topic.trim().length < 5 || creating || gen.running) return;
     setCreating(true);
     setError("");
     try {
@@ -272,6 +294,7 @@ export default function Formations() {
       setCurrent(data.formation);
       setActiveId(null);
       setTopic("");
+      resetGen();
       loadList();
     } catch (err) {
       setError(err.message);
@@ -281,11 +304,13 @@ export default function Formations() {
   }
 
   async function openFormation(id) {
+    if (gen.running) return;
     setError("");
     try {
       const data = await api(`/formations/${id}`);
       setCurrent(data.formation);
       setActiveId(null);
+      resetGen();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError(err.message);
@@ -293,12 +318,14 @@ export default function Formations() {
   }
 
   async function removeFormation(id) {
+    if (gen.running) return;
     if (!window.confirm("Supprimer cette formation ?")) return;
     try {
       await api(`/formations/${id}`, { method: "DELETE" });
       if (current?.id === id) {
         setCurrent(null);
         setActiveId(null);
+        resetGen();
       }
       loadList();
     } catch (err) {
@@ -313,7 +340,77 @@ export default function Formations() {
     }));
   }
 
+  /* ----- Génération de toute la formation ----- */
+  async function generateAll() {
+    if (!current || gen.running) return;
+
+    let targets = current.modules.filter((m) => !(m.content || "").trim());
+    if (targets.length === 0) {
+      if (!window.confirm("Toutes les leçons sont déjà rédigées. Tout régénérer ?")) return;
+      targets = current.modules;
+    }
+
+    const formationId = current.id;
+    cancelRef.current = false;
+    setActiveId(null);
+    setError("");
+    setGen({
+      running: true,
+      done: 0,
+      total: targets.length,
+      currentTitle: targets[0].title,
+      failed: [],
+      cancelled: false,
+      finished: false,
+    });
+
+    const failed = [];
+    let doneCount = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      if (cancelRef.current) break;
+      const m = targets[i];
+      setGen((g) => ({ ...g, currentTitle: m.title, done: doneCount }));
+
+      let ok = false;
+      for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+        if (cancelRef.current) break;
+        try {
+          const data = await api(`/formations/${formationId}/modules/${m.id}/generate`, {
+            method: "POST",
+          });
+          patchModule({ id: m.id, content: data.module.content });
+          ok = true;
+        } catch (e) {
+          /* on réessaie une fois */
+        }
+      }
+
+      if (ok) doneCount += 1;
+      else if (!cancelRef.current) failed.push(m.title);
+    }
+
+    setGen({
+      running: false,
+      done: doneCount,
+      total: targets.length,
+      currentTitle: "",
+      failed,
+      cancelled: cancelRef.current,
+      finished: true,
+    });
+    loadList();
+  }
+
+  function stopGeneration() {
+    cancelRef.current = true;
+  }
+
   const activeModule = current?.modules?.find((m) => m.id === activeId);
+  const emptyCount = current
+    ? current.modules.filter((m) => !(m.content || "").trim()).length
+    : 0;
+  const percent = gen.total ? Math.round((gen.done / gen.total) * 100) : 0;
 
   return (
     <DashboardLayout>
@@ -336,7 +433,7 @@ export default function Formations() {
               onChange={(e) => setTopic(e.target.value)}
               placeholder="Ex : Créer une boutique Shopify rentable"
               maxLength={150}
-              disabled={creating}
+              disabled={creating || gen.running}
             />
             <div className="fm-chips">
               {EXAMPLES.map((ex) => (
@@ -348,7 +445,7 @@ export default function Formations() {
             <button
               type="submit"
               className="btn-primary fm-btn"
-              disabled={creating || topic.trim().length < 5}
+              disabled={creating || gen.running || topic.trim().length < 5}
             >
               {creating ? "Génération du plan..." : "✨ Générer le plan"}
             </button>
@@ -361,31 +458,71 @@ export default function Formations() {
               {current.description && <p className="fm-muted">{current.description}</p>}
 
               <ol className="fm-modules">
-                {(current.modules || []).map((m, i) => (
-                  <li key={m.id || i}>
-                    <button
-                      className={`fm-module fm-module-btn${m.id === activeId ? " active" : ""}`}
-                      onClick={() => setActiveId(m.id === activeId ? null : m.id)}
-                    >
-                      <span className="fm-num">{i + 1}</span>
-                      <div style={{ flex: 1, textAlign: "left" }}>
-                        <div className="fm-module-title">{m.title}</div>
-                        {m.summary && <div className="fm-muted fm-small">{m.summary}</div>}
-                      </div>
-                      <span className="fm-state">{m.content ? "✓ Rédigée" : "À rédiger"}</span>
-                    </button>
-                  </li>
-                ))}
+                {(current.modules || []).map((m, i) => {
+                  const isCurrent = gen.running && gen.currentTitle === m.title;
+                  return (
+                    <li key={m.id || i}>
+                      <button
+                        className={`fm-module fm-module-btn${m.id === activeId ? " active" : ""}`}
+                        onClick={() => setActiveId(m.id === activeId ? null : m.id)}
+                        disabled={gen.running}
+                      >
+                        <span className="fm-num">{i + 1}</span>
+                        <div style={{ flex: 1, textAlign: "left" }}>
+                          <div className="fm-module-title">{m.title}</div>
+                          {m.summary && <div className="fm-muted fm-small">{m.summary}</div>}
+                        </div>
+                        <span className="fm-state">
+                          {isCurrent ? "⏳ En cours..." : m.content ? "✓ Rédigée" : "À rédiger"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ol>
 
-              <button className="fm-btn fm-btn-disabled" disabled>
-                ✨ Générer toute la formation (étape suivante)
-              </button>
+              {gen.running ? (
+                <div className="fm-progress-box">
+                  <div className="fm-progress-top">
+                    <span>
+                      Leçon {Math.min(gen.done + 1, gen.total)} sur {gen.total}
+                    </span>
+                    <span>{percent}%</span>
+                  </div>
+                  <div className="fm-progress">
+                    <div className="fm-progress-bar" style={{ width: `${Math.max(percent, 4)}%` }} />
+                  </div>
+                  <div className="fm-muted fm-small">
+                    Rédaction : {gen.currentTitle}. Gardez cette page ouverte.
+                  </div>
+                  <button className="fm-btn fm-btn-outline" style={{ marginTop: "0.8rem" }} onClick={stopGeneration}>
+                    ⏹ Arrêter
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button className="fm-btn fm-btn-gold" style={{ marginTop: "1.2rem", marginBottom: 0 }} onClick={generateAll}>
+                    {emptyCount > 0
+                      ? `✨ Générer toute la formation (${emptyCount} ${emptyCount > 1 ? "leçons" : "leçon"})`
+                      : "🔁 Tout régénérer"}
+                  </button>
+
+                  {gen.finished && (
+                    <div className={gen.failed.length ? "fm-warn" : "fm-ok"}>
+                      {gen.cancelled
+                        ? `Génération arrêtée : ${gen.done} leçon(s) rédigée(s).`
+                        : gen.failed.length === 0
+                        ? `✓ ${gen.done} leçon(s) rédigée(s). Ouvrez un module pour l'éditer, ajouter une vidéo ou télécharger le PDF.`
+                        : `${gen.done} leçon(s) rédigée(s). Échec pour : ${gen.failed.join(", ")}. Relancez le bouton pour compléter.`}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
 
-        {current && activeModule && (
+        {current && activeModule && !gen.running && (
           <LessonEditor
             key={activeModule.id}
             formation={current}
@@ -446,14 +583,11 @@ export default function Formations() {
         }
         .fm-btn { width: 100%; padding: 0.85rem; border-radius: 10px; font-weight: 600; }
         .fm-btn:disabled { opacity: 0.5; }
-        .fm-btn-disabled {
-          margin-top: 1.2rem; background: rgba(128,128,128,0.2); color: inherit;
-          border: 1px dashed rgba(128,128,128,0.4);
-        }
         .fm-btn-gold { background: #D4AF37; color: #0B0B0B; margin-bottom: 1rem; }
         .fm-btn-outline { border: 1px solid rgba(128,128,128,0.45); background: transparent; color: inherit; }
         .fm-actions { display: grid; gap: 0.6rem; margin-top: 1.2rem; }
         .fm-ok { margin-top: 0.8rem; color: #16a34a; font-size: 0.9rem; font-weight: 600; }
+        .fm-warn { margin-top: 0.8rem; color: #d97706; font-size: 0.9rem; font-weight: 600; }
         .fm-title { font-size: 1.3rem; font-weight: 700; }
         .fm-modules { list-style: none; padding: 0; margin: 1.2rem 0 0; display: grid; gap: 0.5rem; }
         .fm-module { display: flex; gap: 0.9rem; align-items: flex-start; }
@@ -461,6 +595,7 @@ export default function Formations() {
           width: 100%; padding: 0.7rem; border-radius: 12px; border: 1px solid transparent;
           background: transparent; color: inherit; align-items: center;
         }
+        .fm-module-btn:disabled { opacity: 0.85; }
         .fm-module-btn.active { border-color: #D4AF37; background: rgba(212,175,55,0.08); }
         .fm-state { flex: none; font-size: 0.7rem; opacity: 0.75; }
         .fm-num {
@@ -469,6 +604,21 @@ export default function Formations() {
           font-weight: 700; background: #D4AF37; color: #0B0B0B;
         }
         .fm-module-title { font-weight: 600; }
+
+        .fm-progress-box { margin-top: 1.2rem; }
+        .fm-progress-top {
+          display: flex; justify-content: space-between;
+          font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;
+        }
+        .fm-progress {
+          height: 10px; border-radius: 999px; overflow: hidden;
+          background: rgba(128,128,128,0.25);
+        }
+        .fm-progress-bar {
+          height: 100%; border-radius: 999px; background: #D4AF37;
+          transition: width 0.6s ease;
+        }
+
         .fm-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.7rem; }
         .fm-tab {
           padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.85rem;
