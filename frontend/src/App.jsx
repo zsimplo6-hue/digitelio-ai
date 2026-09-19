@@ -3,6 +3,7 @@ import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import CreateEbook from "./pages/CreateEbook.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -19,8 +20,15 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Sprint 3 : générateur eBook, formations, pages de vente... */}
+      <Route
+        path="/dashboard/ebooks/create"
+        element={
+          <ProtectedRoute>
+            <CreateEbook />
+          </ProtectedRoute>
+        }
+      />
+      {/* Sprint 3 : formations, pages de vente, marketing... */}
     </Routes>
   );
 }
-
