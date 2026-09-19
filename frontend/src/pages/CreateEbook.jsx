@@ -1,6 +1,59 @@
 import { useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 
+function renderMarkdown(text) {
+  if (!text) return "";
+
+  const escapeHtml = (str) =>
+    str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const lines = text.split("\n");
+  let html = "";
+  let inList = false;
+
+  for (let line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("### ")) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h3 class="mt-6 mb-2 text-lg font-bold">${escapeHtml(trimmed.slice(4))}</h3>`;
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h2 class="mt-8 mb-3 text-xl font-bold">${escapeHtml(trimmed.slice(3))}</h2>`;
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h1 class="mt-8 mb-4 text-2xl font-bold">${escapeHtml(trimmed.slice(2))}</h1>`;
+      continue;
+    }
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      if (!inList) { html += '<ul class="list-disc pl-5 space-y-1">'; inList = true; }
+      let item = escapeHtml(trimmed.slice(2));
+      item = item.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      html += `<li>${item}</li>`;
+      continue;
+    }
+
+    if (inList) { html += "</ul>"; inList = false; }
+
+    if (trimmed === "") {
+      html += "";
+      continue;
+    }
+
+    let paragraph = escapeHtml(trimmed);
+    paragraph = paragraph.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html += `<p class="mt-3 leading-relaxed">${paragraph}</p>`;
+  }
+
+  if (inList) html += "</ul>";
+
+  return html;
+}
+
 export default function CreateEbook() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -88,12 +141,13 @@ export default function CreateEbook() {
 
       {result && (
         <div className="card mt-6 max-w-2xl">
-          <h2 className="text-lg font-bold">{result.title}</h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-digi-navy/80 dark:text-white/80">
-            {result.content}
-          </p>
+          <h2 className="text-2xl font-bold">{result.title}</h2>
+          <div
+            className="mt-2 text-sm text-digi-navy/80 dark:text-white/80"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}
+          />
         </div>
       )}
     </DashboardLayout>
   );
-            }
+      }
