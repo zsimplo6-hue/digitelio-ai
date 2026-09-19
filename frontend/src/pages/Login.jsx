@@ -122,9 +122,6 @@ export default function Login() {
             <button onClick={handleGoogleLogin} className="btn-secondary w-full">
               Continuer avec Google
             </button>
-            <button className="btn-secondary w-full" disabled>
-              Continuer avec Facebook
-            </button>
           </div>
 
           <p className="mt-6 text-center text-sm text-digi-navy/60 dark:text-white/60">
