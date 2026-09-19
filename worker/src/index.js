@@ -7,18 +7,17 @@ import {
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
+import { handleGenerateEbook, handleListEbooks } from "./routes/ebooks.js";
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Pré-vol CORS
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: getCorsHeaders(request) });
     }
 
     try {
-      // Healthcheck
       if (url.pathname === "/api/health") {
         return withCors(
           Response.json({
@@ -30,7 +29,6 @@ export default {
         );
       }
 
-      // --- Authentification ---
       if (url.pathname === "/api/auth/signup" && request.method === "POST") {
         return withCors(await handleSignup(request, env), request);
       }
@@ -43,8 +41,6 @@ export default {
       if (url.pathname === "/api/auth/logout" && request.method === "POST") {
         return withCors(await handleLogout(), request);
       }
-
-      // --- Authentification Google (redirections, pas de CORS) ---
       if (url.pathname === "/api/auth/google" && request.method === "GET") {
         return await handleGoogleLogin(request, env);
       }
@@ -52,9 +48,12 @@ export default {
         return await handleGoogleCallback(request, env);
       }
 
-      // Placeholders des routes à venir (Sprint 3+)
-      // /api/projects
-      // /api/generate/ebook
+      if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
+        return withCors(await handleGenerateEbook(request, env), request);
+      }
+      if (url.pathname === "/api/ebooks" && request.method === "GET") {
+        return withCors(await handleListEbooks(request, env), request);
+      }
 
       return withCors(
         Response.json({ error: "Route non trouvée" }, { status: 404 }),
