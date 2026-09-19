@@ -471,23 +471,49 @@ export default function Formations() {
         /* Feuille PDF : invisible à l'écran */
         .fm-sheet { display: none; }
 
-        @media print {
+               @media print {
           @page { size: A4; margin: 15mm; }
           html, body { background: #fff !important; }
           .no-print, .fm-screen, header, aside { display: none !important; }
           .fm-page { max-width: none; }
-          .fm-sheet { display: block; color: #111; background: #fff; font-family: 'Inter', sans-serif; }
+          .fm-sheet {
+            display: block; color: #111; background: #fff; font-family: 'Inter', sans-serif;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          .fm-sheet a { color: #9a7a14; text-decoration: underline; }
           .fm-sheet-kicker {
             font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase;
             color: #b8931f; font-weight: 700; margin-bottom: 0.4rem;
           }
           .fm-sheet-title { font-size: 1.8rem; font-weight: 700; margin: 0 0 1rem; color: #0B0B0B; }
-          .fm-sheet-h2 { font-size: 1.2rem; font-weight: 700; margin-top: 1.5rem; }
+          .fm-sheet-h2 { font-size: 1.2rem; font-weight: 700; margin: 1.5rem 0 0.6rem; color: #0B0B0B; }
           .fm-sheet .fm-lesson p { font-size: 0.95rem; line-height: 1.7; text-align: justify; color: #222; }
           .fm-sheet .fm-lesson h3 { break-after: avoid; color: #0B0B0B; }
-          .fm-sheet-video { margin-top: 1rem; font-size: 0.85rem; color: #555; }
+
+          .fm-sheet-videobox { break-inside: avoid; margin-top: 1.5rem; }
+          .fm-sheet-thumb {
+            position: relative; display: block; width: 100%; max-width: 110mm;
+            border-radius: 6px; overflow: hidden; text-decoration: none !important;
+          }
+          .fm-sheet-thumb img { display: block; width: 100%; height: auto; }
+          .fm-play {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 16mm; height: 16mm; border-radius: 50%;
+            background: rgba(11,11,11,0.75); color: #D4AF37;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; padding-left: 1mm;
+          }
+          .fm-sheet-btn {
+            display: inline-block; margin-top: 0.8rem; padding: 0.6rem 1.1rem;
+            border-radius: 6px; background: #D4AF37; color: #0B0B0B !important;
+            font-weight: 700; text-decoration: none !important;
+          }
+          .fm-sheet-res { break-inside: avoid; }
+          .fm-sheet-res ul { padding-left: 1.3rem; }
+          .fm-sheet-res li { margin: 0.3rem 0; }
         }
       `}</style>
     </DashboardLayout>
   );
-        }
+}
