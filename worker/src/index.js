@@ -13,6 +13,8 @@ import {
   handleListFormations,
   handleGetFormation,
   handleDeleteFormation,
+  handleUpdateModule,
+  handleGenerateModule,
 } from "./routes/formations.js";
 
 export default {
@@ -73,12 +75,33 @@ export default {
         return withCors(await handleCreateFormation(request, env), request);
       }
       if (url.pathname.startsWith("/api/formations/")) {
-        const formationId = url.pathname.split("/api/formations/")[1];
-        if (request.method === "GET") {
-          return withCors(await handleGetFormation(request, env, formationId), request);
+        // parts = ["api", "formations", id, "modules", moduleId, "generate"]
+        const parts = url.pathname.split("/").filter(Boolean);
+        const formationId = parts[2];
+
+        if (parts.length === 3) {
+          if (request.method === "GET") {
+            return withCors(await handleGetFormation(request, env, formationId), request);
+          }
+          if (request.method === "DELETE") {
+            return withCors(await handleDeleteFormation(request, env, formationId), request);
+          }
         }
-        if (request.method === "DELETE") {
-          return withCors(await handleDeleteFormation(request, env, formationId), request);
+
+        if (parts[3] === "modules" && parts[4]) {
+          const moduleId = parts[4];
+          if (parts.length === 5 && request.method === "PUT") {
+            return withCors(
+              await handleUpdateModule(request, env, formationId, moduleId),
+              request
+            );
+          }
+          if (parts.length === 6 && parts[5] === "generate" && request.method === "POST") {
+            return withCors(
+              await handleGenerateModule(request, env, formationId, moduleId),
+              request
+            );
+          }
         }
       }
 
