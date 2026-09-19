@@ -77,6 +77,11 @@ export default function EbookPreview() {
   const chapterTitles = extractChapterTitles(ebook.content);
   const rawChapters = ebook.content.split(/^## /m).slice(1);
 
+  // La conclusion est déplacée sur la dernière page
+  const conclusionIdx = rawChapters.findIndex((r) => /^Conclusion/i.test(r));
+  const conclusionHtml =
+    conclusionIdx >= 0 ? renderMarkdown("## " + rawChapters[conclusionIdx]) : "";
+
   const words = (ebook.title || "").trim().split(/\s+/);
   const subtitle = words.length > 2 ? words.pop() : "";
   const mainTitle = words.join(" ");
@@ -138,24 +143,26 @@ export default function EbookPreview() {
 
         {/* CHAPITRES */}
         {rawChapters.map((raw, i) => {
+          if (i === conclusionIdx) return null;
+
           const isIntro = /^Introduction/i.test(raw);
-          const isConclusion = /^Conclusion/i.test(raw);
           const html = renderMarkdown("## " + raw);
-          const label = isIntro ? "" : isConclusion ? "" : `${i}`;
+          const label = isIntro ? "" : `${i}`;
 
           return (
-            <section
-              key={i}
-              className={`ebook-chapter${isIntro ? " is-intro" : ""}${isConclusion ? " is-conclusion" : ""}`}
-            >
-              {!isIntro && !isConclusion && <div className="ebook-chapter-number">{label}</div>}
+            <section key={i} className={`ebook-chapter${isIntro ? " is-intro" : ""}`}>
+              {!isIntro && <div className="ebook-chapter-number">{label}</div>}
               <div className="ebook-body" dangerouslySetInnerHTML={{ __html: html }} />
             </section>
           );
         })}
 
-        {/* DERNIÈRE PAGE : APPEL À L'ACTION + COPYRIGHT EN BAS */}
+        {/* DERNIÈRE PAGE : CONCLUSION + REMERCIEMENT + COPYRIGHT EN BAS */}
         <section className="ebook-cta">
+          {conclusionHtml && (
+            <div className="ebook-body" dangerouslySetInnerHTML={{ __html: conclusionHtml }} />
+          )}
+
           <div className="ebook-cta-center">
             <div className="ebook-cta-box">
               <p className="ebook-cta-title">Merci de votre lecture</p>
@@ -384,7 +391,7 @@ export default function EbookPreview() {
         }
         .ebook-body li { margin: 0.4rem 0; line-height: 1.7; }
 
-        /* ===== DERNIÈRE PAGE : CTA + COPYRIGHT EN BAS ===== */
+        /* ===== DERNIÈRE PAGE : CONCLUSION + CTA + COPYRIGHT EN BAS ===== */
         .ebook-cta {
           display: flex;
           flex-direction: column;
@@ -474,28 +481,28 @@ export default function EbookPreview() {
             print-color-adjust: exact;
           }
 
-          /* Sommaire + introduction sur la même page, conclusion à la suite */
+          /* Sommaire + introduction sur la même page */
           .ebook-toc { padding: 12mm 3rem 4mm; }
           .ebook-chapter {
-            padding: 12mm 3rem;
+            padding: 10mm 3rem 6mm;
             -webkit-box-decoration-break: clone;
             box-decoration-break: clone;
           }
-          .ebook-chapter.is-intro,
-          .ebook-chapter.is-conclusion {
+          .ebook-chapter.is-intro {
             page-break-before: auto;
             break-before: auto;
             padding-top: 4mm;
           }
+          .ebook-cta { padding: 10mm 3rem 8mm; }
 
           /* Texte un peu plus compact à l'impression */
-          .ebook-chapter-number { font-size: 4rem; }
-          .ebook-body h2 { font-size: 1.5rem; margin-bottom: 1rem; break-after: avoid; }
+          .ebook-chapter-number { font-size: 3.6rem; }
+          .ebook-body h2 { font-size: 1.45rem; margin-bottom: 0.8rem; break-after: avoid; }
           .ebook-body h3 { break-after: avoid; }
           .ebook-body p {
-            font-size: 0.92rem;
-            line-height: 1.7;
-            margin: 0.8rem 0;
+            font-size: 0.9rem;
+            line-height: 1.62;
+            margin: 0.7rem 0;
           }
         }
       `}</style>
