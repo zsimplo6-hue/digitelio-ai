@@ -10,12 +10,17 @@ import {
 import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
 import {
   handleCreateFormation,
-  handleListFormations,
-  handleGetFormation,
   handleDeleteFormation,
   handleUpdateModule,
   handleGenerateModule,
 } from "./routes/formations.js";
+import {
+  handleListFormations,
+  handleGetFormation,
+  handleUpdateSettings,
+  handlePublish,
+  handleUnpublish,
+} from "./routes/publish.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -83,8 +88,20 @@ export default {
           if (request.method === "GET") {
             return withCors(await handleGetFormation(request, env, formationId), request);
           }
+          if (request.method === "PUT") {
+            return withCors(await handleUpdateSettings(request, env, formationId), request);
+          }
           if (request.method === "DELETE") {
             return withCors(await handleDeleteFormation(request, env, formationId), request);
+          }
+        }
+
+        if (parts.length === 4 && request.method === "POST") {
+          if (parts[3] === "publish") {
+            return withCors(await handlePublish(request, env, formationId), request);
+          }
+          if (parts[3] === "unpublish") {
+            return withCors(await handleUnpublish(request, env, formationId), request);
           }
         }
 
