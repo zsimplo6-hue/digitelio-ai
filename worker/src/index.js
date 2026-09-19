@@ -7,7 +7,7 @@ import {
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
-import { handleGenerateEbook, handleListEbooks } from "./routes/ebooks.js";
+import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -53,6 +53,10 @@ export default {
       }
       if (url.pathname === "/api/ebooks" && request.method === "GET") {
         return withCors(await handleListEbooks(request, env), request);
+      }
+      if (url.pathname.startsWith("/api/ebooks/") && request.method === "GET") {
+        const ebookId = url.pathname.split("/api/ebooks/")[1];
+        return withCors(await handleGetEbook(request, env, ebookId), request);
       }
 
       return withCors(
