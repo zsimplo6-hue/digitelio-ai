@@ -5,6 +5,7 @@ import Signup from "./pages/Signup.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import CreateEbook from "./pages/CreateEbook.jsx";
 import EbookPreview from "./pages/EbookPreview.jsx";
+import Formations from "./pages/Formations.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -34,6 +35,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <EbookPreview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/formations"
+        element={
+          <ProtectedRoute>
+            <Formations />
           </ProtectedRoute>
         }
       />
