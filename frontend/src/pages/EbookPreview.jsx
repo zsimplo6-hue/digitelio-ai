@@ -3,6 +3,43 @@ import { useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { renderMarkdown, extractChapterTitles } from "../utils/markdown.js";
 
+/* ---------- Helpers pour la page de titre ---------- */
+
+// Sépare l'accroche de la description (ex: "... avec l'IA Cet ebook montre ...")
+function splitDescription(desc = "") {
+  const text = desc.trim();
+  const m = text.match(/^(.*?)[\s.]+((?:Cet|Ce|Cette|Ces)\s+(?:ebook|e-book|livre|guide|ouvrage)\b[\s\S]*)$/i);
+  if (m) return { tagline: m[1].trim(), description: m[2].trim() };
+  const s = text.match(/^(.*?[.!?])\s+([\s\S]+)$/);
+  if (s) return { tagline: s[1].trim(), description: s[2].trim() };
+  return { tagline: text, description: "" };
+}
+
+// Met en or le groupe de mots clé de l'accroche (ex: "vidéos virales cinématiques")
+function renderTagline(tagline) {
+  const re = /(?:créer|produire|maîtriser|réaliser|créez)\s+(?:des|de|du|la|le|les|l['’])\s*/i;
+  const start = tagline.match(re);
+  if (!start) return tagline;
+  const from = start.index + start[0].length;
+  const rest = tagline.slice(from);
+  const end = rest.search(/\s+(?:avec|grâce|en|sans|pour)\b/i);
+  const phrase = end === -1 ? rest : rest.slice(0, end);
+  const after = end === -1 ? "" : rest.slice(end);
+  return (
+    <>
+      {tagline.slice(0, from)}
+      <b>{phrase}</b>
+      {after}
+    </>
+  );
+}
+
+// Met en or les noms de domaine (ex: Higgsfield.ai) dans la description
+function renderDescription(text) {
+  const parts = text.split(/(\b[\w-]+\.(?:ai|com|io|app|co)\b)/gi);
+  return parts.map((p, i) => (i % 2 === 1 ? <b key={i}>{p}</b> : p));
+}
+
 export default function EbookPreview() {
   const { id } = useParams();
   const [ebook, setEbook] = useState(null);
@@ -43,8 +80,13 @@ export default function EbookPreview() {
   const chapterTitles = extractChapterTitles(ebook.content);
 
   // On découpe le contenu par chapitre pour donner à chacun sa propre page avec grand numéro
-  const rawChapters = ebook.content.split(/^## /m).slice(1); // enlève le titre principal avant le 1er "##"
-  const introBlock = ebook.content.split(/^## /m)[0] || "";
+  const rawChapters = ebook.content.split(/^## /m).slice(1);
+
+  // Page de titre : titre principal + sous-titre (dernier mot si le titre a 3 mots ou plus)
+  const words = (ebook.title || "").trim().split(/\s+/);
+  const subtitle = words.length > 2 ? words.pop() : "";
+  const mainTitle = words.join(" ");
+  const { tagline, description } = splitDescription(ebook.description || "");
 
   return (
     <DashboardLayout>
@@ -56,19 +98,33 @@ export default function EbookPreview() {
       </div>
 
       <div id="ebook-print-area" className="ebook-doc">
-        {/* COUVERTURE */}
+        {/* PAGE DE TITRE PREMIUM */}
         <section className="ebook-cover">
-          <div className="ebook-cover-kicker">DIGITELIO AI ÉDITIONS</div>
-          <h1 className="ebook-cover-title">{ebook.title}</h1>
-          <div className="ebook-cover-rule" />
-          <p className="ebook-cover-subtitle">{ebook.description}</p>
-        </section>
+          <div className="cv-ribbon cv-ribbon-tl" />
+          <div className="cv-ribbon cv-ribbon-tl2" />
+          <div className="cv-ribbon cv-ribbon-br" />
+          <div className="cv-ribbon cv-ribbon-br2" />
 
-        {/* PAGE DE COPYRIGHT */}
-        <section className="ebook-copyright">
-          <p>© {new Date().getFullYear()} — Tous droits réservés.</p>
-          <p>Ouvrage généré et édité avec Digitelio AI.</p>
-          <p>Toute reproduction, distribution ou revente non autorisée est interdite.</p>
+          <div className="cv-inner">
+            <div className="cv-brand">DIGITELIO AI</div>
+            <div className="cv-editions">
+              <span />
+              <em>ÉDITIONS</em>
+              <span />
+            </div>
+
+            <h1 className="cv-title">{mainTitle}</h1>
+            {subtitle && <div className="cv-sub">{subtitle}</div>}
+
+            <div className="cv-divider">
+              <span />
+              <i />
+              <span />
+            </div>
+
+            {tagline && <p className="cv-tagline">{renderTagline(tagline)}</p>}
+            {description && <p className="cv-desc">{renderDescription(description)}</p>}
+          </div>
         </section>
 
         {/* SOMMAIRE */}
@@ -96,27 +152,32 @@ export default function EbookPreview() {
           return (
             <section key={i} className="ebook-chapter">
               {!isIntro && !isConclusion && <div className="ebook-chapter-number">{label}</div>}
-              <div
-                className="ebook-body"
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
+              <div className="ebook-body" dangerouslySetInnerHTML={{ __html: html }} />
             </section>
           );
         })}
 
-        {/* APPEL À L'ACTION FINAL */}
+        {/* DERNIÈRE PAGE : APPEL À L'ACTION + COPYRIGHT EN BAS */}
         <section className="ebook-cta">
-          <div className="ebook-cta-box">
-            <p className="ebook-cta-title">Merci de votre lecture</p>
-            <p className="ebook-cta-text">
-              Cet ouvrage a été conçu et publié avec Digitelio AI — la plateforme qui transforme vos idées en produits digitaux prêts à vendre.
-            </p>
+          <div className="ebook-cta-center">
+            <div className="ebook-cta-box">
+              <p className="ebook-cta-title">Merci de votre lecture</p>
+              <p className="ebook-cta-text">
+                Cet ouvrage a été conçu et publié avec Digitelio AI — la plateforme qui transforme vos idées en produits digitaux prêts à vendre.
+              </p>
+            </div>
           </div>
+
+          <footer className="ebook-copyright">
+            <p>© {new Date().getFullYear()} — Tous droits réservés.</p>
+            <p>Ouvrage généré et édité avec Digitelio AI.</p>
+            <p>Toute reproduction, distribution ou revente non autorisée est interdite.</p>
+          </footer>
         </section>
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@600;700&family=Inter:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Manrope:wght@300;400;600;700&family=Inter:wght@400;500&display=swap');
 
         :root {
           --digi-ink: #0B0B0B;
@@ -140,63 +201,137 @@ export default function EbookPreview() {
           margin-bottom: 1.5rem;
         }
 
-        /* COUVERTURE */
+        /* ===== PAGE DE TITRE PREMIUM (page 1 uniquement) ===== */
         .ebook-cover {
-          background: var(--digi-ink);
-          color: var(--digi-ivory);
-          min-height: 90vh;
+          position: relative;
+          overflow: hidden;
+          height: 297mm;
+          background: #0B0B0B;
+          color: #F5F0E1;
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
           text-align: center;
-          padding: 4rem 2rem;
           page-break-after: always;
+          break-after: page;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
-        .ebook-cover-kicker {
+        /* grain premium */
+        .ebook-cover::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          opacity: 0.14;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        /* rubans lumineux dorés dans les coins */
+        .cv-ribbon {
+          position: absolute;
+          width: 75%;
+          height: 2px;
+          background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+          box-shadow: 0 0 14px rgba(212,175,55,0.8);
+        }
+        .cv-ribbon-tl  { top: 8%;  left: -20%; transform: rotate(-42deg); }
+        .cv-ribbon-tl2 { top: 12%; left: -24%; transform: rotate(-42deg); opacity: 0.45; }
+        .cv-ribbon-br  { bottom: 8%;  right: -20%; transform: rotate(-42deg); }
+        .cv-ribbon-br2 { bottom: 12%; right: -24%; transform: rotate(-42deg); opacity: 0.45; }
+
+        .cv-inner {
+          position: relative;
+          z-index: 1;
+          max-width: 78%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 5mm;
+        }
+        .cv-brand {
           font-family: 'Manrope', sans-serif;
-          font-weight: 700;
-          letter-spacing: 0.25em;
-          font-size: 0.75rem;
+          font-weight: 600;
+          font-size: 1.4rem;
+          letter-spacing: 0.22em;
           color: var(--digi-gold);
-          margin-bottom: 2rem;
         }
-        .ebook-cover-title {
+        .cv-editions {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          color: var(--digi-gold);
+          font-family: 'Manrope', sans-serif;
+          font-size: 0.7rem;
+          letter-spacing: 0.5em;
+        }
+        .cv-editions em { font-style: normal; margin-right: -0.5em; }
+        .cv-editions span,
+        .cv-divider span {
+          display: block;
+          width: 60px;
+          height: 1px;
+          background: var(--digi-gold);
+        }
+        .cv-title {
           font-family: 'Cinzel', serif;
           font-weight: 700;
-          font-size: 2.6rem;
-          line-height: 1.25;
-          max-width: 32rem;
+          font-size: 3.4rem;
+          line-height: 1.08;
+          text-transform: uppercase;
+          margin: 12mm 0 0;
+          background: linear-gradient(180deg, #F6E27A 0%, #D4AF37 50%, #8C6D1F 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: transparent;
         }
-        .ebook-cover-rule {
-          width: 60px;
-          height: 2px;
-          background: var(--digi-gold);
-          margin: 2rem auto;
-        }
-        .ebook-cover-subtitle {
-          font-family: 'Inter', sans-serif;
+        .cv-sub {
+          font-family: 'Cinzel', serif;
           font-weight: 400;
-          font-size: 1rem;
-          color: #cfcfcf;
-          max-width: 28rem;
-          line-height: 1.7;
+          font-size: 1.9rem;
+          text-transform: uppercase;
+          letter-spacing: 0.6em;
+          margin-right: -0.6em;
+          color: #fff;
         }
-
-        /* COPYRIGHT */
-        .ebook-copyright {
-          padding: 6rem 3rem;
-          text-align: center;
+        .cv-divider {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 4mm 0;
+        }
+        .cv-divider i {
+          width: 9px;
+          height: 9px;
+          background: var(--digi-gold);
+          transform: rotate(45deg);
+        }
+        .cv-tagline {
+          font-family: 'Manrope', sans-serif;
+          font-weight: 300;
+          font-size: 1.2rem;
+          line-height: 1.5;
+          color: #fff;
+          margin: 0;
+        }
+        .cv-tagline b,
+        .cv-desc b {
+          color: var(--digi-gold);
+          font-weight: 600;
+        }
+        .cv-desc {
+          font-family: 'Manrope', sans-serif;
+          font-weight: 300;
           font-size: 0.85rem;
-          color: #666;
-          line-height: 2;
-          page-break-after: always;
+          line-height: 1.7;
+          color: #fff;
+          max-width: 85%;
+          margin: 0;
         }
 
-        /* SOMMAIRE */
+        /* ===== SOMMAIRE ===== */
         .ebook-toc {
-          padding: 4rem 3rem;
-          page-break-after: always;
+          padding: 3rem 3rem;
         }
         .ebook-toc ul { list-style: none; padding: 0; margin: 0; }
         .ebook-toc li {
@@ -211,10 +346,11 @@ export default function EbookPreview() {
         }
         .ebook-toc-icon { color: var(--digi-gold); font-size: 0.7rem; }
 
-        /* CHAPITRES */
+        /* ===== CHAPITRES (inchangés, espacements réduits) ===== */
         .ebook-chapter {
-          padding: 4rem 3rem;
+          padding: 2.5rem 3rem;
           page-break-before: always;
+          break-before: page;
         }
         .ebook-chapter-number {
           font-family: 'Cinzel', serif;
@@ -253,11 +389,21 @@ export default function EbookPreview() {
         }
         .ebook-body li { margin: 0.4rem 0; line-height: 1.7; }
 
-        /* CTA FINAL */
+        /* ===== DERNIÈRE PAGE : CTA + COPYRIGHT EN BAS ===== */
         .ebook-cta {
-          padding: 5rem 3rem;
-          page-break-before: always;
           display: flex;
+          flex-direction: column;
+          min-height: 297mm;
+          padding: 3rem 3rem 2rem;
+          page-break-before: always;
+          break-before: page;
+          page-break-inside: avoid;
+          box-sizing: border-box;
+        }
+        .ebook-cta-center {
+          flex: 1;
+          display: flex;
+          align-items: center;
           justify-content: center;
         }
         .ebook-cta-box {
@@ -279,14 +425,27 @@ export default function EbookPreview() {
           color: #555;
           line-height: 1.8;
         }
+        .ebook-copyright {
+          margin-top: auto;
+          padding-top: 1rem;
+          text-align: center;
+          font-size: 0.8rem;
+          color: #666;
+          line-height: 1.8;
+        }
+        .ebook-copyright p { margin: 0; }
 
         @media print {
           .no-print, header, aside { display: none !important; }
           body { background: white; }
           @page { margin: 0; }
           .ebook-doc { background: white; }
+          .ebook-cover, .cv-ribbon {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}</style>
     </DashboardLayout>
   );
-    }
+      }
