@@ -25,7 +25,6 @@ async function askAI(env, prompt, maxTokens) {
   return response.response || "";
 }
 
-// Plan de secours si l'IA ne répond pas dans le bon format
 function defaultModules(topic) {
   return [
     { title: "Introduction", summary: `Présentation de l'objectif et du parcours : ${topic}.` },
@@ -35,6 +34,18 @@ function defaultModules(topic) {
     { title: "Quiz & Conclusion", summary: "Vérification des acquis et plan d'action final." },
   ];
 }
+
+function parseResources(raw) {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+const isHttpUrl = (s) => /^https?:\/\/\S+$/i.test(s);
 
 export async function handleCreateFormation(request, env) {
   const payload = await getAuthenticatedUser(request, env);
@@ -102,10 +113,13 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après :
       ).bind(formationId, payload.sub, title, description, topic, language),
     ];
 
-    const savedModules = modules.map((m, i) => ({
+    const savedModules = modules.map((m) => ({
       id: crypto.randomUUID(),
       title: m.title,
       summary: m.summary,
+      content: "",
+      video_url: "",
+      resources: [],
     }));
 
     savedModules.forEach((m, i) => {
@@ -171,13 +185,20 @@ export async function handleGetFormation(request, env, formationId) {
   }
 
   const { results } = await env.DB.prepare(
-    `SELECT id, position, title, summary, content, video_url
+    `SELECT id, position, title, summary, content, video_url, resources
      FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
   )
     .bind(formationId)
     .all();
 
-  return Response.json({ formation: { ...formation, modules: results } });
+  const modules = results.map((m) => ({
+    ...m,
+    content: m.content || "",
+    video_url: m.video_url || "",
+    resources: parseResources(m.resources),
+  }));
+
+  return Response.json({ formation: { ...formation, modules } });
 }
 
 export async function handleDeleteFormation(request, env, formationId) {
@@ -200,4 +221,118 @@ export async function handleDeleteFormation(request, env, formationId) {
   ]);
 
   return Response.json({ success: true });
+}
+
+/* ===== ÉTAPE 2 : ÉDITEUR DE LEÇONS ===== */
+
+export async function handleUpdateModule(request, env, formationId, moduleId) {
+  const payload = await getAuthenticatedUser(request, env);
+  if (!payload) return unauthorized();
+
+  const owned = await env.DB.prepare(
+    `SELECT m.id FROM formation_modules m
+     JOIN formations f ON f.id = m.formation_id
+     WHERE m.id = ? AND f.id = ? AND f.user_id = ?`
+  )
+    .bind(moduleId, formationId, payload.sub)
+    .first();
+
+  if (!owned) {
+    return Response.json({ error: "Module introuvable." }, { status: 404 });
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body) {
+    return Response.json({ error: "Corps de requête invalide." }, { status: 400 });
+  }
+
+  const content = String(body.content || "").slice(0, 30000);
+
+  const videoUrl = String(body.video_url || "").trim();
+  if (videoUrl && (!isHttpUrl(videoUrl) || videoUrl.length > 500)) {
+    return Response.json({ error: "Lien vidéo invalide." }, { status: 400 });
+  }
+
+  let resources = [];
+  if (Array.isArray(body.resources)) {
+    for (const r of body.resources.slice(0, 20)) {
+      const label = String(r?.label || "").trim().slice(0, 100);
+      const url = String(r?.url || "").trim();
+      if (!label || !isHttpUrl(url) || url.length > 500) {
+        return Response.json(
+          { error: "Chaque ressource doit avoir un nom et un lien valide (http...)." },
+          { status: 400 }
+        );
+      }
+      resources.push({ label, url });
+    }
+  }
+
+  await env.DB.prepare(
+    "UPDATE formation_modules SET content = ?, video_url = ?, resources = ? WHERE id = ?"
+  )
+    .bind(content, videoUrl, JSON.stringify(resources), moduleId)
+    .run();
+
+  return Response.json({
+    module: { id: moduleId, content, video_url: videoUrl, resources },
+  });
+}
+
+export async function handleGenerateModule(request, env, formationId, moduleId) {
+  const payload = await getAuthenticatedUser(request, env);
+  if (!payload) return unauthorized();
+
+  const mod = await env.DB.prepare(
+    `SELECT m.id, m.title, m.summary, f.title AS formation_title, f.topic, f.language
+     FROM formation_modules m
+     JOIN formations f ON f.id = m.formation_id
+     WHERE m.id = ? AND f.id = ? AND f.user_id = ?`
+  )
+    .bind(moduleId, formationId, payload.sub)
+    .first();
+
+  if (!mod) {
+    return Response.json({ error: "Module introuvable." }, { status: 404 });
+  }
+
+  const langLabel = mod.language === "en" ? "English" : "français";
+  const isQuiz = /quiz|conclusion/i.test(mod.title);
+
+  const prompt = isQuiz
+    ? `Tu rédiges le dernier module d'une formation en ligne en ${langLabel}.
+Formation : "${mod.formation_title}". Sujet : ${mod.topic}. Module : "${mod.title}".
+
+Rédige en Markdown, sans répéter le titre du module :
+- une courte introduction (2 à 3 phrases) ;
+- ### Quiz : 5 questions à choix multiples (A, B, C), puis ### Corrigé avec les bonnes réponses ;
+- ### Conclusion : environ 100 mots qui résument les acquis ;
+- ### Plan d'action : 4 à 5 puces concrètes pour passer à l'action.`
+    : `Tu rédiges la leçon d'un module de formation en ligne en ${langLabel}.
+Formation : "${mod.formation_title}". Sujet : ${mod.topic}.
+Module : "${mod.title}". Objectif du module : ${mod.summary || mod.title}.
+
+Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter le titre du module :
+- une introduction de 2 à 3 phrases ;
+- 2 à 3 sous-parties avec des titres commençant par "### " et des paragraphes clairs, avec des exemples concrets ;
+- ### Exercice pratique : un exercice réalisable par l'apprenant ;
+- ### Résumé : 3 à 4 puces qui reprennent l'essentiel.`;
+
+  try {
+    const content = (await askAI(env, prompt, 1500)).trim();
+    if (!content) {
+      return Response.json({ error: "L'IA n'a rien renvoyé, réessayez." }, { status: 502 });
+    }
+
+    await env.DB.prepare("UPDATE formation_modules SET content = ? WHERE id = ?")
+      .bind(content, moduleId)
+      .run();
+
+    return Response.json({ module: { id: moduleId, content } });
+  } catch (err) {
+    return Response.json(
+      { error: "Erreur lors de la génération IA.", details: err.message },
+      { status: 502 }
+    );
+  }
 }
