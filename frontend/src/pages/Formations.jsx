@@ -516,4 +516,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-}
+} 
