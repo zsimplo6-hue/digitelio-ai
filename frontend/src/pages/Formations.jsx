@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
+import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -38,9 +39,9 @@ function embedUrl(url) {
   return null;
 }
 
-function priceLabel(price) {
+function priceLabel(price, currency) {
   if (price === null || price === undefined) return "";
-  return price === 0 ? " · Gratuit" : ` · ${price} €`;
+  return ` · ${formatPrice(price, currency)}`;
 }
 
 /* ---------- Éditeur d'une leçon ---------- */
@@ -560,7 +561,7 @@ export default function Formations() {
                     <span className="fm-module-title">{f.title}</span>
                     <span className="fm-muted fm-small">
                       {f.modules_count ?? 0} modules · {f.status === "published" ? "Publiée" : "Brouillon"}
-                      {priceLabel(f.price)}
+                      {priceLabel(f.price, f.currency)}
                     </span>
                   </button>
                   <button className="fm-del" onClick={() => removeFormation(f.id)} aria-label="Supprimer">
@@ -587,8 +588,12 @@ export default function Formations() {
         }
         .fm-input {
           width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
+          background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.25);
+        }
+        .fm-input {
+          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
           background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.3);
-          color: inherit;outline: none;
+          color: inherit; outline: none;
         }
         .fm-input:focus { border-color: #D4AF37; }
         .fm-textarea { min-height: 20rem; line-height: 1.6; font-size: 0.92rem; resize: vertical; }
@@ -713,4 +718,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-}
+          }
