@@ -10,13 +10,13 @@ async function getAuthenticatedUser(request, env) {
 
 const unauthorized = () => Response.json({ error: "Non authentifié." }, { status: 401 });
 
-/* Vue d'ensemble des ventes du formateur connecté */
+/* Vue d'ensemble des ventes du formateur connecté (revenu calculé par monnaie) */
 export async function handleSalesOverview(request, env) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
   const { results } = await env.DB.prepare(
-    `SELECT f.id, f.title, f.price, f.status, f.payment_url, f.certificate, f.published_at,
+    `SELECT f.id, f.title, f.price, f.currency, f.status, f.payment_url, f.certificate, f.published_at,
             CASE WHEN f.cover_url IS NOT NULL AND f.cover_url != '' THEN 1 ELSE 0 END AS has_cover,
             (SELECT COUNT(*) FROM enrollments e WHERE e.formation_id = f.id) AS learners,
             (SELECT COUNT(*) FROM enrollments e
@@ -35,6 +35,7 @@ export async function handleSalesOverview(request, env) {
     id: f.id,
     title: f.title,
     price: f.price,
+    currency: f.currency || "EUR",
     payment_url: f.payment_url || "",
     certificate: !!f.certificate,
     has_cover: !!f.has_cover,
@@ -43,12 +44,21 @@ export async function handleSalesOverview(request, env) {
     published_at: f.published_at,
   }));
 
+  const revenueMap = {};
+  for (const p of pages) {
+    const amount = (p.price || 0) * p.learners;
+    if (amount > 0) revenueMap[p.currency] = (revenueMap[p.currency] || 0) + amount;
+  }
+
   const totals = {
     published: pages.length,
     drafts,
     learners: pages.reduce((s, p) => s + p.learners, 0),
     finished: pages.reduce((s, p) => s + p.finished, 0),
-    revenue: pages.reduce((s, p) => s + (p.price || 0) * p.learners, 0),
+    revenue_by_currency: Object.entries(revenueMap).map(([currency, amount]) => ({
+      currency,
+      amount,
+    })),
   };
 
   return Response.json({ totals, pages });
@@ -83,4 +93,4 @@ export async function handleGetCover(request, env, formationId) {
   }
 
   return new Response("Not found", { status: 404 });
-      }
+                                                          }
