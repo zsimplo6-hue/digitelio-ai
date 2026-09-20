@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import CreateEbook from "./pages/CreateEbook.jsx";
 import EbookPreview from "./pages/EbookPreview.jsx";
 import Formations from "./pages/Formations.jsx";
+import PagesVente from "./pages/PagesVente.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -53,6 +54,14 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/dashboard/pages-vente"
+        element={
+          <ProtectedRoute>
+            <PagesVente />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
-        }
+}
