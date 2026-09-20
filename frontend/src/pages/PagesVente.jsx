@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -10,9 +11,6 @@ async function api(path) {
   if (!res.ok) throw new Error(data.error || "Une erreur est survenue.");
   return data;
 }
-
-const euro = (n) => `${Number(n || 0).toLocaleString("fr-FR")} €`;
-const priceText = (p) => (p === null || p === undefined ? "—" : p === 0 ? "Gratuit" : euro(p));
 
 export default function PagesVente() {
   const [data, setData] = useState(null);
@@ -45,6 +43,7 @@ export default function PagesVente() {
 
   const t = data?.totals;
   const pages = data?.pages || [];
+  const revenue = t?.revenue_by_currency || [];
 
   return (
     <DashboardLayout>
@@ -78,12 +77,19 @@ export default function PagesVente() {
                   <div className="pv-stat-l">Formations terminées</div>
                 </div>
                 <div className="pv-stat">
-                  <div className="pv-stat-n">{euro(t.revenue)}</div>
+                  <div className="pv-stat-n pv-rev">
+                    {revenue.length === 0
+                      ? "0"
+                      : revenue.map((r) => (
+                          <div key={r.currency}>{formatPrice(r.amount, r.currency)}</div>
+                        ))}
+                  </div>
                   <div className="pv-stat-l">Revenu estimé</div>
                 </div>
               </div>
               <div className="pv-muted pv-small">
-                Revenu estimé = prix × apprenants inscrits. Il deviendra exact avec le paiement automatique.
+                Revenu estimé = prix × apprenants inscrits, calculé séparément pour chaque monnaie. Il
+                deviendra exact avec le paiement automatique.
               </div>
 
               {t.drafts > 0 && (
@@ -119,7 +125,7 @@ export default function PagesVente() {
                         )}
                         <div className="pv-info">
                           <div className="pv-title">{p.title}</div>
-                          <div className="pv-price">{priceText(p.price)}</div>
+                          <div className="pv-price">{formatPrice(p.price, p.currency) || "—"}</div>
                           <div className="pv-meta">
                             {p.learners} apprenant{p.learners > 1 ? "s" : ""} · {p.finished} terminé
                             {p.finished > 1 ? "s" : ""}
@@ -169,6 +175,7 @@ export default function PagesVente() {
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
         }
         .pv-stat-n { font-size: 1.6rem; font-weight: 800; color: #D4AF37; line-height: 1.2; }
+        .pv-rev { font-size: 1.1rem; }
         .pv-stat-l { font-size: 0.78rem; opacity: 0.75; margin-top: 0.2rem; }
         .pv-draft {
           margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 12px; font-size: 0.9rem;
