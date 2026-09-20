@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
 import CertificateDoc, { printCertificate } from "./CertificateExport.jsx";
+import LearnersPanel from "./LearnersPanel.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -303,8 +304,8 @@ export default function PublishPanel({ formation, onChange }) {
                 🎓 Télécharger le certificat (PDF)
               </button>
               <div className="fm-muted fm-small">
-                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}. Si l'aperçu
-                s'affiche en portrait, choisissez « Paysage » dans les options d'impression.
+                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}. Vos apprenants
+                peuvent aussi le télécharger eux-mêmes à la fin de leur formation.
               </div>
             </div>
           )}
@@ -410,9 +411,12 @@ export default function PublishPanel({ formation, onChange }) {
         `}</style>
       </div>
 
+      {/* Apprenants */}
+      <LearnersPanel formation={formation} />
+
       {/* Documents imprimés (invisibles à l'écran) */}
       <FormationDoc formation={formation} />
       <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
-  }
+          }
