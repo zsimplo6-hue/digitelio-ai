@@ -7,11 +7,37 @@ function youtubeId(url) {
   return m ? m[1] : null;
 }
 
-/* Lance l'impression de la formation complète (marges à 0 pour la couverture pleine page) */
-export function printFormation() {
+/* Charge les polices AVANT l'impression (elles sont sinon ignorées car le document est caché) */
+async function ensureFonts() {
+  if (!document.fonts || !document.fonts.load) return;
+  const sample = "AaÉéèêàçÔô0123456789";
+  const loads = [
+    "700 1em Cinzel",
+    "400 1em Cinzel",
+    "300 1em Manrope",
+    "600 1em Manrope",
+    "700 1em Manrope",
+    "400 1em Inter",
+    "500 1em Inter",
+    "700 1em Inter",
+  ].map((f) => document.fonts.load(f, sample));
+  await Promise.race([
+    Promise.allSettled(loads),
+    new Promise((resolve) => setTimeout(resolve, 4000)),
+  ]);
+}
+
+/* Lance l'impression de la formation complète */
+export async function printFormation() {
+  await ensureFonts();
+
   const style = document.createElement("style");
-  style.textContent = "@page { size: A4; margin: 0; }";
-  document.head.appendChild(style);
+  // Ajouté en fin de <body> : cette règle passe après celle du PDF d'une leçon et l'emporte.
+  style.textContent = `
+    @page { size: A4; margin: 16mm 18mm; }
+    @page full { size: A4; margin: 0; }
+  `;
+  document.body.appendChild(style);
   document.body.classList.add("printing-formation");
 
   const cleanup = () => {
@@ -30,6 +56,10 @@ export default function FormationDoc({ formation }) {
   const all = formation.modules || [];
   const year = new Date().getFullYear();
 
+  const t = formation.title || "";
+  const titleSize =
+    t.length > 70 ? "1.6rem" : t.length > 50 ? "1.9rem" : t.length > 30 ? "2.2rem" : "2.6rem";
+
   return (
     <div className="fx-doc">
       {/* COUVERTURE */}
@@ -45,7 +75,9 @@ export default function FormationDoc({ formation }) {
             <em>ÉDITIONS</em>
             <span />
           </div>
-          <h1 className="fx-cover-title">{formation.title}</h1>
+          <h1 className="fx-cover-title" style={{ fontSize: titleSize }}>
+            {formation.title}
+          </h1>
           <div className="fx-cover-sub">FORMATION</div>
           <div className="fx-divider">
             <span />
@@ -136,7 +168,7 @@ export default function FormationDoc({ formation }) {
       </section>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;600;700&family=Inter:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
         .fx-doc { display: none; }
 
@@ -177,8 +209,9 @@ export default function FormationDoc({ formation }) {
             transform: none !important;
           }
 
-          /* COUVERTURE */
+          /* ===== COUVERTURE (pleine page, sans marge) ===== */
           .fx-cover {
+            page: full;
             position: relative;
             overflow: hidden;
             height: 296mm;
@@ -244,25 +277,21 @@ export default function FormationDoc({ formation }) {
           .fx-cover-title {
             font-family: 'Cinzel', serif;
             font-weight: 700;
-            font-size: 2.4rem;
-            line-height: 1.15;
+            line-height: 1.2;
             text-transform: uppercase;
-            margin: 12mm 0 0;
-            background: linear-gradient(180deg, #F6E27A 0%, #D4AF37 50%, #8C6D1F 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            color: transparent;
+            margin: 10mm 0 0;
+            color: #E0BC4A;
+            text-shadow: 0 0 16px rgba(212,175,55,0.25);
           }
           .fx-cover-sub {
             font-family: 'Cinzel', serif;
             font-weight: 400;
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             letter-spacing: 0.6em;
             margin-right: -0.6em;
             color: #fff;
           }
-          .fx-divider { display: flex; align-items: center; gap: 10px; margin: 4mm 0; }
+          .fx-divider { display: flex; align-items: center; gap: 10px; margin: 3mm 0; }
           .fx-divider i {
             width: 9px; height: 9px; background: #D4AF37; transform: rotate(45deg);
           }
@@ -276,8 +305,8 @@ export default function FormationDoc({ formation }) {
             margin: 0;
           }
 
-          /* SOMMAIRE */
-          .fx-toc { padding: 16mm 18mm; }
+          /* ===== SOMMAIRE ===== */
+          .fx-toc { padding: 0; }
           .fx-label {
             font-family: 'Manrope', sans-serif;
             font-weight: 700;
@@ -285,14 +314,14 @@ export default function FormationDoc({ formation }) {
             text-transform: uppercase;
             font-size: 0.8rem;
             color: #D4AF37;
-            margin-bottom: 1.2rem;
+            margin-bottom: 1rem;
           }
           .fx-toc ul { list-style: none; padding: 0; margin: 0; }
           .fx-toc li {
             display: flex;
             gap: 0.75rem;
             align-items: flex-start;
-            padding: 0.8rem 0;
+            padding: 0.7rem 0;
             border-bottom: 1px solid #e3e0d8;
             break-inside: avoid;
           }
@@ -300,13 +329,11 @@ export default function FormationDoc({ formation }) {
           .fx-toc-title { font-family: 'Manrope', sans-serif; font-weight: 600; font-size: 1rem; }
           .fx-toc-sum { font-size: 0.82rem; color: #666; margin-top: 0.2rem; line-height: 1.5; }
 
-          /* MODULES */
+          /* ===== MODULES (les marges de page s'appliquent sur chaque page) ===== */
           .fx-module {
-            padding: 16mm 18mm;
+            padding: 0;
             break-before: page;
             page-break-before: always;
-            -webkit-box-decoration-break: clone;
-            box-decoration-break: clone;
           }
           .fx-num {
             font-family: 'Cinzel', serif;
@@ -321,7 +348,7 @@ export default function FormationDoc({ formation }) {
             font-family: 'Cinzel', serif;
             font-weight: 700;
             font-size: 1.5rem;
-            margin: 0 0 1rem;
+            margin: 0 0 0.8rem;
             color: #0B0B0B;
             break-after: avoid;
           }
@@ -331,23 +358,23 @@ export default function FormationDoc({ formation }) {
             color: #0B0B0B;
             break-after: avoid;
           }
-          .fx-lesson h2 { font-size: 1.15rem; margin: 1.2rem 0 0.5rem; }
-          .fx-lesson h3 { font-size: 1.05rem; margin: 1.1rem 0 0.4rem; }
+          .fx-lesson h2 { font-size: 1.15rem; margin: 1rem 0 0.4rem; }
+          .fx-lesson h3 { font-size: 1.05rem; margin: 1rem 0 0.35rem; }
           .fx-lesson p {
             font-size: 0.92rem;
-            line-height: 1.65;
-            margin: 0.7rem 0;
+            line-height: 1.6;
+            margin: 0.6rem 0;
             text-align: justify;
             color: #222;
           }
-          .fx-lesson ul { padding-left: 1.3rem; margin: 0.6rem 0; }
-          .fx-lesson li { margin: 0.3rem 0; line-height: 1.6; font-size: 0.92rem; }
+          .fx-lesson ul { padding-left: 1.3rem; margin: 0.5rem 0; }
+          .fx-lesson li { margin: 0.25rem 0; line-height: 1.55; font-size: 0.92rem; }
 
           .fx-h3 {
             font-family: 'Manrope', sans-serif;
             font-weight: 700;
             font-size: 1.05rem;
-            margin: 1.4rem 0 0.6rem;
+            margin: 1.1rem 0 0.5rem;
             color: #0B0B0B;
           }
           .fx-video { break-inside: avoid; }
@@ -355,39 +382,48 @@ export default function FormationDoc({ formation }) {
             position: relative;
             display: block;
             width: 100%;
-            max-width: 100mm;
+            max-width: 80mm;
+            aspect-ratio: 16 / 9;
             border-radius: 6px;
             overflow: hidden;
             text-decoration: none !important;
           }
-          .fx-thumb img { display: block; width: 100%; height: auto; }
+          /* recadrage 16/9 : supprime les bandes noires de la miniature YouTube */
+          .fx-thumb img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
           .fx-play {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 16mm; height: 16mm; border-radius: 50%;
+            width: 14mm; height: 14mm; border-radius: 50%;
             background: rgba(11,11,11,0.75);
             color: #D4AF37;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.4rem; padding-left: 1mm;
+            font-size: 1.2rem; padding-left: 1mm;
           }
           .fx-btn {
             display: inline-block;
-            margin-top: 0.8rem;
-            padding: 0.6rem 1.1rem;
+            margin-top: 0.6rem;
+            padding: 0.55rem 1rem;
             border-radius: 6px;
             background: #D4AF37;
             color: #0B0B0B !important;
+            font-family: 'Inter', sans-serif;
             font-weight: 700;
             text-decoration: none !important;
           }
           .fx-res { break-inside: avoid; }
           .fx-res ul { padding-left: 1.3rem; margin: 0; }
-          .fx-res li { margin: 0.3rem 0; }
+          .fx-res li { margin: 0.25rem 0; }
           .fx-res a { color: #9a7a14; text-decoration: underline; }
 
-          /* DERNIÈRE PAGE */
+          /* ===== DERNIÈRE PAGE (pleine page, sans marge) ===== */
           .fx-end {
+            page: full;
             height: 296mm;
             box-sizing: border-box;
             padding: 16mm 18mm 12mm;
@@ -424,4 +460,4 @@ export default function FormationDoc({ formation }) {
       `}</style>
     </div>
   );
-          }
+  }
