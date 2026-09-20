@@ -31,6 +31,7 @@ import {
 } from "./routes/learners.js";
 import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
 import { handleGenerateMarketing } from "./routes/marketing.js";
+import { handleOverview } from "./routes/overview.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -107,7 +108,10 @@ export default {
         }
       }
 
-      // ===== VUE D'ENSEMBLE DES VENTES =====
+      // ===== TABLEAU DE BORD ET VENTES =====
+      if (url.pathname === "/api/overview" && request.method === "GET") {
+        return withCors(await handleOverview(request, env), request);
+      }
       if (url.pathname === "/api/sales" && request.method === "GET") {
         return withCors(await handleSalesOverview(request, env), request);
       }
