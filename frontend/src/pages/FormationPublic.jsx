@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
-
-function priceText(price) {
-  if (price === null || price === undefined) return "";
-  return price === 0 ? "Gratuit" : `${price} €`;
-}
 
 export default function FormationPublic() {
   const { id } = useParams();
@@ -60,7 +56,8 @@ export default function FormationPublic() {
   }
 
   const isFree = f.price === 0;
-  const cta = isFree ? "S'inscrire gratuitement" : `Acheter la formation · ${priceText(f.price)}`;
+  const priceStr = formatPrice(f.price, f.currency);
+  const cta = isFree ? "S'inscrire gratuitement" : `Acheter la formation · ${priceStr}`;
   const modules = f.modules || [];
 
   const Cta = ({ className = "" }) =>
@@ -99,7 +96,7 @@ export default function FormationPublic() {
         {f.instructor && <div className="fp-by">Par {f.instructor}</div>}
 
         <div className="fp-pricebox">
-          <div className="fp-price">{priceText(f.price)}</div>
+          <div className="fp-price">{priceStr}</div>
           <Cta />
           {!f.payment_url && (
             <div className="fp-muted fp-small">Le lien de paiement n'est pas encore disponible.</div>
@@ -192,7 +189,7 @@ function FpStyle() {
         margin: 1.6rem 0 0.5rem; padding: 1.3rem 1.1rem; border-radius: 14px;
         border: 1px solid rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
       }
-      .fp-price { font-family: 'Cinzel', serif; font-weight: 700; font-size: 2.4rem; color: #fff; margin-bottom: 0.9rem; }
+      .fp-price { font-family: 'Cinzel', serif; font-weight: 700; font-size: 2.2rem; color: #fff; margin-bottom: 0.9rem; }
       .fp-cta {
         display: block; width: 100%; box-sizing: border-box; padding: 0.95rem 1rem; border-radius: 10px;
         background: #D4AF37; color: #0B0B0B !important; font-weight: 700; font-size: 1rem;
@@ -220,4 +217,4 @@ function FpStyle() {
       .fp-foot strong { color: #D4AF37; font-weight: 600; }
     `}</style>
   );
-        }
+            }
