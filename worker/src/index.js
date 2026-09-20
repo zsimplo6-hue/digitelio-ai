@@ -30,6 +30,7 @@ import {
   handleCompleteModule,
 } from "./routes/learners.js";
 import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
+import { handleGenerateMarketing } from "./routes/marketing.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -109,6 +110,11 @@ export default {
       // ===== VUE D'ENSEMBLE DES VENTES =====
       if (url.pathname === "/api/sales" && request.method === "GET") {
         return withCors(await handleSalesOverview(request, env), request);
+      }
+
+      // ===== MARKETING DIGITAL =====
+      if (url.pathname === "/api/marketing/generate" && request.method === "POST") {
+        return withCors(await handleGenerateMarketing(request, env), request);
       }
 
       // ===== FORMATIONS =====
