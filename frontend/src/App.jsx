@@ -3,12 +3,14 @@ import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import EbooksList from "./pages/EbooksList.jsx";
 import CreateEbook from "./pages/CreateEbook.jsx";
 import EbookPreview from "./pages/EbookPreview.jsx";
 import Formations from "./pages/Formations.jsx";
 import PagesVente from "./pages/PagesVente.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
+import ComingSoon from "./pages/ComingSoon.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -27,6 +29,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/ebooks"
+        element={
+          <ProtectedRoute>
+            <EbooksList />
           </ProtectedRoute>
         }
       />
@@ -59,6 +69,54 @@ export default function App() {
         element={
           <ProtectedRoute>
             <PagesVente />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/marketing"
+        element={
+          <ProtectedRoute>
+            <ComingSoon
+              title="Marketing digital"
+              icon="📣"
+              text="Générez bientôt vos posts, scripts vidéo et messages WhatsApp pour vendre vos formations."
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/analytics"
+        element={
+          <ProtectedRoute>
+            <ComingSoon
+              title="Analytics"
+              icon="📈"
+              text="Suivez bientôt les visites de vos pages de vente, vos inscriptions et vos performances."
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/abonnements"
+        element={
+          <ProtectedRoute>
+            <ComingSoon
+              title="Abonnements"
+              icon="💳"
+              text="Gérez bientôt votre plan Digitelio AI et vos options de facturation."
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/parametres"
+        element={
+          <ProtectedRoute>
+            <ComingSoon
+              title="Paramètres"
+              icon="⚙️"
+              text="Personnalisez bientôt votre profil, votre langue et votre monnaie par défaut."
+            />
           </ProtectedRoute>
         }
       />
