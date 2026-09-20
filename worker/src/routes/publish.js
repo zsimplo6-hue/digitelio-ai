@@ -10,6 +10,13 @@ async function getAuthenticatedUser(request, env) {
 
 const unauthorized = () => Response.json({ error: "Non authentifié." }, { status: 401 });
 
+/* Doit rester identique à la liste du frontend (utils/currency.js) */
+const CURRENCIES = [
+  "EUR", "USD", "XOF", "XAF", "GBP", "CAD", "CHF", "MAD",
+  "DZD", "TND", "NGN", "GHS", "KES", "ZAR", "GNF", "CDF",
+];
+const MAX_PRICE = 100000000;
+
 function parseResources(raw) {
   if (!raw) return [];
   try {
@@ -32,13 +39,13 @@ function isValidCover(s) {
 
 const isHttpsUrl = (s) => /^https:\/\/\S+$/i.test(s) && s.length <= 500;
 
-/* Liste (avec le prix) */
+/* Liste (avec le prix et la monnaie) */
 export async function handleListFormations(request, env) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
   const { results } = await env.DB.prepare(
-    `SELECT f.id, f.title, f.description, f.status, f.price, f.created_at,
+    `SELECT f.id, f.title, f.description, f.status, f.price, f.currency, f.created_at,
             (SELECT COUNT(*) FROM formation_modules m WHERE m.formation_id = f.id) AS modules_count
      FROM formations f
      WHERE f.user_id = ?
@@ -56,7 +63,7 @@ export async function handleGetFormation(request, env, formationId) {
   if (!payload) return unauthorized();
 
   const formation = await env.DB.prepare(
-    `SELECT id, title, description, topic, language, status, price, cover_url,
+    `SELECT id, title, description, topic, language, status, price, currency, cover_url,
             certificate, payment_url, published_at, created_at
      FROM formations WHERE id = ? AND user_id = ?`
   )
@@ -82,16 +89,23 @@ export async function handleGetFormation(request, env, formationId) {
   }));
 
   return Response.json({
-    formation: { ...formation, certificate: !!formation.certificate, modules },
+    formation: {
+      ...formation,
+      currency: formation.currency || "EUR",
+      certificate: !!formation.certificate,
+      modules,
+    },
   });
 }
 
-/* Réglages : prix, couverture, certificat, lien de paiement */
+/* Réglages : prix, monnaie, couverture, certificat, lien de paiement */
 export async function handleUpdateSettings(request, env, formationId) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
-  const owned = await env.DB.prepare("SELECT id FROM formations WHERE id = ? AND user_id = ?")
+  const owned = await env.DB.prepare(
+    "SELECT id, currency FROM formations WHERE id = ? AND user_id = ?"
+  )
     .bind(formationId, payload.sub)
     .first();
   if (!owned) {
@@ -106,11 +120,19 @@ export async function handleUpdateSettings(request, env, formationId) {
   let price = null;
   if (body.price !== null && body.price !== undefined && body.price !== "") {
     price = Number(body.price);
-    if (!Number.isInteger(price) || price < 0 || price > 9999) {
+    if (!Number.isInteger(price) || price < 0 || price > MAX_PRICE) {
       return Response.json(
-        { error: "Le prix doit être un nombre entier entre 0 et 9999 €." },
+        { error: "Le prix doit être un nombre entier positif (maximum 100 000 000)." },
         { status: 400 }
       );
+    }
+  }
+
+  let currency = null;
+  if (body.currency) {
+    currency = String(body.currency).toUpperCase();
+    if (!CURRENCIES.includes(currency)) {
+      return Response.json({ error: "Monnaie non prise en charge." }, { status: 400 });
     }
   }
 
@@ -140,15 +162,18 @@ export async function handleUpdateSettings(request, env, formationId) {
   const certificate = body.certificate ? 1 : 0;
 
   await env.DB.prepare(
-    "UPDATE formations SET price = ?, cover_url = ?, certificate = ?, payment_url = ? WHERE id = ? AND user_id = ?"
+    `UPDATE formations
+     SET price = ?, cover_url = ?, certificate = ?, payment_url = ?, currency = COALESCE(?, currency)
+     WHERE id = ? AND user_id = ?`
   )
-    .bind(price, cover, certificate, paymentUrl, formationId, payload.sub)
+    .bind(price, cover, certificate, paymentUrl, currency, formationId, payload.sub)
     .run();
 
   return Response.json({
     formation: {
       id: formationId,
       price,
+      currency: currency || owned.currency || "EUR",
       cover_url: cover,
       certificate: !!certificate,
       payment_url: paymentUrl,
@@ -223,7 +248,7 @@ export async function handleUnpublish(request, env, formationId) {
 /* ===== PAGE PUBLIQUE (sans connexion) : uniquement les formations publiées ===== */
 export async function handleGetPublicFormation(request, env, formationId) {
   const f = await env.DB.prepare(
-    `SELECT f.id, f.title, f.description, f.price, f.cover_url, f.certificate,
+    `SELECT f.id, f.title, f.description, f.price, f.currency, f.cover_url, f.certificate,
             f.payment_url, f.language, u.full_name AS instructor
      FROM formations f
      LEFT JOIN users u ON u.id = f.user_id
@@ -249,6 +274,7 @@ export async function handleGetPublicFormation(request, env, formationId) {
       title: f.title,
       description: f.description || "",
       price: f.price,
+      currency: f.currency || "EUR",
       cover_url: f.cover_url || "",
       certificate: !!f.certificate,
       payment_url: f.payment_url || "",
@@ -256,4 +282,4 @@ export async function handleGetPublicFormation(request, env, formationId) {
       modules: results,
     },
   });
-        }
+}
