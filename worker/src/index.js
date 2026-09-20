@@ -22,6 +22,13 @@ import {
   handleUnpublish,
   handleGetPublicFormation,
 } from "./routes/publish.js";
+import {
+  handleCreateEnrollment,
+  handleListEnrollments,
+  handleDeleteEnrollment,
+  handleGetLearnerCourse,
+  handleCompleteModule,
+} from "./routes/learners.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -79,6 +86,19 @@ export default {
         return withCors(await handleGetPublicFormation(request, env, publicId), request);
       }
 
+      // ===== ESPACE APPRENANT (public, protégé par le lien secret) =====
+      if (url.pathname.startsWith("/api/learn/")) {
+        // parts = ["api", "learn", token, "modules", moduleId]
+        const parts = url.pathname.split("/").filter(Boolean);
+        const token = parts[2];
+        if (parts.length === 3 && request.method === "GET") {
+          return withCors(await handleGetLearnerCourse(request, env, token), request);
+        }
+        if (parts.length === 5 && parts[3] === "modules" && request.method === "POST") {
+          return withCors(await handleCompleteModule(request, env, token, parts[4]), request);
+        }
+      }
+
       // ===== FORMATIONS =====
       if (url.pathname === "/api/formations" && request.method === "GET") {
         return withCors(await handleListFormations(request, env), request);
@@ -100,6 +120,22 @@ export default {
           }
           if (request.method === "DELETE") {
             return withCors(await handleDeleteFormation(request, env, formationId), request);
+          }
+        }
+
+        // Accès des apprenants
+        if (parts[3] === "enrollments") {
+          if (parts.length === 4 && request.method === "GET") {
+            return withCors(await handleListEnrollments(request, env, formationId), request);
+          }
+          if (parts.length === 4 && request.method === "POST") {
+            return withCors(await handleCreateEnrollment(request, env, formationId), request);
+          }
+          if (parts.length === 5 && request.method === "DELETE") {
+            return withCors(
+              await handleDeleteEnrollment(request, env, formationId, parts[4]),
+              request
+            );
           }
         }
 
