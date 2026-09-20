@@ -8,6 +8,7 @@ import CreateEbook from "./pages/CreateEbook.jsx";
 import EbookPreview from "./pages/EbookPreview.jsx";
 import Formations from "./pages/Formations.jsx";
 import PagesVente from "./pages/PagesVente.jsx";
+import Marketing from "./pages/Marketing.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
@@ -76,11 +77,7 @@ export default function App() {
         path="/dashboard/marketing"
         element={
           <ProtectedRoute>
-            <ComingSoon
-              title="Marketing digital"
-              icon="📣"
-              text="Générez bientôt vos posts, scripts vidéo et messages WhatsApp pour vendre vos formations."
-            />
+            <Marketing />
           </ProtectedRoute>
         }
       />
