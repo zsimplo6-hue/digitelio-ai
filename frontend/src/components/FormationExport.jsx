@@ -1,5 +1,9 @@
 import { renderMarkdown } from "../utils/markdown.js";
 
+/* true = chaque module commence sur une nouvelle page (avec des espaces vides si le module est court)
+   false = les modules s'enchaînent sans page vide (recommandé) */
+const MODULE_PER_PAGE = false;
+
 function youtubeId(url) {
   const m = (url || "").match(
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/
@@ -32,7 +36,6 @@ export async function printFormation() {
   await ensureFonts();
 
   const style = document.createElement("style");
-  // Ajouté en fin de <body> : cette règle passe après celle du PDF d'une leçon et l'emporte.
   style.textContent = `
     @page { size: A4; margin: 16mm 18mm; }
     @page full { size: A4; margin: 0; }
@@ -112,9 +115,11 @@ export default function FormationDoc({ formation }) {
         const yt = youtubeId(m.video_url);
         const res = (m.resources || []).filter((r) => r.label && r.url);
         return (
-          <section key={m.id} className="fx-module">
-            <div className="fx-num">{i + 1}</div>
-            <h2 className="fx-title">{m.title}</h2>
+          <section key={m.id} className={`fx-module${MODULE_PER_PAGE ? " fx-newpage" : ""}`}>
+            <div className="fx-head">
+              <div className="fx-num">{i + 1}</div>
+              <h2 className="fx-title">{m.title}</h2>
+            </div>
             <div className="fx-lesson" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
 
             {m.video_url && (
@@ -329,20 +334,30 @@ export default function FormationDoc({ formation }) {
           .fx-toc-title { font-family: 'Manrope', sans-serif; font-weight: 600; font-size: 1rem; }
           .fx-toc-sum { font-size: 0.82rem; color: #666; margin-top: 0.2rem; line-height: 1.5; }
 
-          /* ===== MODULES (les marges de page s'appliquent sur chaque page) ===== */
+          /* ===== MODULES : enchaînés sans page vide ===== */
           .fx-module {
             padding: 0;
+            margin-top: 14mm;
+            break-before: auto;
+          }
+          .fx-module.fx-newpage {
+            margin-top: 0;
             break-before: page;
             page-break-before: always;
+          }
+          /* numéro + titre restent toujours avec le début du texte */
+          .fx-head {
+            break-inside: avoid;
+            break-after: avoid;
           }
           .fx-num {
             font-family: 'Cinzel', serif;
             font-weight: 700;
-            font-size: 4rem;
+            font-size: 3.6rem;
             color: #D4AF37;
             opacity: 0.35;
             line-height: 1;
-            margin-bottom: -1rem;
+            margin-bottom: -0.9rem;
           }
           .fx-title {
             font-family: 'Cinzel', serif;
@@ -366,9 +381,14 @@ export default function FormationDoc({ formation }) {
             margin: 0.6rem 0;
             text-align: justify;
             color: #222;
+            orphans: 3;
+            widows: 3;
           }
+          /* « Voici les points clés : » reste avec sa liste */
+          .fx-lesson p:has(+ ul),
+          .fx-lesson p:has(+ ol) { break-after: avoid; }
           .fx-lesson ul { padding-left: 1.3rem; margin: 0.5rem 0; }
-          .fx-lesson li { margin: 0.25rem 0; line-height: 1.55; font-size: 0.92rem; }
+          .fx-lesson li { margin: 0.25rem 0; line-height: 1.55; font-size: 0.92rem; break-inside: avoid; }
 
           .fx-h3 {
             font-family: 'Manrope', sans-serif;
@@ -376,13 +396,14 @@ export default function FormationDoc({ formation }) {
             font-size: 1.05rem;
             margin: 1.1rem 0 0.5rem;
             color: #0B0B0B;
+            break-after: avoid;
           }
           .fx-video { break-inside: avoid; }
           .fx-thumb {
             position: relative;
             display: block;
             width: 100%;
-            max-width: 80mm;
+            max-width: 68mm;
             aspect-ratio: 16 / 9;
             border-radius: 6px;
             overflow: hidden;
@@ -399,21 +420,22 @@ export default function FormationDoc({ formation }) {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 14mm; height: 14mm; border-radius: 50%;
+            width: 12mm; height: 12mm; border-radius: 50%;
             background: rgba(11,11,11,0.75);
             color: #D4AF37;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem; padding-left: 1mm;
+            font-size: 1rem; padding-left: 1mm;
           }
           .fx-btn {
             display: inline-block;
-            margin-top: 0.6rem;
-            padding: 0.55rem 1rem;
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.95rem;
             border-radius: 6px;
             background: #D4AF37;
             color: #0B0B0B !important;
             font-family: 'Inter', sans-serif;
             font-weight: 700;
+            font-size: 0.9rem;
             text-decoration: none !important;
           }
           .fx-res { break-inside: avoid; }
@@ -460,4 +482,4 @@ export default function FormationDoc({ formation }) {
       `}</style>
     </div>
   );
-  }
+}
