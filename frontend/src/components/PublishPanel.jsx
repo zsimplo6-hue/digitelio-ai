@@ -49,6 +49,7 @@ export default function PublishPanel({ formation, onChange }) {
   const [custom, setCustom] = useState(startPrice != null && !PRESETS.includes(startPrice));
   const [cover, setCover] = useState(formation.cover_url || "");
   const [certificate, setCertificate] = useState(!!formation.certificate);
+  const [payment, setPayment] = useState(formation.payment_url || "");
   const [learner, setLearner] = useState("");
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
@@ -60,6 +61,9 @@ export default function PublishPanel({ formation, onChange }) {
   const allWritten = modules.length > 0 && written === modules.length;
   const priceNum = price === "" ? null : Number(price);
   const priceOk = priceNum !== null && Number.isInteger(priceNum) && priceNum >= 0 && priceNum <= 9999;
+  const payTrim = payment.trim();
+  const payOk = /^https:\/\/\S+$/i.test(payTrim);
+  const shareLink = `${window.location.origin}/formation/${formation.id}`;
 
   function pickPreset(p) {
     setCustom(false);
@@ -90,18 +94,23 @@ export default function PublishPanel({ formation, onChange }) {
   }
 
   async function saveSettings() {
+    if (payTrim && !payOk) {
+      throw new Error("Le lien de paiement doit commencer par https://");
+    }
     const data = await api(`/formations/${formation.id}`, {
       method: "PUT",
       body: JSON.stringify({
         price: priceOk ? priceNum : null,
         cover_url: cover || null,
         certificate,
+        payment_url: payTrim || null,
       }),
     });
     onChange({
       price: data.formation.price,
       cover_url: data.formation.cover_url,
       certificate: data.formation.certificate,
+      payment_url: data.formation.payment_url,
     });
   }
 
@@ -135,7 +144,7 @@ export default function PublishPanel({ formation, onChange }) {
       await saveSettings();
       await api(`/formations/${formation.id}/publish`, { method: "POST" });
       onChange({ status: "published" });
-      setMsg("Formation publiée ✓");
+      setMsg("Formation publiée ✓ Votre page de vente est en ligne.");
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -144,7 +153,7 @@ export default function PublishPanel({ formation, onChange }) {
   }
 
   async function handleUnpublish() {
-    if (!window.confirm("Repasser cette formation en brouillon ?")) return;
+    if (!window.confirm("Repasser cette formation en brouillon ? Sa page de vente ne sera plus accessible.")) return;
     setBusy("unpublish");
     setErr("");
     setMsg("");
@@ -156,6 +165,16 @@ export default function PublishPanel({ formation, onChange }) {
       setErr(e.message);
     } finally {
       setBusy("");
+    }
+  }
+
+  async function copyLink() {
+    setErr("");
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setMsg("Lien copié ✓");
+    } catch {
+      window.prompt("Copiez ce lien :", shareLink);
     }
   }
 
@@ -177,6 +196,7 @@ export default function PublishPanel({ formation, onChange }) {
             </li>
             <li className={priceOk ? "ok" : ""}>{priceOk ? "✓" : "○"} Prix défini</li>
             <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Image de couverture (recommandée)</li>
+            <li className={payOk ? "ok" : ""}>{payOk ? "✓" : "○"} Lien de paiement (pour vendre)</li>
           </ul>
 
           {/* Prix */}
@@ -214,6 +234,20 @@ export default function PublishPanel({ formation, onChange }) {
               style={{ marginTop: "0.6rem" }}
             />
           )}
+
+          {/* Lien de paiement */}
+          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Lien de paiement</div>
+          <input
+            className="fm-input"
+            value={payment}
+            onChange={(e) => setPayment(e.target.value)}
+            placeholder="https://... (Stripe, PayPal, Wave, Mobile Money...)"
+            inputMode="url"
+          />
+          <div className="fm-muted fm-small">
+            Le bouton « Acheter » de votre page de vente renverra vers ce lien. Créez-le chez votre
+            prestataire de paiement (lien de paiement Stripe, PayPal.me, etc.).
+          </div>
 
           {/* Couverture */}
           <div className="fm-label" style={{ marginTop: "1.2rem" }}>Image de couverture</div>
@@ -286,10 +320,36 @@ export default function PublishPanel({ formation, onChange }) {
             📘 Télécharger la formation en PDF
           </button>
           <div className="fm-muted fm-small">
-            Couverture premium, sommaire, un module par page, vidéos et ressources cliquables.
+            Couverture premium, sommaire, modules enchaînés, vidéos et ressources cliquables.
             {!allWritten && written > 0 && ` ${modules.length - written} leçon(s) non rédigée(s) seront ignorées.`}
             {written === 0 && " Rédigez au moins une leçon pour activer l'export."}
           </div>
+
+          {/* Page de vente */}
+          <div className="fm-label" style={{ marginTop: "1.4rem" }}>Page de vente</div>
+          {isPublished ? (
+            <div className="pb-share">
+              <input className="fm-input" value={shareLink} readOnly onFocus={(e) => e.target.select()} />
+              <div className="pb-share-actions">
+                <button type="button" className="fm-chip" onClick={copyLink}>
+                  📋 Copier le lien
+                </button>
+                <a className="fm-chip" href={shareLink} target="_blank" rel="noopener noreferrer">
+                  👁 Voir la page
+                </a>
+              </div>
+              {!payOk && (
+                <div className="fm-warn">
+                  Ajoutez un lien de paiement puis enregistrez les réglages, sinon le bouton d'achat
+                  restera inactif.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="fm-muted fm-small">
+              Publiez la formation pour obtenir le lien de votre page de vente à partager.
+            </div>
+          )}
 
           {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
           {msg && <div className="fm-ok">{msg}</div>}
@@ -344,6 +404,9 @@ export default function PublishPanel({ formation, onChange }) {
             margin-top: 0.9rem; padding: 0.9rem; border-radius: 12px;
             border: 1px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
           }
+          .pb-share { display: grid; gap: 0.6rem; }
+          .pb-share-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+          .pb-share-actions a { text-decoration: none; }
         `}</style>
       </div>
 
@@ -352,4 +415,4 @@ export default function PublishPanel({ formation, onChange }) {
       <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
-        }
+  }
