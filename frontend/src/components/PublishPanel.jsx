@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
+import CertificateDoc, { printCertificate } from "./CertificateExport.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -41,11 +43,13 @@ function compressImage(file, maxW = 1000, quality = 0.82) {
 }
 
 export default function PublishPanel({ formation, onChange }) {
+  const { user } = useAuth();
   const startPrice = formation.price;
   const [price, setPrice] = useState(startPrice == null ? "" : String(startPrice));
   const [custom, setCustom] = useState(startPrice != null && !PRESETS.includes(startPrice));
   const [cover, setCover] = useState(formation.cover_url || "");
   const [certificate, setCertificate] = useState(!!formation.certificate);
+  const [learner, setLearner] = useState("");
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -241,9 +245,35 @@ export default function PublishPanel({ formation, onChange }) {
             />
             <span>
               Délivrer un certificat de réussite
-              <small>Option enregistrée avec la formation.</small>
+              <small>Enregistrez les réglages pour conserver ce choix.</small>
             </span>
           </label>
+
+          {certificate && (
+            <div className="pb-certbox">
+              <div className="fm-label">Créer un certificat</div>
+              <input
+                className="fm-input"
+                value={learner}
+                onChange={(e) => setLearner(e.target.value)}
+                placeholder="Nom de l'apprenant (ex : Awa Traoré)"
+                maxLength={60}
+              />
+              <button
+                type="button"
+                className="fm-btn fm-btn-outline"
+                style={{ marginTop: "0.7rem" }}
+                onClick={printCertificate}
+                disabled={learner.trim().length < 2}
+              >
+                🎓 Télécharger le certificat (PDF)
+              </button>
+              <div className="fm-muted fm-small">
+                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}. Si l'aperçu
+                s'affiche en portrait, choisissez « Paysage » dans les options d'impression.
+              </div>
+            </div>
+          )}
 
           {/* Export PDF */}
           <div className="fm-label" style={{ marginTop: "1.4rem" }}>Export</div>
@@ -310,11 +340,16 @@ export default function PublishPanel({ formation, onChange }) {
           .pb-cert input { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; accent-color: #D4AF37; }
           .pb-cert span { display: flex; flex-direction: column; font-weight: 600; }
           .pb-cert small { font-weight: 400; opacity: 0.65; font-size: 0.78rem; }
+          .pb-certbox {
+            margin-top: 0.9rem; padding: 0.9rem; border-radius: 12px;
+            border: 1px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
+          }
         `}</style>
       </div>
 
-      {/* Document imprimé (invisible à l'écran) */}
+      {/* Documents imprimés (invisibles à l'écran) */}
       <FormationDoc formation={formation} />
+      <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
         }
