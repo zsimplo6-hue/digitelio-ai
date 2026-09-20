@@ -30,6 +30,8 @@ function isValidCover(s) {
   return /^https:\/\/\S+$/i.test(s) && s.length <= 500;
 }
 
+const isHttpsUrl = (s) => /^https:\/\/\S+$/i.test(s) && s.length <= 500;
+
 /* Liste (avec le prix) */
 export async function handleListFormations(request, env) {
   const payload = await getAuthenticatedUser(request, env);
@@ -48,14 +50,14 @@ export async function handleListFormations(request, env) {
   return Response.json({ formations: results });
 }
 
-/* Lecture d'une formation (avec certificat et date de publication) */
+/* Lecture d'une formation */
 export async function handleGetFormation(request, env, formationId) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
   const formation = await env.DB.prepare(
     `SELECT id, title, description, topic, language, status, price, cover_url,
-            certificate, published_at, created_at
+            certificate, payment_url, published_at, created_at
      FROM formations WHERE id = ? AND user_id = ?`
   )
     .bind(formationId, payload.sub)
@@ -84,7 +86,7 @@ export async function handleGetFormation(request, env, formationId) {
   });
 }
 
-/* Réglages : prix, couverture, certificat */
+/* Réglages : prix, couverture, certificat, lien de paiement */
 export async function handleUpdateSettings(request, env, formationId) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
@@ -123,16 +125,34 @@ export async function handleUpdateSettings(request, env, formationId) {
     cover = body.cover_url;
   }
 
+  let paymentUrl = null;
+  const rawPay = String(body.payment_url || "").trim();
+  if (rawPay) {
+    if (!isHttpsUrl(rawPay)) {
+      return Response.json(
+        { error: "Le lien de paiement doit commencer par https://" },
+        { status: 400 }
+      );
+    }
+    paymentUrl = rawPay;
+  }
+
   const certificate = body.certificate ? 1 : 0;
 
   await env.DB.prepare(
-    "UPDATE formations SET price = ?, cover_url = ?, certificate = ? WHERE id = ? AND user_id = ?"
+    "UPDATE formations SET price = ?, cover_url = ?, certificate = ?, payment_url = ? WHERE id = ? AND user_id = ?"
   )
-    .bind(price, cover, certificate, formationId, payload.sub)
+    .bind(price, cover, certificate, paymentUrl, formationId, payload.sub)
     .run();
 
   return Response.json({
-    formation: { id: formationId, price, cover_url: cover, certificate: !!certificate },
+    formation: {
+      id: formationId,
+      price,
+      cover_url: cover,
+      certificate: !!certificate,
+      payment_url: paymentUrl,
+    },
   });
 }
 
@@ -198,4 +218,42 @@ export async function handleUnpublish(request, env, formationId) {
     .run();
 
   return Response.json({ formation: { id: formationId, status: "draft" } });
-                        }
+}
+
+/* ===== PAGE PUBLIQUE (sans connexion) : uniquement les formations publiées ===== */
+export async function handleGetPublicFormation(request, env, formationId) {
+  const f = await env.DB.prepare(
+    `SELECT f.id, f.title, f.description, f.price, f.cover_url, f.certificate,
+            f.payment_url, f.language, u.full_name AS instructor
+     FROM formations f
+     LEFT JOIN users u ON u.id = f.user_id
+     WHERE f.id = ? AND f.status = 'published'`
+  )
+    .bind(formationId)
+    .first();
+
+  if (!f) {
+    return Response.json({ error: "Formation introuvable ou non publiée." }, { status: 404 });
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT position, title, summary
+     FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
+  )
+    .bind(formationId)
+    .all();
+
+  return Response.json({
+    formation: {
+      id: f.id,
+      title: f.title,
+      description: f.description || "",
+      price: f.price,
+      cover_url: f.cover_url || "",
+      certificate: !!f.certificate,
+      payment_url: f.payment_url || "",
+      instructor: f.instructor || "",
+      modules: results,
+    },
+  });
+        }
