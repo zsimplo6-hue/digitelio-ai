@@ -29,6 +29,7 @@ import {
   handleGetLearnerCourse,
   handleCompleteModule,
 } from "./routes/learners.js";
+import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -80,10 +81,16 @@ export default {
         return withCors(await handleGetEbook(request, env, ebookId), request);
       }
 
-      // ===== PAGE PUBLIQUE D'UNE FORMATION (sans connexion) =====
+      // ===== PAGES PUBLIQUES D'UNE FORMATION (sans connexion) =====
       if (url.pathname.startsWith("/api/public/formations/") && request.method === "GET") {
-        const publicId = url.pathname.split("/api/public/formations/")[1];
-        return withCors(await handleGetPublicFormation(request, env, publicId), request);
+        // parts = ["api", "public", "formations", id] ou [..., id, "cover"]
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length === 4) {
+          return withCors(await handleGetPublicFormation(request, env, parts[3]), request);
+        }
+        if (parts.length === 5 && parts[4] === "cover") {
+          return withCors(await handleGetCover(request, env, parts[3]), request);
+        }
       }
 
       // ===== ESPACE APPRENANT (public, protégé par le lien secret) =====
@@ -97,6 +104,11 @@ export default {
         if (parts.length === 5 && parts[3] === "modules" && request.method === "POST") {
           return withCors(await handleCompleteModule(request, env, token, parts[4]), request);
         }
+      }
+
+      // ===== VUE D'ENSEMBLE DES VENTES =====
+      if (url.pathname === "/api/sales" && request.method === "GET") {
+        return withCors(await handleSalesOverview(request, env), request);
       }
 
       // ===== FORMATIONS =====
