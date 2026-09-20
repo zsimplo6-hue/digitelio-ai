@@ -9,6 +9,7 @@ import EbookPreview from "./pages/EbookPreview.jsx";
 import Formations from "./pages/Formations.jsx";
 import PagesVente from "./pages/PagesVente.jsx";
 import Marketing from "./pages/Marketing.jsx";
+import Analytics from "./pages/Analytics.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
@@ -85,11 +86,7 @@ export default function App() {
         path="/dashboard/analytics"
         element={
           <ProtectedRoute>
-            <ComingSoon
-              title="Analytics"
-              icon="📈"
-              text="Suivez bientôt les visites de vos pages de vente, vos inscriptions et vos performances."
-            />
+            <Analytics />
           </ProtectedRoute>
         }
       />
@@ -119,4 +116,4 @@ export default function App() {
       />
     </Routes>
   );
-}
+            }
