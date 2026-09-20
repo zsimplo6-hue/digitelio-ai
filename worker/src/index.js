@@ -20,6 +20,7 @@ import {
   handleUpdateSettings,
   handlePublish,
   handleUnpublish,
+  handleGetPublicFormation,
 } from "./routes/publish.js";
 
 export default {
@@ -70,6 +71,12 @@ export default {
       if (url.pathname.startsWith("/api/ebooks/") && request.method === "GET") {
         const ebookId = url.pathname.split("/api/ebooks/")[1];
         return withCors(await handleGetEbook(request, env, ebookId), request);
+      }
+
+      // ===== PAGE PUBLIQUE D'UNE FORMATION (sans connexion) =====
+      if (url.pathname.startsWith("/api/public/formations/") && request.method === "GET") {
+        const publicId = url.pathname.split("/api/public/formations/")[1];
+        return withCors(await handleGetPublicFormation(request, env, publicId), request);
       }
 
       // ===== FORMATIONS =====
