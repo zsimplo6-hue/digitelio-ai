@@ -32,6 +32,7 @@ import {
 import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
 import { handleGenerateMarketing } from "./routes/marketing.js";
 import { handleOverview } from "./routes/overview.js";
+import { handleTrack, handleAnalytics } from "./routes/analytics.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -84,14 +85,17 @@ export default {
       }
 
       // ===== PAGES PUBLIQUES D'UNE FORMATION (sans connexion) =====
-      if (url.pathname.startsWith("/api/public/formations/") && request.method === "GET") {
-        // parts = ["api", "public", "formations", id] ou [..., id, "cover"]
+      if (url.pathname.startsWith("/api/public/formations/")) {
+        // parts = ["api", "public", "formations", id] ou [..., id, "cover" | "track"]
         const parts = url.pathname.split("/").filter(Boolean);
-        if (parts.length === 4) {
+        if (parts.length === 4 && request.method === "GET") {
           return withCors(await handleGetPublicFormation(request, env, parts[3]), request);
         }
-        if (parts.length === 5 && parts[4] === "cover") {
+        if (parts.length === 5 && parts[4] === "cover" && request.method === "GET") {
           return withCors(await handleGetCover(request, env, parts[3]), request);
+        }
+        if (parts.length === 5 && parts[4] === "track" && request.method === "POST") {
+          return withCors(await handleTrack(request, env, parts[3]), request);
         }
       }
 
@@ -108,12 +112,15 @@ export default {
         }
       }
 
-      // ===== TABLEAU DE BORD ET VENTES =====
+      // ===== TABLEAU DE BORD, VENTES ET ANALYTICS =====
       if (url.pathname === "/api/overview" && request.method === "GET") {
         return withCors(await handleOverview(request, env), request);
       }
       if (url.pathname === "/api/sales" && request.method === "GET") {
         return withCors(await handleSalesOverview(request, env), request);
+      }
+      if (url.pathname === "/api/analytics" && request.method === "GET") {
+        return withCors(await handleAnalytics(request, env), request);
       }
 
       // ===== MARKETING DIGITAL =====
