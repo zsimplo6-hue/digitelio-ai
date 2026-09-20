@@ -3,6 +3,14 @@ import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
 import CertificateDoc, { printCertificate } from "./CertificateExport.jsx";
 import LearnersPanel from "./LearnersPanel.jsx";
+import {
+  CURRENCIES,
+  MAX_PRICE,
+  currencyOf,
+  formatPrice,
+  getDefaultCurrency,
+  saveDefaultCurrency,
+} from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -16,8 +24,6 @@ async function api(path, options = {}) {
   if (!res.ok) throw new Error(data.error || "Une erreur est survenue.");
   return data;
 }
-
-const PRESETS = [19, 49, 99];
 
 function compressImage(file, maxW = 1000, quality = 0.82) {
   return new Promise((resolve, reject) => {
@@ -46,8 +52,14 @@ function compressImage(file, maxW = 1000, quality = 0.82) {
 export default function PublishPanel({ formation, onChange }) {
   const { user } = useAuth();
   const startPrice = formation.price;
+  const startCurrency =
+    startPrice == null ? getDefaultCurrency() : formation.currency || "EUR";
+
+  const [currency, setCurrency] = useState(startCurrency);
   const [price, setPrice] = useState(startPrice == null ? "" : String(startPrice));
-  const [custom, setCustom] = useState(startPrice != null && !PRESETS.includes(startPrice));
+  const [custom, setCustom] = useState(
+    startPrice != null && !currencyOf(startCurrency).presets.includes(startPrice)
+  );
   const [cover, setCover] = useState(formation.cover_url || "");
   const [certificate, setCertificate] = useState(!!formation.certificate);
   const [payment, setPayment] = useState(formation.payment_url || "");
@@ -56,12 +68,14 @@ export default function PublishPanel({ formation, onChange }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  const cur = currencyOf(currency);
   const isPublished = formation.status === "published";
   const modules = formation.modules || [];
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
   const priceNum = price === "" ? null : Number(price);
-  const priceOk = priceNum !== null && Number.isInteger(priceNum) && priceNum >= 0 && priceNum <= 9999;
+  const priceOk =
+    priceNum !== null && Number.isInteger(priceNum) && priceNum >= 0 && priceNum <= MAX_PRICE;
   const payTrim = payment.trim();
   const payOk = /^https:\/\/\S+$/i.test(payTrim);
   const shareLink = `${window.location.origin}/formation/${formation.id}`;
@@ -69,6 +83,14 @@ export default function PublishPanel({ formation, onChange }) {
   function pickPreset(p) {
     setCustom(false);
     setPrice(String(p));
+  }
+
+  function changeCurrency(code) {
+    setCurrency(code);
+    // Si le prix saisi n'est pas un des prix suggérés de la nouvelle monnaie, on l'affiche dans le champ libre
+    if (price !== "" && !currencyOf(code).presets.includes(Number(price))) {
+      setCustom(true);
+    }
   }
 
   async function onCoverFile(e) {
@@ -102,13 +124,16 @@ export default function PublishPanel({ formation, onChange }) {
       method: "PUT",
       body: JSON.stringify({
         price: priceOk ? priceNum : null,
+        currency,
         cover_url: cover || null,
         certificate,
         payment_url: payTrim || null,
       }),
     });
+    saveDefaultCurrency(currency);
     onChange({
       price: data.formation.price,
+      currency: data.formation.currency,
       cover_url: data.formation.cover_url,
       certificate: data.formation.certificate,
       payment_url: data.formation.payment_url,
@@ -195,22 +220,41 @@ export default function PublishPanel({ formation, onChange }) {
             <li className={allWritten ? "ok" : ""}>
               {allWritten ? "✓" : "○"} Leçons rédigées : {written}/{modules.length}
             </li>
-            <li className={priceOk ? "ok" : ""}>{priceOk ? "✓" : "○"} Prix défini</li>
+            <li className={priceOk ? "ok" : ""}>
+              {priceOk ? `✓ Prix : ${formatPrice(priceNum, currency)}` : "○ Prix défini"}
+            </li>
             <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Image de couverture (recommandée)</li>
             <li className={payOk ? "ok" : ""}>{payOk ? "✓" : "○"} Lien de paiement (pour vendre)</li>
           </ul>
 
+          {/* Monnaie */}
+          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Monnaie</div>
+          <select
+            className="fm-input"
+            value={currency}
+            onChange={(e) => changeCurrency(e.target.value)}
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <div className="fm-muted fm-small">
+            Choisissez la monnaie de vos clients. Elle s'affiche sur votre page de vente.
+          </div>
+
           {/* Prix */}
           <div className="fm-label" style={{ marginTop: "1.2rem" }}>Prix</div>
           <div className="pb-prices">
-            {PRESETS.map((p) => (
+            {cur.presets.map((p) => (
               <button
                 key={p}
                 type="button"
                 className={!custom && price === String(p) ? "pb-price on" : "pb-price"}
                 onClick={() => pickPreset(p)}
               >
-                {p} €
+                {formatPrice(p, currency)}
               </button>
             ))}
             <button
@@ -227,11 +271,11 @@ export default function PublishPanel({ formation, onChange }) {
               type="number"
               inputMode="numeric"
               min="0"
-              max="9999"
+              max={MAX_PRICE}
               step="1"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="Montant en € (0 = gratuit)"
+              placeholder={`Montant en ${cur.symbol} (0 = gratuit)`}
               style={{ marginTop: "0.6rem" }}
             />
           )}
@@ -247,7 +291,7 @@ export default function PublishPanel({ formation, onChange }) {
           />
           <div className="fm-muted fm-small">
             Le bouton « Acheter » de votre page de vente renverra vers ce lien. Créez-le chez votre
-            prestataire de paiement (lien de paiement Stripe, PayPal.me, etc.).
+            prestataire de paiement (lien de paiement Stripe, PayPal.me, Wave, etc.).
           </div>
 
           {/* Couverture */}
@@ -382,8 +426,8 @@ export default function PublishPanel({ formation, onChange }) {
           .pb-checks li.ok { color: #16a34a; opacity: 1; font-weight: 600; }
           .pb-prices { display: flex; flex-wrap: wrap; gap: 0.5rem; }
           .pb-price {
-            flex: 1; min-width: 4.5rem; padding: 0.7rem 0.5rem; border-radius: 10px; font-weight: 700;
-            border: 1px solid rgba(128,128,128,0.4); background: transparent; color: inherit;
+            flex: 1; min-width: 5.5rem; padding: 0.7rem 0.4rem; border-radius: 10px; font-weight: 700;
+            font-size: 0.9rem; border: 1px solid rgba(128,128,128,0.4); background: transparent; color: inherit;
           }
           .pb-price.on { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
           .pb-cover {
@@ -419,4 +463,4 @@ export default function PublishPanel({ formation, onChange }) {
       <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
-          }
+      }
