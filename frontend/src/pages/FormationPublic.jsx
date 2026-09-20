@@ -10,6 +10,17 @@ export default function FormationPublic() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  /* Mesure d'audience : simples compteurs, sans cookie ni donnée personnelle */
+  function track(type, unique = false) {
+    fetch(`${API}/api/public/formations/${id}/track`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, unique }),
+      keepalive: true,
+    }).catch(() => {});
+  }
+
   useEffect(() => {
     let alive = true;
     async function load() {
@@ -20,6 +31,18 @@ export default function FormationPublic() {
         if (alive) {
           setF(data.formation);
           document.title = `${data.formation.title} | Digitelio AI`;
+
+          let unique = false;
+          try {
+            const key = `dg_seen_${id}`;
+            if (!localStorage.getItem(key)) {
+              unique = true;
+              localStorage.setItem(key, "1");
+            }
+          } catch {
+            /* stockage indisponible : la visite est comptée sans marque d'unicité */
+          }
+          track("view", unique);
         }
       } catch (e) {
         if (alive) setError(e.message);
@@ -31,6 +54,7 @@ export default function FormationPublic() {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (loading) {
@@ -62,7 +86,13 @@ export default function FormationPublic() {
 
   const Cta = ({ className = "" }) =>
     f.payment_url ? (
-      <a className={`fp-cta ${className}`} href={f.payment_url} target="_blank" rel="noopener noreferrer">
+      <a
+        className={`fp-cta ${className}`}
+        href={f.payment_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => track("click")}
+      >
         {cta}
       </a>
     ) : (
@@ -217,4 +247,4 @@ function FpStyle() {
       .fp-foot strong { color: #D4AF37; font-weight: 600; }
     `}</style>
   );
-            }
+      }
