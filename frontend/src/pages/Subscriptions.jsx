@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
@@ -31,51 +31,114 @@ function planLines(l) {
   ];
 }
 
-function fmtDate(s) {
-  if (!s) return "";
-  const d = new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
+function fmtDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function fmtRemaining(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const p = (x) => String(x).padStart(2, "0");
+  return `${d} j ${p(h)} h ${p(m)} min ${p(sec)} s`;
 }
 
 export default function Subscriptions() {
   const [data, setData] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const reloadedRef = useRef(false);
+
+  async function load() {
+    try {
+      const res = await fetch(`${API}/api/billing`, { credentials: "include" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Erreur de chargement.");
+      const off = Date.parse(json.server_time) - Date.now();
+      setOffset(Number.isFinite(off) ? off : 0);
+      setNow(Date.now() + (Number.isFinite(off) ? off : 0));
+      setData(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let alive = true;
-    fetch(`${API}/api/billing`, { credentials: "include" })
-      .then(async (res) => {
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "Erreur de chargement.");
-        if (alive) setData(json);
-      })
-      .catch((e) => alive && setError(e.message))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isFree = data?.plan === "free";
-  const isPaid = data && !isFree;
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now() + offset), 1000);
+    return () => clearInterval(t);
+  }, [offset]);
+
+  const status = data?.status;
+  const active = status === "active";
+  const expired = status === "expired";
+  const untilMs = data?.until ? Date.parse(data.until) : null;
+  const startMs = data?.started_at ? Date.parse(data.started_at) : null;
+  const remaining = active && untilMs ? untilMs - now : null;
+
+  /* À la seconde de l'échéance, on recharge : l'écran passe en « expiré » */
+  useEffect(() => {
+    if (remaining === null) return;
+    if (remaining > 0) {
+      reloadedRef.current = false;
+    } else if (!reloadedRef.current) {
+      reloadedRef.current = true;
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remaining]);
+
+  const elapsedPct =
+    startMs && untilMs && untilMs > startMs
+      ? Math.min(100, Math.max(0, Math.round(((now - startMs) / (untilMs - startMs)) * 100)))
+      : 0;
+
   const contact = data?.contact || {};
-  const targets = data ? data.plans.filter((p) => RANK[p.key] > RANK[data.plan]) : [];
+
+  /* Plans proposés : abonné actif = son plan (renouvellement) et supérieurs ; sinon tous les plans payants */
+  const targets = data
+    ? data.plans.filter((p) =>
+        active ? RANK[p.key] >= RANK[data.plan] && p.key !== "free" : p.key !== "free"
+      )
+    : [];
   const anyContact = !!contact.whatsapp || targets.some((p) => contact.payment_urls?.[p.key]);
 
-  const waFor = (planName) =>
+  const waFor = (planName, renew) =>
     contact.whatsapp
       ? `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
-          `Bonjour, je souhaite passer au plan ${planName} de Digitelio AI. Mon email : ${data?.email || ""}`
+          `Bonjour, je souhaite ${renew ? "renouveler" : "passer au"} plan ${planName} de Digitelio AI. Mon email : ${data?.email || ""}`
         )}`
       : "";
+
+  let ctaTitle = "Passez à un plan payant";
+  if (expired) ctaTitle = "Renouvelez votre abonnement";
+  else if (active) ctaTitle = "Renouveler ou changer de plan";
 
   return (
     <DashboardLayout>
       <div className="sb-page">
         <h1 className="text-2xl font-bold">Abonnements</h1>
-        <p className="sb-muted">Votre plan, votre consommation du mois et les options disponibles.</p>
+        <p className="sb-muted">Votre plan, votre échéance et votre consommation.</p>
 
         {error && (
           <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>
@@ -86,66 +149,86 @@ export default function Subscriptions() {
         ) : (
           data && (
             <>
-              {/* Plan actuel */}
+              {/* Abonnement expiré */}
+              {expired && (
+                <div className="sb-expired">
+                  <div className="sb-expired-title">⏳ Votre abonnement {data.expired_plan_name} a expiré</div>
+                  <div>
+                    Il s'est terminé le {fmtDateTime(data.until)}. Renouvelez-le pour retrouver l'accès à
+                    Digitelio AI. Vos contenus sont conservés et vos pages de vente restent en ligne.
+                  </div>
+                </div>
+              )}
+
+              {/* Plan actuel + compte à rebours */}
               <div className="sb-card">
-                <div className="sb-label">Mon plan</div>
+                <div className="sb-label">Mon abonnement</div>
                 <div className="sb-current">
-                  <span className={isPaid ? "sb-badge paid" : "sb-badge"}>{data.plan_name}</span>
-                  {isPaid && data.plan_until && (
-                    <span className="sb-muted sb-small" style={{ margin: 0 }}>
-                      Actif jusqu'au {fmtDate(data.plan_until)}
-                    </span>
-                  )}
-                  {isPaid && !data.plan_until && (
+                  <span className={active ? "sb-badge paid" : "sb-badge"}>
+                    {expired ? `${data.expired_plan_name} (expiré)` : data.plan_name}
+                  </span>
+                  {active && !untilMs && (
                     <span className="sb-muted sb-small" style={{ margin: 0 }}>Sans date de fin</span>
                   )}
                 </div>
-                {data.expired && (
-                  <div className="sb-warn">
-                    Votre abonnement a expiré : votre compte est repassé au plan Gratuit. Vos contenus
-                    sont conservés.
+
+                {active && untilMs && (
+                  <div className="sb-count">
+                    <div className="sb-count-label">Temps restant</div>
+                    <div className="sb-count-n">{fmtRemaining(remaining)}</div>
+                    <div className="sb-bar">
+                      <div className="sb-bar-fill" style={{ width: `${elapsedPct}%`, background: "#D4AF37" }} />
+                    </div>
+                    <div className="sb-muted sb-small">
+                      {startMs ? `Actif depuis le ${fmtDateTime(data.started_at)}. ` : ""}
+                      Expire le {fmtDateTime(data.until)}.
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* Consommation */}
-              <div className="sb-card">
-                <div className="sb-label">Consommation ce mois-ci</div>
-                {USAGE_ROWS.map((r) => {
-                  const used = data.usage[r.kind] || 0;
-                  const limit = data.limits[r.kind] || 1;
-                  const pct = Math.min(100, Math.round((used / limit) * 100));
-                  const color = pct >= 100 ? "#ef4444" : pct >= 80 ? "#d97706" : "#D4AF37";
-                  return (
-                    <div key={r.kind} className="sb-usage">
-                      <div className="sb-usage-top">
-                        <span>
-                          {r.icon} {r.label}
-                        </span>
-                        <span className="sb-usage-n">
-                          {n(used)} / {n(limit)}
-                        </span>
+              {!expired && (
+                <div className="sb-card">
+                  <div className="sb-label">Consommation de la période</div>
+                  {USAGE_ROWS.map((r) => {
+                    const used = data.usage[r.kind] || 0;
+                    const limit = data.limits[r.kind] || 1;
+                    const pct = Math.min(100, Math.round((used / limit) * 100));
+                    const color = pct >= 100 ? "#ef4444" : pct >= 80 ? "#d97706" : "#D4AF37";
+                    return (
+                      <div key={r.kind} className="sb-usage">
+                        <div className="sb-usage-top">
+                          <span>
+                            {r.icon} {r.label}
+                          </span>
+                          <span className="sb-usage-n">
+                            {n(used)} / {n(limit)}
+                          </span>
+                        </div>
+                        <div className="sb-bar">
+                          <div
+                            className="sb-bar-fill"
+                            style={{ width: `${Math.max(pct, used ? 3 : 0)}%`, background: color }}
+                          />
+                        </div>
                       </div>
-                      <div className="sb-bar">
-                        <div
-                          className="sb-bar-fill"
-                          style={{ width: `${Math.max(pct, used ? 3 : 0)}%`, background: color }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="sb-muted sb-small">
-                  Les compteurs repartent à zéro le {fmtDate(data.reset_on)}. Limite d'apprenants :{" "}
-                  {n(data.limits.learners)} par formation.
+                    );
+                  })}
+                  <div className="sb-muted sb-small">
+                    {active
+                      ? `Vos compteurs repartent à zéro toutes les 30 jours à partir de votre paiement (prochaine remise à zéro : ${fmtDateTime(data.reset_at)}).`
+                      : `Les compteurs repartent à zéro le ${fmtDateTime(data.reset_at)}.`}{" "}
+                    Limite d'apprenants : {n(data.limits.learners)} par formation.
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Comparaison des plans */}
               <div className="sb-label" style={{ marginTop: "2rem" }}>Les plans</div>
               <div className="sb-plans">
                 {data.plans.map((p) => {
-                  const current = p.key === data.plan;
+                  const current = active && p.key === data.plan;
                   return (
                     <div key={p.key} className={p.key === "pro" ? "sb-plan featured" : "sb-plan"}>
                       <div className="sb-plan-head">
@@ -166,21 +249,21 @@ export default function Subscriptions() {
                 })}
               </div>
 
-              {/* Changer de plan */}
+              {/* Renouveler / changer de plan */}
               {targets.length > 0 && (
                 <div className="sb-cta">
-                  <div className="sb-cta-title">
-                    {isFree ? "Passez à un plan payant" : "Passez au plan Business"}
-                  </div>
+                  <div className="sb-cta-title">{ctaTitle}</div>
                   <div className="sb-muted sb-small" style={{ marginTop: 0 }}>
-                    Plus de générations IA et plus d'apprenants. Une fois le paiement effectué, votre
-                    plan est activé sur votre compte.
+                    Chaque abonnement dure 30 jours à partir du paiement. Le renouvellement du même plan
+                    ajoute 30 jours à votre échéance. Un changement de plan repart pour 30 jours à
+                    compter du paiement.
                   </div>
 
                   <div className="sb-cta-actions">
                     {targets.map((p) => {
+                      const renew = active && p.key === data.plan;
                       const payUrl = contact.payment_urls?.[p.key] || "";
-                      const wa = waFor(p.name);
+                      const wa = waFor(p.name, renew);
                       return (
                         <div key={p.key} className="sb-up">
                           <div className="sb-up-name">
@@ -188,7 +271,7 @@ export default function Subscriptions() {
                           </div>
                           {payUrl && (
                             <a className="sb-btn gold" href={payUrl} target="_blank" rel="noopener noreferrer">
-                              🚀 Passer au plan {p.name}
+                              {renew ? `🔄 Renouveler le plan ${p.name} (+30 jours)` : `🚀 Passer au plan ${p.name}`}
                             </a>
                           )}
                           {wa && (
@@ -198,7 +281,7 @@ export default function Subscriptions() {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              💬 {payUrl ? "Poser une question sur WhatsApp" : `Demander le plan ${p.name}`}
+                              💬 {payUrl ? "Poser une question sur WhatsApp" : `${renew ? "Renouveler" : "Demander"} le plan ${p.name}`}
                             </a>
                           )}
                         </div>
@@ -229,15 +312,22 @@ export default function Subscriptions() {
           margin-top: 1.3rem; padding: 1.2rem; border-radius: 14px;
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
         }
+        .sb-expired {
+          margin-top: 1.3rem; padding: 1rem 1.2rem; border-radius: 14px; line-height: 1.6; font-size: 0.92rem;
+          border: 1px solid rgba(239,68,68,0.6); background: rgba(239,68,68,0.08);
+        }
+        .sb-expired-title { font-weight: 800; margin-bottom: 0.4rem; color: #ef4444; }
         .sb-current { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
         .sb-badge {
           padding: 0.3rem 1rem; border-radius: 999px; font-weight: 800; font-size: 0.85rem;
           border: 1px solid rgba(128,128,128,0.5);
         }
         .sb-badge.paid { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
-        .sb-warn {
-          margin-top: 0.9rem; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.85rem;
-          color: #d97706; background: rgba(217,119,6,0.1);
+        .sb-count { margin-top: 1rem; }
+        .sb-count-label { font-size: 0.78rem; opacity: 0.7; }
+        .sb-count-n {
+          font-size: 1.6rem; font-weight: 800; color: #D4AF37; margin: 0.2rem 0 0.7rem;
+          font-variant-numeric: tabular-nums;
         }
         .sb-usage { margin-bottom: 1rem; }
         .sb-usage-top { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem; }
@@ -278,4 +368,4 @@ export default function Subscriptions() {
       `}</style>
     </DashboardLayout>
   );
-                        }
+    }
