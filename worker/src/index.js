@@ -38,6 +38,7 @@ import {
   handleUpdateSettings as handleUpdateAccountSettings,
 } from "./routes/settings.js";
 import { handleChangePassword } from "./routes/account.js";
+import { checkQuota, checkLearners, recordUsage, handleBilling } from "./routes/billing.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -78,8 +79,13 @@ export default {
         return await handleGoogleCallback(request, env);
       }
 
+      // ===== EBOOKS (quota : eBooks générés par mois) =====
       if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
-        return withCors(await handleGenerateEbook(request, env), request);
+        const gate = await checkQuota(request, env, "ebook");
+        if (gate.blocked) return withCors(gate.blocked, request);
+        const res = await handleGenerateEbook(request, env);
+        if (res.ok) await recordUsage(env, gate.userId, "ebook");
+        return withCors(res, request);
       }
       if (url.pathname === "/api/ebooks" && request.method === "GET") {
         return withCors(await handleListEbooks(request, env), request);
@@ -117,7 +123,7 @@ export default {
         }
       }
 
-      // ===== TABLEAU DE BORD, VENTES, ANALYTICS ET PARAMÈTRES =====
+      // ===== TABLEAU DE BORD, VENTES, ANALYTICS, PARAMÈTRES ET ABONNEMENT =====
       if (url.pathname === "/api/overview" && request.method === "GET") {
         return withCors(await handleOverview(request, env), request);
       }
@@ -126,6 +132,9 @@ export default {
       }
       if (url.pathname === "/api/analytics" && request.method === "GET") {
         return withCors(await handleAnalytics(request, env), request);
+      }
+      if (url.pathname === "/api/billing" && request.method === "GET") {
+        return withCors(await handleBilling(request, env), request);
       }
       if (url.pathname === "/api/settings" && request.method === "GET") {
         return withCors(await handleGetSettings(request, env), request);
@@ -137,9 +146,13 @@ export default {
         return withCors(await handleChangePassword(request, env), request);
       }
 
-      // ===== MARKETING DIGITAL =====
+      // ===== MARKETING DIGITAL (quota : contenus marketing par mois) =====
       if (url.pathname === "/api/marketing/generate" && request.method === "POST") {
-        return withCors(await handleGenerateMarketing(request, env), request);
+        const gate = await checkQuota(request, env, "marketing");
+        if (gate.blocked) return withCors(gate.blocked, request);
+        const res = await handleGenerateMarketing(request, env);
+        if (res.ok) await recordUsage(env, gate.userId, "marketing");
+        return withCors(res, request);
       }
 
       // ===== FORMATIONS =====
@@ -147,7 +160,12 @@ export default {
         return withCors(await handleListFormations(request, env), request);
       }
       if (url.pathname === "/api/formations" && request.method === "POST") {
-        return withCors(await handleCreateFormation(request, env), request);
+        // quota : formations créées par mois
+        const gate = await checkQuota(request, env, "formation");
+        if (gate.blocked) return withCors(gate.blocked, request);
+        const res = await handleCreateFormation(request, env);
+        if (res.ok) await recordUsage(env, gate.userId, "formation");
+        return withCors(res, request);
       }
       if (url.pathname.startsWith("/api/formations/")) {
         // parts = ["api", "formations", id, "modules", moduleId, "generate"]
@@ -172,6 +190,9 @@ export default {
             return withCors(await handleListEnrollments(request, env, formationId), request);
           }
           if (parts.length === 4 && request.method === "POST") {
+            // limite : apprenants par formation
+            const blocked = await checkLearners(request, env, formationId);
+            if (blocked) return withCors(blocked, request);
             return withCors(await handleCreateEnrollment(request, env, formationId), request);
           }
           if (parts.length === 5 && request.method === "DELETE") {
@@ -200,10 +221,12 @@ export default {
             );
           }
           if (parts.length === 6 && parts[5] === "generate" && request.method === "POST") {
-            return withCors(
-              await handleGenerateModule(request, env, formationId, moduleId),
-              request
-            );
+            // quota : leçons générées par l'IA par mois
+            const gate = await checkQuota(request, env, "lesson");
+            if (gate.blocked) return withCors(gate.blocked, request);
+            const res = await handleGenerateModule(request, env, formationId, moduleId);
+            if (res.ok) await recordUsage(env, gate.userId, "lesson");
+            return withCors(res, request);
           }
         }
       }
