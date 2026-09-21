@@ -33,6 +33,10 @@ import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
 import { handleGenerateMarketing } from "./routes/marketing.js";
 import { handleOverview } from "./routes/overview.js";
 import { handleTrack, handleAnalytics } from "./routes/analytics.js";
+import {
+  handleGetSettings,
+  handleUpdateSettings as handleUpdateAccountSettings,
+} from "./routes/settings.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -112,7 +116,7 @@ export default {
         }
       }
 
-      // ===== TABLEAU DE BORD, VENTES ET ANALYTICS =====
+      // ===== TABLEAU DE BORD, VENTES, ANALYTICS ET PARAMÈTRES =====
       if (url.pathname === "/api/overview" && request.method === "GET") {
         return withCors(await handleOverview(request, env), request);
       }
@@ -121,6 +125,12 @@ export default {
       }
       if (url.pathname === "/api/analytics" && request.method === "GET") {
         return withCors(await handleAnalytics(request, env), request);
+      }
+      if (url.pathname === "/api/settings" && request.method === "GET") {
+        return withCors(await handleGetSettings(request, env), request);
+      }
+      if (url.pathname === "/api/settings" && request.method === "PUT") {
+        return withCors(await handleUpdateAccountSettings(request, env), request);
       }
 
       // ===== MARKETING DIGITAL =====
