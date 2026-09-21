@@ -21,7 +21,7 @@ export async function handleGetSettings(request, env) {
   if (!payload) return unauthorized();
 
   const user = await env.DB.prepare(
-    "SELECT full_name, email, plan, default_currency FROM users WHERE id = ?"
+    "SELECT full_name, email, plan, default_currency, password_hash FROM users WHERE id = ?"
   )
     .bind(payload.sub)
     .first();
@@ -36,6 +36,7 @@ export async function handleGetSettings(request, env) {
       email: user.email,
       plan: user.plan,
       default_currency: user.default_currency || "EUR",
+      has_password: !!user.password_hash,
     },
   });
 }
