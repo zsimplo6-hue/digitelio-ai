@@ -73,4 +73,4 @@
 /* Respect des utilisateurs qui désactivent les animations */
 @media (prefers-reduced-motion: reduce) {
   .marquee-track, .btn-primary { animation: none; }
-  }
+    }
