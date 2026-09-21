@@ -15,6 +15,14 @@ import Settings from "./pages/Settings.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import SubscriptionGate from "./components/SubscriptionGate.jsx";
+
+/* Page du tableau de bord : connexion obligatoire + abonnement non expiré */
+const guard = (page) => (
+  <ProtectedRoute>
+    <SubscriptionGate>{page}</SubscriptionGate>
+  </ProtectedRoute>
+);
 
 export default function App() {
   return (
@@ -27,70 +35,17 @@ export default function App() {
       <Route path="/formation/:id" element={<FormationPublic />} />
       <Route path="/learn/:token" element={<Learn />} />
 
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/ebooks"
-        element={
-          <ProtectedRoute>
-            <EbooksList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/ebooks/create"
-        element={
-          <ProtectedRoute>
-            <CreateEbook />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/ebooks/:id"
-        element={
-          <ProtectedRoute>
-            <EbookPreview />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/formations"
-        element={
-          <ProtectedRoute>
-            <Formations />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/pages-vente"
-        element={
-          <ProtectedRoute>
-            <PagesVente />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/marketing"
-        element={
-          <ProtectedRoute>
-            <Marketing />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/dashboard" element={guard(<Dashboard />)} />
+      <Route path="/dashboard/ebooks" element={guard(<EbooksList />)} />
+      <Route path="/dashboard/ebooks/create" element={guard(<CreateEbook />)} />
+      <Route path="/dashboard/ebooks/:id" element={guard(<EbookPreview />)} />
+      <Route path="/dashboard/formations" element={guard(<Formations />)} />
+      <Route path="/dashboard/pages-vente" element={guard(<PagesVente />)} />
+      <Route path="/dashboard/marketing" element={guard(<Marketing />)} />
+      <Route path="/dashboard/analytics" element={guard(<Analytics />)} />
+      <Route path="/dashboard/parametres" element={guard(<Settings />)} />
+
+      {/* Toujours accessible, même expiré : c'est ici qu'on renouvelle */}
       <Route
         path="/dashboard/abonnements"
         element={
@@ -99,14 +54,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/dashboard/parametres"
-        element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
     </Routes>
   );
-      }
+}
