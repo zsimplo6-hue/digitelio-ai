@@ -37,6 +37,7 @@ import {
   handleGetSettings,
   handleUpdateSettings as handleUpdateAccountSettings,
 } from "./routes/settings.js";
+import { handleChangePassword } from "./routes/account.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -131,6 +132,9 @@ export default {
       }
       if (url.pathname === "/api/settings" && request.method === "PUT") {
         return withCors(await handleUpdateAccountSettings(request, env), request);
+      }
+      if (url.pathname === "/api/account/password" && request.method === "POST") {
+        return withCors(await handleChangePassword(request, env), request);
       }
 
       // ===== MARKETING DIGITAL =====
