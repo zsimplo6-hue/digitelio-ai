@@ -17,6 +17,59 @@ const pillars = [
   "Produits digitaux",
 ];
 
+/* À garder identique aux limites de src/routes/billing.js (Worker) */
+const plans = [
+  {
+    name: "Free",
+    price: "0€",
+    period: "pour toujours",
+    features: [
+      "1 eBook par mois",
+      "1 formation par mois",
+      "15 leçons IA par mois",
+      "10 contenus marketing par mois",
+      "10 apprenants par formation",
+    ],
+    cta: "Commencer",
+    featured: false,
+  },
+  {
+    name: "Pro",
+    price: "19€",
+    period: "pour 30 jours",
+    features: [
+      "10 eBooks par mois",
+      "10 formations par mois",
+      "200 leçons IA par mois",
+      "100 contenus marketing par mois",
+      "100 apprenants par formation",
+    ],
+    cta: "Essayer Pro",
+    featured: true,
+  },
+  {
+    name: "Business",
+    price: "49€",
+    period: "pour 30 jours",
+    features: [
+      "50 eBooks par mois",
+      "30 formations par mois",
+      "600 leçons IA par mois",
+      "300 contenus marketing par mois",
+      "300 apprenants par formation",
+    ],
+    cta: "Essayer Business",
+    featured: false,
+  },
+];
+
+const commonFeatures = [
+  "Pages de vente et espace apprenant",
+  "Certificats de réussite",
+  "Export PDF premium",
+  "Analytics de vos pages",
+];
+
 export default function Landing() {
   return (
     <div id="accueil" className="min-h-screen bg-white dark:bg-digi-navy">
@@ -77,86 +130,124 @@ export default function Landing() {
             </div>
           ))}
         </div>
-      </section> {/* TARIFS */}
+      </section>
+
+      {/* TARIFS */}
       <section id="tarifs" className="mx-auto max-w-7xl px-6 py-16">
-        <h2 className="text-2xl font-bold text-center">
-            Des <span className="text-gradient">tarifs</span> simples et transparents
-              </h2>
-                <p className="mt-2 text-center text-digi-navy/70 dark:text-white/70">
-                    Commencez gratuitement, évoluez quand vous êtes prêt.
-                      </p>
-                        <div className="mt-10 grid gap-6 md:grid-cols-3">
-                            <div className="card text-center">
-                                  <h3 className="font-semibold text-xl">Free</h3>
-                                        <p className="mt-2 text-3xl font-bold">0€</p>
-                                              <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">par mois</p>
-                                                    <a href="/signup" className="btn-secondary mt-6 inline-flex">Commencer</a>
-                                                        </div>
-                                                            <div className="card text-center border-2 border-digi-blue">
-                                                                  <h3 className="font-semibold text-xl">Pro</h3>
-                                                                        <p className="mt-2 text-3xl font-bold">19€</p>
-                                                                              <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">par mois</p>
-                                                                                    <a href="/signup" className="btn-primary mt-6 inline-flex">Essayer Pro</a>
-                                                                                        </div>
-                                                                                            <div className="card text-center">
-                                                                                                  <h3 className="font-semibold text-xl">Business</h3>
-                                                                                                        <p className="mt-2 text-3xl font-bold">49€</p>
-                                                                                                              <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">par mois</p>
-                                                                                                                    <a href="/signup" className="btn-secondary mt-6 inline-flex">Essayer Business</a>
-                                                                                                                        </div>
-                                                                                                                          </div>
-                                                                                                                          </section> {/* TEMOIGNAGES */}
-                                                                                                                          <section id="temoignages" className="mx-auto max-w-7xl px-6 py-16">
-                                                                                                                            <h2 className="text-2xl font-bold text-center">
-                                                                                                                                Ils créent déjà avec <span className="text-gradient">Digitelio AI</span>
-                                                                                                                                  </h2>
-                                                                                                                                    <div className="mt-10 grid gap-6 md:grid-cols-3">
-                                                                                                                                        <div className="card">
-                                                                                                                                              <p className="text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                      "J'ai publié mon premier eBook en une soirée. Incroyable gain de temps."
-                                                                                                                                                            </p>
-                                                                                                                                                                  <p className="mt-4 font-semibold">— Aïcha K.</p>
-                                                                                                                                                                      </div>
-                                                                                                                                                                          <div className="card">
-                                                                                                                                                                                <p className="text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                                                        "La génération de pages de vente m'a fait gagner des semaines de travail."
-                                                                                                                                                                                              </p>
-                                                                                                                                                                                                    <p className="mt-4 font-semibold">— Marc D.</p>
-                                                                                                                                                                                                        </div>
-                                                                                                                                                                                                            <div className="card">
-                                                                                                                                                                                                                  <p className="text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                                                                                          "Simple, rapide, efficace. Exactement ce qu'il me fallait pour lancer ma formation."
-                                                                                                                                                                                                                                </p>
-                                                                                                                                                                                                                                      <p className="mt-4 font-semibold">— Fatou S.</p>
-                                                                                                                                                                                                                                          </div>
-                                                                                                                                                                                                                                            </div>
-                                                                                                                                                                                                                                            </section> {/* FAQ */}
-                                                                                                                                                                                                                                            <section id="faq" className="mx-auto max-w-7xl px-6 py-16">
-                                                                                                                                                                                                                                              <h2 className="text-2xl font-bold text-center">
-                                                                                                                                                                                                                                                  Questions <span className="text-gradient">fréquentes</span>
-                                                                                                                                                                                                                                                    </h2>
-                                                                                                                                                                                                                                                      <div className="mt-10 grid gap-4 max-w-3xl mx-auto">
-                                                                                                                                                                                                                                                          <details className="card">
-                                                                                                                                                                                                                                                                <summary className="font-semibold cursor-pointer">Ai-je besoin de compétences techniques ?</summary>
-                                                                                                                                                                                                                                                                      <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                                                                                                                                              Non, Digitelio AI est conçu pour être utilisé sans aucune compétence technique.
-                                                                                                                                                                                                                                                                                    </p>
-                                                                                                                                                                                                                                                                                        </details>
-                                                                                                                                                                                                                                                                                            <details className="card">
-                                                                                                                                                                                                                                                                                                  <summary className="font-semibold cursor-pointer">Puis-je annuler à tout moment ?</summary>
-                                                                                                                                                                                                                                                                                                        <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                                                                                                                                                                                Oui, vous pouvez annuler votre abonnement à tout moment, sans engagement.
-                                                                                                                                                                                                                                                                                                                      </p>
-                                                                                                                                                                                                                                                                                                                          </details>
-                                                                                                                                                                                                                                                                                                                              <details className="card">
-                                                                                                                                                                                                                                                                                                                                    <summary className="font-semibold cursor-pointer">Quels formats de produits puis-je créer ?</summary>
-                                                                                                                                                                                                                                                                                                                                          <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-                                                                                                                                                                                                                                                                                                                                                  eBooks, formations en ligne, pages de vente et contenus marketing digitaux.
-                                                                                                                                                                                                                                                                                                                                                        </p>
-                                                                                                                                                                                                                                                                                                                                                            </details>
-                                                                                                                                                                                                                                                                                                                                                              </div>
-                                                                                                                                                                                                                                                                                                                                                              </section>
-                                                                                                                                                                                                                                                                                                                                                              
+        <h2 className="text-center text-2xl font-bold">
+          Des <span className="text-gradient">tarifs</span> simples et transparents
+        </h2>
+        <p className="mt-2 text-center text-digi-navy/70 dark:text-white/70">
+          Commencez gratuitement, évoluez quand vous êtes prêt.
+        </p>
+
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {plans.map((p) => (
+            <div
+              key={p.name}
+              className={`card text-center ${p.featured ? "border-2 border-digi-blue" : ""}`}
+            >
+              {p.featured && (
+                <span className="mb-3 inline-block rounded-full bg-digi-gradient px-3 py-1 text-xs font-semibold text-white">
+                  Populaire
+                </span>
+              )}
+              <h3 className="text-xl font-semibold">{p.name}</h3>
+              <p className="mt-2 text-3xl font-bold">{p.price}</p>
+              <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">{p.period}</p>
+
+              <ul className="mt-6 space-y-2 text-left text-sm text-digi-navy/80 dark:text-white/80">
+                {p.features.map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <span className="text-digi-blue">✔</span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+                {commonFeatures.map((f) => (
+                  <li key={f} className="flex gap-2 text-digi-navy/60 dark:text-white/60">
+                    <span className="text-digi-blue">✔</span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <a
+                href="/signup"
+                className={`${p.featured ? "btn-primary" : "btn-secondary"} mt-6 inline-flex`}
+              >
+                {p.cta}
+              </a>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-digi-navy/60 dark:text-white/60">
+          Chaque abonnement payant dure 30 jours à partir de votre paiement. Il ne se renouvelle pas
+          automatiquement : vous le renouvelez quand vous le souhaitez.
+        </p>
+      </section>
+
+      {/* TEMOIGNAGES */}
+      <section id="temoignages" className="mx-auto max-w-7xl px-6 py-16">
+        <h2 className="text-center text-2xl font-bold">
+          Ils créent déjà avec <span className="text-gradient">Digitelio AI</span>
+        </h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="card">
+            <p className="text-sm text-digi-navy/70 dark:text-white/70">
+              "J'ai publié mon premier eBook en une soirée. Incroyable gain de temps."
+            </p>
+            <p className="mt-4 font-semibold">— Aïcha K.</p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-digi-navy/70 dark:text-white/70">
+              "La génération de pages de vente m'a fait gagner des semaines de travail."
+            </p>
+            <p className="mt-4 font-semibold">— Marc D.</p>
+          </div>
+          <div className="card">
+            <p className="text-sm text-digi-navy/70 dark:text-white/70">
+              "Simple, rapide, efficace. Exactement ce qu'il me fallait pour lancer ma formation."
+            </p>
+            <p className="mt-4 font-semibold">— Fatou S.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="mx-auto max-w-7xl px-6 py-16">
+        <h2 className="text-center text-2xl font-bold">
+          Questions <span className="text-gradient">fréquentes</span>
+        </h2>
+        <div className="mx-auto mt-10 grid max-w-3xl gap-4">
+          <details className="card">
+            <summary className="cursor-pointer font-semibold">
+              Ai-je besoin de compétences techniques ?
+            </summary>
+            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
+              Non, Digitelio AI est conçu pour être utilisé sans aucune compétence technique.
+            </p>
+          </details>
+          <details className="card">
+            <summary className="cursor-pointer font-semibold">
+              Comment fonctionne l'abonnement ?
+            </summary>
+            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
+              Votre abonnement démarre à l'instant de votre paiement et dure 30 jours, à la seconde
+              près. À l'échéance, il expire : vous le renouvelez pour continuer, sans engagement. Vos
+              contenus sont toujours conservés.
+            </p>
+          </details>
+          <details className="card">
+            <summary className="cursor-pointer font-semibold">
+              Quels formats de produits puis-je créer ?
+            </summary>
+            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
+              eBooks, formations en ligne, pages de vente et contenus marketing digitaux.
+            </p>
+          </details>
+        </div>
+      </section>
 
       {/* BANDEAU "Une seule plateforme" */}
       <section className="mx-auto max-w-7xl px-6 pb-20">
@@ -186,5 +277,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-}
-
+    }
