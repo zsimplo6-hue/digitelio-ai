@@ -10,10 +10,10 @@ import Formations from "./pages/Formations.jsx";
 import PagesVente from "./pages/PagesVente.jsx";
 import Marketing from "./pages/Marketing.jsx";
 import Analytics from "./pages/Analytics.jsx";
+import Subscriptions from "./pages/Subscriptions.jsx";
 import Settings from "./pages/Settings.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
-import ComingSoon from "./pages/ComingSoon.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -95,11 +95,7 @@ export default function App() {
         path="/dashboard/abonnements"
         element={
           <ProtectedRoute>
-            <ComingSoon
-              title="Abonnements"
-              icon="💳"
-              text="Gérez bientôt votre plan Digitelio AI et vos options de facturation."
-            />
+            <Subscriptions />
           </ProtectedRoute>
         }
       />
@@ -113,4 +109,4 @@ export default function App() {
       />
     </Routes>
   );
-}
+      }
