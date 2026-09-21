@@ -3,6 +3,8 @@ import DashboardLayout from "../components/DashboardLayout.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+const RANK = { free: 0, pro: 1, business: 2 };
+
 const USAGE_ROWS = [
   { kind: "ebook", icon: "📘", label: "eBooks générés" },
   { kind: "formation", icon: "🎓", label: "Formations créées" },
@@ -56,13 +58,18 @@ export default function Subscriptions() {
     };
   }, []);
 
-  const isPro = data?.plan === "pro";
+  const isFree = data?.plan === "free";
+  const isPaid = data && !isFree;
   const contact = data?.contact || {};
-  const waHref = contact.whatsapp
-    ? `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
-        `Bonjour, je souhaite passer au plan Pro de Digitelio AI. Mon email : ${data?.email || ""}`
-      )}`
-    : "";
+  const targets = data ? data.plans.filter((p) => RANK[p.key] > RANK[data.plan]) : [];
+  const anyContact = !!contact.whatsapp || targets.some((p) => contact.payment_urls?.[p.key]);
+
+  const waFor = (planName) =>
+    contact.whatsapp
+      ? `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
+          `Bonjour, je souhaite passer au plan ${planName} de Digitelio AI. Mon email : ${data?.email || ""}`
+        )}`
+      : "";
 
   return (
     <DashboardLayout>
@@ -83,19 +90,19 @@ export default function Subscriptions() {
               <div className="sb-card">
                 <div className="sb-label">Mon plan</div>
                 <div className="sb-current">
-                  <span className={isPro ? "sb-badge pro" : "sb-badge"}>{data.plan_name}</span>
-                  {isPro && data.plan_until && (
+                  <span className={isPaid ? "sb-badge paid" : "sb-badge"}>{data.plan_name}</span>
+                  {isPaid && data.plan_until && (
                     <span className="sb-muted sb-small" style={{ margin: 0 }}>
                       Actif jusqu'au {fmtDate(data.plan_until)}
                     </span>
                   )}
-                  {isPro && !data.plan_until && (
+                  {isPaid && !data.plan_until && (
                     <span className="sb-muted sb-small" style={{ margin: 0 }}>Sans date de fin</span>
                   )}
                 </div>
                 {data.expired && (
                   <div className="sb-warn">
-                    Votre plan Pro a expiré : votre compte est repassé au plan Gratuit. Vos contenus
+                    Votre abonnement a expiré : votre compte est repassé au plan Gratuit. Vos contenus
                     sont conservés.
                   </div>
                 )}
@@ -120,7 +127,10 @@ export default function Subscriptions() {
                         </span>
                       </div>
                       <div className="sb-bar">
-                        <div className="sb-bar-fill" style={{ width: `${Math.max(pct, used ? 3 : 0)}%`, background: color }} />
+                        <div
+                          className="sb-bar-fill"
+                          style={{ width: `${Math.max(pct, used ? 3 : 0)}%`, background: color }}
+                        />
                       </div>
                     </div>
                   );
@@ -156,33 +166,47 @@ export default function Subscriptions() {
                 })}
               </div>
 
-              {/* Passer au plan Pro */}
-              {!isPro && (
+              {/* Changer de plan */}
+              {targets.length > 0 && (
                 <div className="sb-cta">
-                  <div className="sb-cta-title">Passez au plan Pro</div>
-                  <div className="sb-muted sb-small" style={{ marginTop: 0 }}>
-                    Plus de générations IA, plus d'apprenants, aucune limite gênante pour lancer votre
-                    activité. Une fois le paiement effectué, votre plan Pro est activé sur votre compte.
+                  <div className="sb-cta-title">
+                    {isFree ? "Passez à un plan payant" : "Passez au plan Business"}
                   </div>
+                  <div className="sb-muted sb-small" style={{ marginTop: 0 }}>
+                    Plus de générations IA et plus d'apprenants. Une fois le paiement effectué, votre
+                    plan est activé sur votre compte.
+                  </div>
+
                   <div className="sb-cta-actions">
-                    {contact.payment_url && (
-                      <a className="sb-btn gold" href={contact.payment_url} target="_blank" rel="noopener noreferrer">
-                        🚀 Passer au plan Pro
-                      </a>
-                    )}
-                    {waHref && (
-                      <a
-                        className={contact.payment_url ? "sb-btn out" : "sb-btn gold"}
-                        href={waHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        💬 {contact.payment_url ? "Poser une question sur WhatsApp" : "Demander le plan Pro"}
-                      </a>
-                    )}
-                    {!contact.payment_url && !waHref && (
+                    {targets.map((p) => {
+                      const payUrl = contact.payment_urls?.[p.key] || "";
+                      const wa = waFor(p.name);
+                      return (
+                        <div key={p.key} className="sb-up">
+                          <div className="sb-up-name">
+                            {p.name} · {p.price_text}
+                          </div>
+                          {payUrl && (
+                            <a className="sb-btn gold" href={payUrl} target="_blank" rel="noopener noreferrer">
+                              🚀 Passer au plan {p.name}
+                            </a>
+                          )}
+                          {wa && (
+                            <a
+                              className={payUrl ? "sb-btn out" : "sb-btn gold"}
+                              href={wa}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              💬 {payUrl ? "Poser une question sur WhatsApp" : `Demander le plan ${p.name}`}
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {!anyContact && (
                       <div className="sb-muted sb-small">
-                        Contactez l'administrateur de la plateforme pour activer le plan Pro.
+                        Contactez l'administrateur de la plateforme pour activer un plan payant.
                       </div>
                     )}
                   </div>
@@ -194,7 +218,7 @@ export default function Subscriptions() {
       </div>
 
       <style>{`
-        .sb-page { max-width: 44rem; }
+        .sb-page { max-width: 56rem; }
         .sb-muted { opacity: 0.7; margin-top: 0.4rem; }
         .sb-small { font-size: 0.8rem; margin-top: 0.7rem; line-height: 1.5; }
         .sb-label {
@@ -210,7 +234,7 @@ export default function Subscriptions() {
           padding: 0.3rem 1rem; border-radius: 999px; font-weight: 800; font-size: 0.85rem;
           border: 1px solid rgba(128,128,128,0.5);
         }
-        .sb-badge.pro { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
+        .sb-badge.paid { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
         .sb-warn {
           margin-top: 0.9rem; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.85rem;
           color: #d97706; background: rgba(217,119,6,0.1);
@@ -222,7 +246,7 @@ export default function Subscriptions() {
         .sb-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 
         .sb-plans { display: grid; gap: 0.8rem; }
-        @media (min-width: 640px) { .sb-plans { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 900px) { .sb-plans { grid-template-columns: repeat(3, 1fr); } }
         .sb-plan {
           padding: 1.1rem; border-radius: 14px;
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
@@ -243,7 +267,9 @@ export default function Subscriptions() {
           border: 1px solid rgba(212,175,55,0.7); background: rgba(212,175,55,0.07);
         }
         .sb-cta-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 0.5rem; }
-        .sb-cta-actions { display: grid; gap: 0.6rem; margin-top: 1rem; }
+        .sb-cta-actions { display: grid; gap: 1rem; margin-top: 1rem; }
+        .sb-up { display: grid; gap: 0.5rem; }
+        .sb-up-name { font-weight: 700; }
         .sb-btn {
           display: block; padding: 0.9rem; border-radius: 10px; font-weight: 700; text-decoration: none;
         }
@@ -252,4 +278,4 @@ export default function Subscriptions() {
       `}</style>
     </DashboardLayout>
   );
-    }
+                        }
