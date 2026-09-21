@@ -38,7 +38,32 @@ import {
   handleUpdateSettings as handleUpdateAccountSettings,
 } from "./routes/settings.js";
 import { handleChangePassword } from "./routes/account.js";
-import { checkQuota, checkLearners, recordUsage, handleBilling } from "./routes/billing.js";
+import {
+  checkAccess,
+  checkQuota,
+  checkLearners,
+  recordUsage,
+  handleBilling,
+} from "./routes/billing.js";
+
+/* Routes réservées aux comptes dont l'abonnement n'a pas expiré.
+   Restent accessibles : connexion, /api/billing, mot de passe, pages de vente publiques et espace apprenant. */
+const GATED_EXACT = new Set([
+  "/api/generate/ebook",
+  "/api/overview",
+  "/api/sales",
+  "/api/analytics",
+  "/api/settings",
+]);
+
+function needsSubscription(path) {
+  return (
+    GATED_EXACT.has(path) ||
+    path.startsWith("/api/ebooks") ||
+    path.startsWith("/api/marketing") ||
+    path.startsWith("/api/formations")
+  );
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -60,6 +85,12 @@ export default {
         );
       }
 
+      // ===== BLOCAGE DES ABONNEMENTS EXPIRÉS =====
+      if (needsSubscription(url.pathname)) {
+        const blocked = await checkAccess(request, env);
+        if (blocked) return withCors(blocked, request);
+      }
+
       if (url.pathname === "/api/auth/signup" && request.method === "POST") {
         return withCors(await handleSignup(request, env), request);
       }
@@ -79,12 +110,12 @@ export default {
         return await handleGoogleCallback(request, env);
       }
 
-      // ===== EBOOKS (quota : eBooks générés par mois) =====
+      // ===== EBOOKS (quota : eBooks générés par période) =====
       if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
         const gate = await checkQuota(request, env, "ebook");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleGenerateEbook(request, env);
-        if (res.ok) await recordUsage(env, gate.userId, "ebook");
+        if (res.ok) await recordUsage(env, gate.userId, "ebook", gate.period);
         return withCors(res, request);
       }
       if (url.pathname === "/api/ebooks" && request.method === "GET") {
@@ -146,12 +177,12 @@ export default {
         return withCors(await handleChangePassword(request, env), request);
       }
 
-      // ===== MARKETING DIGITAL (quota : contenus marketing par mois) =====
+      // ===== MARKETING DIGITAL (quota : contenus marketing par période) =====
       if (url.pathname === "/api/marketing/generate" && request.method === "POST") {
         const gate = await checkQuota(request, env, "marketing");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleGenerateMarketing(request, env);
-        if (res.ok) await recordUsage(env, gate.userId, "marketing");
+        if (res.ok) await recordUsage(env, gate.userId, "marketing", gate.period);
         return withCors(res, request);
       }
 
@@ -160,11 +191,11 @@ export default {
         return withCors(await handleListFormations(request, env), request);
       }
       if (url.pathname === "/api/formations" && request.method === "POST") {
-        // quota : formations créées par mois
+        // quota : formations créées par période
         const gate = await checkQuota(request, env, "formation");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleCreateFormation(request, env);
-        if (res.ok) await recordUsage(env, gate.userId, "formation");
+        if (res.ok) await recordUsage(env, gate.userId, "formation", gate.period);
         return withCors(res, request);
       }
       if (url.pathname.startsWith("/api/formations/")) {
@@ -221,11 +252,11 @@ export default {
             );
           }
           if (parts.length === 6 && parts[5] === "generate" && request.method === "POST") {
-            // quota : leçons générées par l'IA par mois
+            // quota : leçons générées par l'IA par période
             const gate = await checkQuota(request, env, "lesson");
             if (gate.blocked) return withCors(gate.blocked, request);
             const res = await handleGenerateModule(request, env, formationId, moduleId);
-            if (res.ok) await recordUsage(env, gate.userId, "lesson");
+            if (res.ok) await recordUsage(env, gate.userId, "lesson", gate.period);
             return withCors(res, request);
           }
         }
