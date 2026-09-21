@@ -13,7 +13,7 @@ const links = [
 
 export default function Sidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-digi-navy/5 bg-white px-4 py-6 dark:border-white/10 dark:bg-digi-navy md:block">
+    <aside className="h-full w-64 shrink-0 border-r border-digi-navy/5 bg-white px-4 py-6 dark:border-white/10 dark:bg-digi-navy">
       <nav className="space-y-1">
         {links.map((link) => (
           <NavLink
