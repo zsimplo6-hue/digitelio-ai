@@ -3,21 +3,28 @@ import { verifyJWT } from "../utils/jwt.js";
 
 /* ============================ À PERSONNALISER ============================ */
 
-// Où vos clients doivent-ils payer / vous contacter pour passer au plan Pro ?
 export const CONTACT = {
-  payment_url: "", // lien de paiement du plan Pro (Stripe, PayPal, Wave...). Ex : "https://..."
-  whatsapp: "",    // votre WhatsApp au format international, sans + ni espaces. Ex : "2250700000000"
+  whatsapp: "", // votre WhatsApp au format international, sans + ni espaces. Ex : "2250700000000"
+  payment_urls: {
+    pro: "",      // lien de paiement du plan Pro (sera remplacé par Orqex)
+    business: "", // lien de paiement du plan Business
+  },
 };
 
 export const PLANS = {
   free: {
     name: "Gratuit",
-    price_text: "0",
-    limits: { ebook: 2, formation: 1, lesson: 15, marketing: 10, learners: 10 },
+    price_text: "0 €",
+    limits: { ebook: 1, formation: 1, lesson: 15, marketing: 10, learners: 10 },
   },
   pro: {
     name: "Pro",
-    price_text: "Sur demande", // Ex : "9 900 FCFA / mois"
+    price_text: "19 € / mois",
+    limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
+  },
+  business: {
+    name: "Business",
+    price_text: "49 € / mois",
     limits: { ebook: 50, formation: 30, lesson: 600, marketing: 300, learners: 300 },
   },
 };
@@ -44,15 +51,15 @@ async function getAuthenticatedUser(request, env) {
 
 const monthKey = () => new Date().toISOString().slice(0, 7);
 
-/* Plan réellement actif : un plan Pro expiré redevient Gratuit */
+/* Plan réellement actif : un plan payant expiré redevient Gratuit */
 function effectivePlan(user) {
-  if (!user || user.plan !== "pro") return "free";
+  if (!user || !PLANS[user.plan] || user.plan === "free") return "free";
   if (user.plan_until) {
     const s = String(user.plan_until);
     const until = new Date(s.length <= 10 ? `${s}T23:59:59Z` : `${s.replace(" ", "T")}Z`);
     if (!isNaN(until.getTime()) && until.getTime() < Date.now()) return "free";
   }
-  return "pro";
+  return user.plan;
 }
 
 async function loadPlan(env, userId) {
@@ -63,10 +70,10 @@ async function loadPlan(env, userId) {
 }
 
 function blockedResponse(planKey, what, limit, used, monthly) {
-  const tail =
-    planKey === "free"
-      ? "Passez au plan Pro dans « Abonnements » pour continuer."
-      : "Réessayez le mois prochain ou contactez le support.";
+  let tail;
+  if (planKey === "free") tail = "Passez à un plan payant dans « Abonnements » pour continuer.";
+  else if (planKey === "pro") tail = "Passez au plan Business dans « Abonnements » pour continuer.";
+  else tail = "Réessayez le mois prochain ou contactez le support.";
   const reset = monthly ? " Le compteur repart à zéro le 1er du mois." : "";
   return Response.json(
     {
@@ -157,8 +164,8 @@ export async function handleBilling(request, env) {
     email: user.email,
     plan: planKey,
     plan_name: PLANS[planKey].name,
-    plan_until: planKey === "pro" ? user.plan_until || null : null,
-    expired: user.plan === "pro" && planKey === "free",
+    plan_until: planKey !== "free" ? user.plan_until || null : null,
+    expired: user.plan !== "free" && !!PLANS[user.plan] && planKey === "free",
     limits: PLANS[planKey].limits,
     usage,
     reset_on: resetOn,
@@ -170,4 +177,4 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-      }
+    }
