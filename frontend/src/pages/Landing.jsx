@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
@@ -85,16 +84,12 @@ const previewStats = [
 ];
 
 export default function Landing() {
-  const [demoOpen, setDemoOpen] = useState(false);
-
   const handleDemoClick = (e) => {
     e.preventDefault();
-    const target = document.querySelector("#apercu");
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else {
-      setDemoOpen(true);
-    }
+    document.querySelector("#apercu")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   };
 
   return (
@@ -374,28 +369,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* MODAL DEMO (fallback si #apercu introuvable) */}
-      {demoOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-digi-navy/70 backdrop-blur-sm"
-            onClick={() => setDemoOpen(false)}
-          />
-          <div className="relative z-10 w-[92vw] max-w-3xl rounded-2xl overflow-hidden shadow-digi-glow">
-            <button
-              onClick={() => setDemoOpen(false)}
-              className="absolute top-2.5 right-2.5 w-9 h-9 rounded-full bg-black/50 text-white"
-            >
-              ✕
-            </button>
-            <video controls autoPlay className="w-full block">
-              <source src="/videos/demo-digitelio.mp4" type="video/mp4" />
-            </video>
-          </div>
-        </div>
-      )}
-
       <Footer />
     </div>
   );
-                      }
+}
