@@ -4,9 +4,9 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <div className="flex items-center gap-2 text-lg font-bold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-digi-gradient text-white">
-                D
+            <div className="flex items-center gap-2.5 text-lg font-bold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
+                <span className="text-lg font-extrabold leading-none">D</span>
               </span>
               Digitelio AI
             </div>
@@ -49,4 +49,3 @@ export default function Footer() {
     </footer>
   );
 }
-
