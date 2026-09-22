@@ -4,11 +4,11 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <div className="flex items-center gap-2.5 text-lg font-bold">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
-                <span className="text-lg font-extrabold leading-none">D</span>
+            <div className="flex items-center gap-3 text-lg font-bold">
+              <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg shadow-purple-500/30">
+                <span className="text-xl font-extrabold leading-none">D</span>
               </span>
-              Digitelio AI
+              <span className="text-digi-navy dark:text-white">Digitelio AI</span>
             </div>
             <p className="mt-3 text-sm text-digi-navy/60 dark:text-white/60">
               Créez. Publiez. Vendez. avec l'IA.
