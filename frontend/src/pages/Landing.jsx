@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
@@ -70,7 +71,32 @@ const commonFeatures = [
   "Analytics de vos pages",
 ];
 
+const sidebarItems = [
+  { icon: "📘", label: "eBooks", active: true },
+  { icon: "🎓", label: "Formations", active: false },
+  { icon: "🛒", label: "Pages de vente", active: false },
+  { icon: "🖼️", label: "Images IA", active: false },
+];
+
+const previewStats = [
+  { value: "2 547", label: "Produits créés" },
+  { value: "98%", label: "Satisfaction" },
+  { value: "12s", label: "Génération" },
+];
+
 export default function Landing() {
+  const [demoOpen, setDemoOpen] = useState(false);
+
+  const handleDemoClick = (e) => {
+    e.preventDefault();
+    const target = document.querySelector("#apercu");
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      setDemoOpen(true);
+    }
+  };
+
   return (
     <div id="accueil" className="min-h-screen bg-white dark:bg-digi-navy">
       <Navbar />
@@ -98,20 +124,94 @@ export default function Landing() {
               <a href="/signup" className="btn-primary">
                 Commencer gratuitement →
               </a>
-              <a href="#demo" className="btn-secondary">
+              <a
+                href="#apercu"
+                onClick={handleDemoClick}
+                className="btn-secondary inline-flex items-center gap-2 transition-all duration-300 ease-out
+                           hover:-translate-y-1 hover:scale-[1.03] hover:shadow-digi-glow active:translate-y-0 active:scale-[0.98]"
+              >
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-digi-blue/20 text-[10px]">▶</span>
                 Voir la démo
               </a>
             </div>
           </div>
 
-          <div className="relative">
-            <div className="card relative overflow-hidden shadow-digi-glow">
+          {/* DASHBOARD MOCKUP — remplace l'ancien bloc vide */}
+          <div id="apercu" className="relative scroll-mt-24">
+            <div
+              className="card relative overflow-hidden shadow-digi-glow
+                         bg-white/60 dark:bg-white/5 backdrop-blur-xl
+                         border border-white/50 dark:border-white/10"
+            >
               <div className="flex items-center justify-between text-xs text-digi-navy/50 dark:text-white/50">
                 <span>Digitelio AI — Aperçu</span>
                 <span>●●●</span>
               </div>
-              <div className="mt-6 h-56 rounded-xl bg-digi-gradient-radial" />
+
+              <div className="mt-4 grid grid-cols-[70px_1fr] gap-3 sm:grid-cols-[90px_1fr]">
+                {/* Mini sidebar */}
+                <div className="flex flex-col gap-1.5">
+                  {sidebarItems.map((item) => (
+                    <div
+                      key={item.label}
+                      className={`flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-center text-[10px] font-medium
+                        ${
+                          item.active
+                            ? "bg-digi-gradient text-white shadow-digi-glow"
+                            : "bg-digi-navy/5 text-digi-navy/70 dark:bg-white/10 dark:text-white/70"
+                        }`}
+                    >
+                      <span className="text-sm">{item.icon}</span>
+                      <span className="hidden sm:block leading-tight">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Editeur central */}
+                <div className="rounded-xl bg-white/60 dark:bg-white/5 border border-white/40 dark:border-white/10 p-3">
+                  <p className="text-xs font-semibold text-digi-navy dark:text-white">
+                    Guide Marketing Digital
+                  </p>
+                  <div className="mt-3 flex gap-3">
+                    <div className="h-16 w-12 shrink-0 rounded-md bg-digi-gradient shadow-digi-glow" />
+                    <div className="flex-1 flex flex-col justify-center gap-1.5">
+                      <span className="block h-1.5 rounded-full bg-digi-blue/25" />
+                      <span className="block h-1.5 rounded-full bg-digi-blue/25" />
+                      <span className="block h-1.5 w-2/3 rounded-full bg-digi-blue/25" />
+                    </div>
+                  </div>
+
+                  {/* Panneau IA */}
+                  <div className="mt-3 rounded-lg bg-digi-navy/5 dark:bg-white/10 p-2.5">
+                    <p className="text-[10px] font-semibold text-digi-navy/80 dark:text-white/80">
+                      ✨ Assistant IA
+                    </p>
+                    <div className="mt-1.5 h-8 rounded-md bg-white/70 dark:bg-white/10 border border-white/50 dark:border-white/10" />
+                    <button
+                      type="button"
+                      className="mt-2 w-full rounded-md bg-digi-gradient py-1.5 text-[11px] font-semibold text-white
+                                 transition-transform hover:-translate-y-0.5"
+                    >
+                      Générer
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {previewStats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="rounded-lg bg-white/70 dark:bg-white/10 backdrop-blur-md py-2 text-center shadow-sm"
+                  >
+                    <p className="text-sm font-bold text-digi-navy dark:text-white">{s.value}</p>
+                    <p className="text-[9px] text-digi-navy/60 dark:text-white/60">{s.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div className="absolute -bottom-6 -left-6 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow">
               +2,5k <br /> Produits créés
             </div>
@@ -274,7 +374,28 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* MODAL DEMO (fallback si #apercu introuvable) */}
+      {demoOpen && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-digi-navy/70 backdrop-blur-sm"
+            onClick={() => setDemoOpen(false)}
+          />
+          <div className="relative z-10 w-[92vw] max-w-3xl rounded-2xl overflow-hidden shadow-digi-glow">
+            <button
+              onClick={() => setDemoOpen(false)}
+              className="absolute top-2.5 right-2.5 w-9 h-9 rounded-full bg-black/50 text-white"
+            >
+              ✕
+            </button>
+            <video controls autoPlay className="w-full block">
+              <source src="/videos/demo-digitelio.mp4" type="video/mp4" />
+            </video>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );
-    }
+                      }
