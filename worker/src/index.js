@@ -8,6 +8,7 @@ import {
   handleGoogleCallback,
 } from "./routes/auth.js";
 import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
+import { handleUpdateEbookSection } from "./routes/ebook_sections.js";
 import {
   handleCreateFormation,
   handleDeleteFormation,
@@ -46,8 +47,7 @@ import {
   handleBilling,
 } from "./routes/billing.js";
 
-/* Routes réservées aux comptes dont l'abonnement n'a pas expiré.
-   Restent accessibles : connexion, /api/billing, mot de passe, pages de vente publiques et espace apprenant. */
+/* Routes réservées aux comptes dont l'abonnement n'a pas expiré. */
 const GATED_EXACT = new Set([
   "/api/generate/ebook",
   "/api/overview",
@@ -121,14 +121,23 @@ export default {
       if (url.pathname === "/api/ebooks" && request.method === "GET") {
         return withCors(await handleListEbooks(request, env), request);
       }
-      if (url.pathname.startsWith("/api/ebooks/") && request.method === "GET") {
-        const ebookId = url.pathname.split("/api/ebooks/")[1];
-        return withCors(await handleGetEbook(request, env, ebookId), request);
+      if (url.pathname.startsWith("/api/ebooks/")) {
+        // parts = ["api", "ebooks", id, "sections", sectionId]
+        const parts = url.pathname.split("/").filter(Boolean);
+        const ebookId = parts[2];
+        if (parts.length === 3 && request.method === "GET") {
+          return withCors(await handleGetEbook(request, env, ebookId), request);
+        }
+        if (parts.length === 5 && parts[3] === "sections" && request.method === "PUT") {
+          return withCors(
+            await handleUpdateEbookSection(request, env, ebookId, parts[4]),
+            request
+          );
+        }
       }
 
       // ===== PAGES PUBLIQUES D'UNE FORMATION (sans connexion) =====
       if (url.pathname.startsWith("/api/public/formations/")) {
-        // parts = ["api", "public", "formations", id] ou [..., id, "cover" | "track"]
         const parts = url.pathname.split("/").filter(Boolean);
         if (parts.length === 4 && request.method === "GET") {
           return withCors(await handleGetPublicFormation(request, env, parts[3]), request);
@@ -143,7 +152,6 @@ export default {
 
       // ===== ESPACE APPRENANT (public, protégé par le lien secret) =====
       if (url.pathname.startsWith("/api/learn/")) {
-        // parts = ["api", "learn", token, "modules", moduleId]
         const parts = url.pathname.split("/").filter(Boolean);
         const token = parts[2];
         if (parts.length === 3 && request.method === "GET") {
@@ -191,7 +199,6 @@ export default {
         return withCors(await handleListFormations(request, env), request);
       }
       if (url.pathname === "/api/formations" && request.method === "POST") {
-        // quota : formations créées par période
         const gate = await checkQuota(request, env, "formation");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleCreateFormation(request, env);
@@ -199,7 +206,6 @@ export default {
         return withCors(res, request);
       }
       if (url.pathname.startsWith("/api/formations/")) {
-        // parts = ["api", "formations", id, "modules", moduleId, "generate"]
         const parts = url.pathname.split("/").filter(Boolean);
         const formationId = parts[2];
 
@@ -215,13 +221,11 @@ export default {
           }
         }
 
-        // Accès des apprenants
         if (parts[3] === "enrollments") {
           if (parts.length === 4 && request.method === "GET") {
             return withCors(await handleListEnrollments(request, env, formationId), request);
           }
           if (parts.length === 4 && request.method === "POST") {
-            // limite : apprenants par formation
             const blocked = await checkLearners(request, env, formationId);
             if (blocked) return withCors(blocked, request);
             return withCors(await handleCreateEnrollment(request, env, formationId), request);
@@ -252,7 +256,6 @@ export default {
             );
           }
           if (parts.length === 6 && parts[5] === "generate" && request.method === "POST") {
-            // quota : leçons générées par l'IA par période
             const gate = await checkQuota(request, env, "lesson");
             if (gate.blocked) return withCors(gate.blocked, request);
             const res = await handleGenerateModule(request, env, formationId, moduleId);
