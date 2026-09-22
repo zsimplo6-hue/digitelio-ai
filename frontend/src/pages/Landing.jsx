@@ -71,10 +71,18 @@ const commonFeatures = [
 ];
 
 const sidebarItems = [
-  { icon: "📘", label: "eBooks", active: true },
+  { icon: "🏠", label: "Tableau de bord", active: true },
+  { icon: "📘", label: "eBooks", active: false },
   { icon: "🎓", label: "Formations", active: false },
   { icon: "🛒", label: "Pages de vente", active: false },
-  { icon: "🖼️", label: "Images IA", active: false },
+  { icon: "📊", label: "Analytics", active: false },
+];
+
+const quickStats = [
+  { icon: "📘", value: "3", label: "eBooks" },
+  { icon: "🎓", value: "2", label: "Formations" },
+  { icon: "👥", value: "1", label: "Apprenants" },
+  { icon: "✅", value: "0", label: "Terminés" },
 ];
 
 const previewStats = [
@@ -131,25 +139,37 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* DASHBOARD MOCKUP — remplace l'ancien bloc vide */}
+          {/* DASHBOARD MOCKUP — animation premium à l'atterrissage */}
           <div id="apercu" className="relative scroll-mt-24">
+            {/* Halo glow derrière la carte */}
             <div
-              className="card relative overflow-hidden shadow-digi-glow
+              aria-hidden="true"
+              className="digi-mockup-glow absolute -inset-6 rounded-[2rem] bg-digi-gradient blur-3xl opacity-50 -z-10"
+            />
+
+            <div
+              className="digi-mockup-card card relative overflow-hidden shadow-digi-glow
                          bg-white/60 dark:bg-white/5 backdrop-blur-xl
                          border border-white/50 dark:border-white/10"
             >
+              {/* Header */}
               <div className="flex items-center justify-between text-xs text-digi-navy/50 dark:text-white/50">
-                <span>Digitelio AI — Aperçu</span>
+                <span className="font-semibold text-digi-navy dark:text-white">Digitelio AI — Aperçu</span>
                 <span>●●●</span>
               </div>
 
+              <p className="mt-3 text-sm font-semibold text-digi-navy dark:text-white">
+                Bonjour, Leader 👋
+              </p>
+
               <div className="mt-4 grid grid-cols-[70px_1fr] gap-3 sm:grid-cols-[90px_1fr]">
-                {/* Mini sidebar */}
+                {/* Sidebar */}
                 <div className="flex flex-col gap-1.5">
-                  {sidebarItems.map((item) => (
+                  {sidebarItems.map((item, i) => (
                     <div
                       key={item.label}
-                      className={`flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-center text-[10px] font-medium
+                      style={{ animationDelay: `${1.5 + i * 0.08}s` }}
+                      className={`digi-row-in flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-center text-[9px] font-medium
                         ${
                           item.active
                             ? "bg-digi-gradient text-white shadow-digi-glow"
@@ -162,43 +182,63 @@ export default function Landing() {
                   ))}
                 </div>
 
-                {/* Editeur central */}
-                <div className="rounded-xl bg-white/60 dark:bg-white/5 border border-white/40 dark:border-white/10 p-3">
-                  <p className="text-xs font-semibold text-digi-navy dark:text-white">
-                    Guide Marketing Digital
-                  </p>
-                  <div className="mt-3 flex gap-3">
-                    <div className="h-16 w-12 shrink-0 rounded-md bg-digi-gradient shadow-digi-glow" />
-                    <div className="flex-1 flex flex-col justify-center gap-1.5">
-                      <span className="block h-1.5 rounded-full bg-digi-blue/25" />
-                      <span className="block h-1.5 rounded-full bg-digi-blue/25" />
-                      <span className="block h-1.5 w-2/3 rounded-full bg-digi-blue/25" />
-                    </div>
+                {/* Contenu principal */}
+                <div className="flex flex-col gap-2.5">
+                  {/* Grille de stats 2x2 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {quickStats.map((s, i) => (
+                      <div
+                        key={s.label}
+                        style={{ animationDelay: `${1.7 + i * 0.08}s` }}
+                        className="digi-row-in rounded-lg bg-white/70 dark:bg-white/10 border border-white/40 dark:border-white/10 px-2.5 py-2"
+                      >
+                        <p className="text-sm font-bold text-digi-navy dark:text-white">
+                          {s.icon} {s.value}
+                        </p>
+                        <p className="text-[9px] text-digi-navy/60 dark:text-white/60">{s.label}</p>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Panneau IA */}
-                  <div className="mt-3 rounded-lg bg-digi-navy/5 dark:bg-white/10 p-2.5">
-                    <p className="text-[10px] font-semibold text-digi-navy/80 dark:text-white/80">
-                      ✨ Assistant IA
+                  {/* Bandeau revenu */}
+                  <div
+                    style={{ animationDelay: "2s" }}
+                    className="digi-row-in rounded-lg bg-digi-gradient/10 border border-digi-blue/20 px-3 py-2"
+                  >
+                    <p className="text-[10px] font-semibold text-digi-navy dark:text-white">
+                      💰 Revenu estimé
                     </p>
-                    <div className="mt-1.5 h-8 rounded-md bg-white/70 dark:bg-white/10 border border-white/50 dark:border-white/10" />
+                    <p className="text-sm font-bold text-digi-blue">10 000 FCFA</p>
+                  </div>
+
+                  {/* Actions rapides */}
+                  <div
+                    style={{ animationDelay: "2.1s" }}
+                    className="digi-row-in grid grid-cols-2 gap-2"
+                  >
                     <button
                       type="button"
-                      className="mt-2 w-full rounded-md bg-digi-gradient py-1.5 text-[11px] font-semibold text-white
-                                 transition-transform hover:-translate-y-0.5"
+                      className="rounded-md bg-digi-gradient py-1.5 text-[10px] font-semibold text-white transition-transform hover:-translate-y-0.5"
                     >
-                      Générer
+                      📘 Créer eBook
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md bg-digi-navy/10 dark:bg-white/10 py-1.5 text-[10px] font-semibold text-digi-navy dark:text-white transition-transform hover:-translate-y-0.5"
+                    >
+                      🎓 Créer formation
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Stats globales bas de carte */}
               <div className="mt-4 grid grid-cols-3 gap-2">
-                {previewStats.map((s) => (
+                {previewStats.map((s, i) => (
                   <div
                     key={s.label}
-                    className="rounded-lg bg-white/70 dark:bg-white/10 backdrop-blur-md py-2 text-center shadow-sm"
+                    style={{ animationDelay: `${2.2 + i * 0.08}s` }}
+                    className="digi-row-in rounded-lg bg-white/70 dark:bg-white/10 backdrop-blur-md py-2 text-center shadow-sm"
                   >
                     <p className="text-sm font-bold text-digi-navy dark:text-white">{s.value}</p>
                     <p className="text-[9px] text-digi-navy/60 dark:text-white/60">{s.label}</p>
@@ -207,7 +247,8 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="absolute -bottom-6 -left-6 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow">
+            {/* Badge flottant */}
+            <div className="digi-badge-pop absolute -bottom-6 -left-6 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow">
               +2,5k <br /> Produits créés
             </div>
           </div>
@@ -372,4 +413,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-}
+  }
