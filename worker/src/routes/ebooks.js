@@ -27,6 +27,48 @@ async function askAI(env, prompt, maxTokens) {
   return response.response || "";
 }
 
+/* ===== Structure en parties modifiables (intro, chapitres, conclusion) ===== */
+
+export function buildSections(introduction, chapters, conclusion) {
+  const sections = [
+    { id: "intro", type: "intro", title: "Introduction", content: (introduction || "").trim(), image: "" },
+  ];
+  chapters.forEach((ch, i) => {
+    sections.push({
+      id: `chapter-${i}`,
+      type: "chapter",
+      title: `Chapitre ${i + 1} : ${ch.title}`,
+      content: (ch.content || "").trim(),
+      image: "",
+    });
+  });
+  sections.push({ id: "conclusion", type: "conclusion", title: "Conclusion", content: (conclusion || "").trim(), image: "" });
+  return sections;
+}
+
+export function sectionsToContent(title, sections) {
+  let content = `# ${title}\n\n`;
+  for (const s of sections) {
+    content += `## ${s.title}\n\n${s.content}\n\n`;
+  }
+  return content;
+}
+
+/* Reconstruit les parties à partir du texte markdown, pour les eBooks créés avant cette mise à jour */
+export function parseContentToSections(content) {
+  const rawChapters = String(content || "").split(/^## /m).slice(1);
+  return rawChapters.map((raw, i) => {
+    const lines = raw.split("\n");
+    const title = (lines[0] || "").trim();
+    const body = lines.slice(1).join("\n").trim();
+    const isIntro = /^Introduction/i.test(title);
+    const isConclusion = /^Conclusion/i.test(title);
+    const type = isIntro ? "intro" : isConclusion ? "conclusion" : "chapter";
+    const id = isIntro ? "intro" : isConclusion ? "conclusion" : `chapter-${i - 1}`;
+    return { id, type, title, content: body, image: "" };
+  });
+}
+
 export async function handleGenerateEbook(request, env) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) {
@@ -102,17 +144,20 @@ Réponds STRICTEMENT dans ce format, sans aucun texte avant ou après :
     });
     fullContent += `## Conclusion\n\n${conclusion}\n`;
 
+    // Étape 4 — Structure en parties modifiables
+    const sections = buildSections(introduction, chapters, conclusion);
+
     const ebookId = generateId();
 
     await env.DB.prepare(
-      `INSERT INTO ebooks (id, user_id, title, description, language, content, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'draft')`
+      `INSERT INTO ebooks (id, user_id, title, description, language, content, sections_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')`
     )
-      .bind(ebookId, payload.sub, title, description, language || "fr", fullContent)
+      .bind(ebookId, payload.sub, title, description, language || "fr", fullContent, JSON.stringify(sections))
       .run();
 
     return Response.json({
-      ebook: { id: ebookId, title, description, language, content: fullContent, status: "draft" },
+      ebook: { id: ebookId, title, description, language, content: fullContent, sections, status: "draft" },
     });
   } catch (err) {
     return Response.json(
@@ -144,7 +189,7 @@ export async function handleGetEbook(request, env, ebookId) {
   }
 
   const ebook = await env.DB.prepare(
-    "SELECT id, title, description, language, content, status, created_at FROM ebooks WHERE id = ? AND user_id = ?"
+    "SELECT id, title, description, language, content, sections_json, status, created_at FROM ebooks WHERE id = ? AND user_id = ?"
   )
     .bind(ebookId, payload.sub)
     .first();
@@ -153,5 +198,16 @@ export async function handleGetEbook(request, env, ebookId) {
     return Response.json({ error: "eBook introuvable." }, { status: 404 });
   }
 
-  return Response.json({ ebook });
-                          }
+  let sections = null;
+  if (ebook.sections_json) {
+    try {
+      sections = JSON.parse(ebook.sections_json);
+    } catch {
+      sections = null;
+    }
+  }
+  if (!sections) sections = parseContentToSections(ebook.content);
+
+  const { sections_json, ...rest } = ebook;
+  return Response.json({ ebook: { ...rest, sections } });
+      }
