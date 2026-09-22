@@ -15,11 +15,14 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-digi-navy/5 bg-white/80 backdrop-blur-md dark:border-white/10 dark:bg-digi-navy/80">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <a href="#accueil" className="flex items-center gap-2.5 text-lg font-bold">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
-            <span className="text-lg font-extrabold leading-none">D</span>
+        <a href="#accueil" className="flex items-center gap-3 text-lg font-bold">
+          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg shadow-purple-500/30">
+            <span className="text-xl font-extrabold leading-none">D</span>
           </span>
-          Digitelio <span className="text-gradient">AI</span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-digi-navy dark:text-white">Digitelio</span>
+            <span className="text-gradient">AI</span>
+          </span>
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -78,4 +81,4 @@ export default function Navbar() {
       )}
     </header>
   );
-              }
+}
