@@ -1,56 +1,173 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
-import { renderMarkdown, extractChapterTitles } from "../utils/markdown.js";
+import { renderMarkdown } from "../utils/markdown.js";
 
-/* ---------- Helpers pour la page de titre ---------- */
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
-function splitDescription(desc = "") {
-  const text = desc.trim();
-  const m = text.match(/^(.*?)[\s.]+((?:Cet|Ce|Cette|Ces)\s+(?:ebook|e-book|livre|guide|ouvrage)\b[\s\S]*)$/i);
-  if (m) return { tagline: m[1].trim(), description: m[2].trim() };
-  const s = text.match(/^(.*?[.!?])\s+([\s\S]+)$/);
-  if (s) return { tagline: s[1].trim(), description: s[2].trim() };
-  return { tagline: text, description: "" };
+function compressImage(file, maxW = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Impossible de lire l'image."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Image illisible."));
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
-function renderTagline(tagline) {
-  const re = /(?:créer|produire|maîtriser|réaliser|créez)\s+(?:des|de|du|la|le|les|l['’])\s*/i;
-  const start = tagline.match(re);
-  if (!start) return tagline;
-  const from = start.index + start[0].length;
-  const rest = tagline.slice(from);
-  const end = rest.search(/\s+(?:avec|grâce|en|sans|pour)\b/i);
-  const phrase = end === -1 ? rest : rest.slice(0, end);
-  const after = end === -1 ? "" : rest.slice(end);
+function SectionBody({ section }) {
   return (
-    <>
-      {tagline.slice(0, from)}
-      <b>{phrase}</b>
-      {after}
-    </>
+    <div className="ebook-body">
+      <div dangerouslySetInnerHTML={{ __html: renderMarkdown("## " + section.title) }} />
+      {section.image && (
+        <div className="ebook-illustration">
+          <img src={section.image} alt="" />
+        </div>
+      )}
+      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(section.content || "") }} />
+    </div>
   );
 }
 
-function renderDescription(text) {
-  const parts = text.split(/(\b[\w-]+\.(?:ai|com|io|app|co)\b)/gi);
-  return parts.map((p, i) => (i % 2 === 1 ? <b key={i}>{p}</b> : p));
+/* ---------- Éditeur d'une partie (intro, chapitre ou conclusion) ---------- */
+function SectionEditor({ ebookId, section, onChange }) {
+  const [content, setContent] = useState(section.content || "");
+  const [image, setImage] = useState(section.image || "");
+  const [tab, setTab] = useState("edit");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setErr("");
+    setMsg("");
+    try {
+      const res = await fetch(`${API}/api/ebooks/${ebookId}/sections/${section.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, image }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Erreur lors de l'enregistrement.");
+      onChange(data.section);
+      setMsg("Partie enregistrée ✓");
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onImageFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setErr("");
+    if (!file.type.startsWith("image/")) {
+      setErr("Choisissez une image (JPG, PNG ou WebP).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErr("Image trop lourde (10 Mo maximum).");
+      return;
+    }
+    try {
+      let data = await compressImage(file, 1200, 0.82);
+      if (data.length > 850000) data = await compressImage(file, 900, 0.6);
+      setImage(data);
+    } catch (e2) {
+      setErr(e2.message);
+    }
+  }
+
+  const previewSection = { ...section, content, image };
+
+  return (
+    <div className="ebx-card no-print">
+      <div className="ebx-label">Édition : {section.title}</div>
+
+      <div className="ebx-tabs">
+        <button className={tab === "edit" ? "ebx-tab on" : "ebx-tab"} onClick={() => setTab("edit")}>
+          Éditer
+        </button>
+        <button className={tab === "preview" ? "ebx-tab on" : "ebx-tab"} onClick={() => setTab("preview")}>
+          Aperçu
+        </button>
+      </div>
+
+      {tab === "edit" ? (
+        <textarea
+          className="ebx-input ebx-textarea"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Texte de cette partie (Markdown : ### Titre, - puce)..."
+        />
+      ) : (
+        <SectionBody section={previewSection} />
+      )}
+
+      <div className="ebx-label" style={{ marginTop: "1.2rem" }}>Image d'illustration</div>
+      {image ? (
+        <div className="ebx-cover">
+          <img src={image} alt="Illustration" />
+        </div>
+      ) : (
+        <div className="ebx-cover ebx-cover-empty">Aucune image</div>
+      )}
+      <div className="ebx-cover-actions">
+        <label className="ebx-chip ebx-file">
+          {image ? "Changer l'image" : "+ Ajouter une image"}
+          <input type="file" accept="image/*" onChange={onImageFile} hidden />
+        </label>
+        {image && (
+          <button type="button" className="ebx-chip" onClick={() => setImage("")}>
+            Retirer
+          </button>
+        )}
+      </div>
+
+      {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
+      {msg && <div className="ebx-ok">{msg}</div>}
+
+      <button className="btn-primary ebx-save" onClick={save} disabled={saving}>
+        {saving ? "Enregistrement..." : "💾 Enregistrer"}
+      </button>
+    </div>
+  );
 }
 
+/* ---------- Page principale ---------- */
 export default function EbookPreview() {
   const { id } = useParams();
   const [ebook, setEbook] = useState(null);
+  const [sections, setSections] = useState([]);
+  const [activeId, setActiveId] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchEbook() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ebooks/${id}`, {
-          credentials: "include",
-        });
+        const res = await fetch(`${API}/api/ebooks/${id}`, { credentials: "include" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur de chargement.");
         setEbook(data.ebook);
+        setSections(data.ebook.sections || []);
       } catch (err) {
         setError(err.message);
       }
@@ -74,18 +191,14 @@ export default function EbookPreview() {
     );
   }
 
-  const chapterTitles = extractChapterTitles(ebook.content);
-  const rawChapters = ebook.content.split(/^## /m).slice(1);
+  function patchSection(patch) {
+    setSections((list) => list.map((s) => (s.id === patch.id ? { ...s, ...patch } : s)));
+  }
 
-  // La conclusion est déplacée sur la dernière page
-  const conclusionIdx = rawChapters.findIndex((r) => /^Conclusion/i.test(r));
-  const conclusionHtml =
-    conclusionIdx >= 0 ? renderMarkdown("## " + rawChapters[conclusionIdx]) : "";
-
-  const words = (ebook.title || "").trim().split(/\s+/);
-  const subtitle = words.length > 2 ? words.pop() : "";
-  const mainTitle = words.join(" ");
-  const { tagline, description } = splitDescription(ebook.description || "");
+  const chapterSections = sections.filter((s) => s.type === "chapter");
+  const conclusionSection = sections.find((s) => s.type === "conclusion");
+  const bodySections = sections.filter((s) => s.type !== "conclusion");
+  const activeSection = sections.find((s) => s.id === activeId);
 
   return (
     <DashboardLayout>
@@ -94,6 +207,38 @@ export default function EbookPreview() {
         <button onClick={() => window.print()} className="btn-primary">
           Télécharger en PDF
         </button>
+      </div>
+
+      <div className="no-print ebx-wrap">
+        <div className="ebx-card">
+          <div className="ebx-label">Plan de l'eBook</div>
+          <ol className="ebx-list">
+            {sections.map((s) => (
+              <li key={s.id}>
+                <button
+                  className={`ebx-item${s.id === activeId ? " active" : ""}`}
+                  onClick={() => setActiveId(s.id === activeId ? null : s.id)}
+                >
+                  <span className="ebx-item-title">{s.title}</span>
+                  {s.image && <span className="ebx-tag">🖼 Illustrée</span>}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="ebx-muted ebx-small">
+            Touchez une partie pour modifier son texte ou ajouter une image d'illustration.
+            Enregistrez avant de télécharger le PDF pour inclure vos modifications.
+          </div>
+        </div>
+
+        {activeSection && (
+          <SectionEditor
+            key={activeSection.id}
+            ebookId={ebook.id}
+            section={activeSection}
+            onChange={patchSection}
+          />
+        )}
       </div>
 
       <div id="ebook-print-area" className="ebook-doc">
@@ -112,8 +257,16 @@ export default function EbookPreview() {
               <span />
             </div>
 
-            <h1 className="cv-title">{mainTitle}</h1>
-            {subtitle && <div className="cv-sub">{subtitle}</div>}
+            <h1 className="cv-title">{(() => {
+              const words = (ebook.title || "").trim().split(/\s+/);
+              const sub = words.length > 2 ? words.pop() : "";
+              return words.join(" ");
+            })()}</h1>
+            {(() => {
+              const words = (ebook.title || "").trim().split(/\s+/);
+              const sub = words.length > 2 ? words[words.length - 1] : "";
+              return sub && <div className="cv-sub">{sub}</div>;
+            })()}
 
             <div className="cv-divider">
               <span />
@@ -121,47 +274,40 @@ export default function EbookPreview() {
               <span />
             </div>
 
-            {tagline && <p className="cv-tagline">{renderTagline(tagline)}</p>}
-            {description && <p className="cv-desc">{renderDescription(description)}</p>}
+            {ebook.description && <p className="cv-desc">{ebook.description}</p>}
           </div>
         </section>
 
         {/* SOMMAIRE */}
-        {chapterTitles.length > 0 && (
+        {chapterSections.length > 0 && (
           <section className="ebook-toc">
             <div className="ebook-section-label">Sommaire</div>
             <ul>
-              {chapterTitles.map((t, i) => (
-                <li key={i}>
+              {chapterSections.map((s) => (
+                <li key={s.id}>
                   <span className="ebook-toc-icon">◆</span>
-                  <span>{t}</span>
+                  <span>{s.title}</span>
                 </li>
               ))}
             </ul>
           </section>
         )}
 
-        {/* CHAPITRES */}
-        {rawChapters.map((raw, i) => {
-          if (i === conclusionIdx) return null;
+        {/* INTRODUCTION + CHAPITRES */}
+        {bodySections.map((s) => (
+          <section key={s.id} className={`ebook-chapter${s.type === "intro" ? " is-intro" : ""}`}>
+            {s.type === "chapter" && (
+              <div className="ebook-chapter-number">
+                {chapterSections.findIndex((c) => c.id === s.id) + 1}
+              </div>
+            )}
+            <SectionBody section={s} />
+          </section>
+        ))}
 
-          const isIntro = /^Introduction/i.test(raw);
-          const html = renderMarkdown("## " + raw);
-          const label = isIntro ? "" : `${i}`;
-
-          return (
-            <section key={i} className={`ebook-chapter${isIntro ? " is-intro" : ""}`}>
-              {!isIntro && <div className="ebook-chapter-number">{label}</div>}
-              <div className="ebook-body" dangerouslySetInnerHTML={{ __html: html }} />
-            </section>
-          );
-        })}
-
-        {/* DERNIÈRE PAGE : CONCLUSION + REMERCIEMENT + COPYRIGHT EN BAS */}
+        {/* DERNIÈRE PAGE */}
         <section className="ebook-cta">
-          {conclusionHtml && (
-            <div className="ebook-body" dangerouslySetInnerHTML={{ __html: conclusionHtml }} />
-          )}
+          {conclusionSection && <SectionBody section={conclusionSection} />}
 
           <div className="ebook-cta-center">
             <div className="ebook-cta-box">
@@ -308,19 +454,6 @@ export default function EbookPreview() {
           background: var(--digi-gold);
           transform: rotate(45deg);
         }
-        .cv-tagline {
-          font-family: 'Manrope', sans-serif;
-          font-weight: 300;
-          font-size: 1.2rem;
-          line-height: 1.5;
-          color: #fff;
-          margin: 0;
-        }
-        .cv-tagline b,
-        .cv-desc b {
-          color: var(--digi-gold);
-          font-weight: 600;
-        }
         .cv-desc {
           font-family: 'Manrope', sans-serif;
           font-weight: 300;
@@ -391,6 +524,14 @@ export default function EbookPreview() {
         }
         .ebook-body li { margin: 0.4rem 0; line-height: 1.7; }
 
+        /* Image d'illustration */
+        .ebook-illustration {
+          margin: 1.4rem 0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .ebook-illustration img { display: block; width: 100%; height: auto; }
+
         /* ===== DERNIÈRE PAGE : CONCLUSION + CTA + COPYRIGHT EN BAS ===== */
         .ebook-cta {
           display: flex;
@@ -437,73 +578,68 @@ export default function EbookPreview() {
         }
         .ebook-copyright p { margin: 0; }
 
-        /* ===== IMPRESSION PDF ===== */
+        /* ===== ÉDITEUR (écran uniquement) ===== */
+        .ebx-wrap { display: grid; gap: 1rem; }
+        .ebx-card {
+          padding: 1.2rem; border-radius: 14px;
+          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
+        }
+        .ebx-label {
+          font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
+          text-transform: uppercase; color: #D4AF37; margin-bottom: 0.7rem;
+        }
+        .ebx-muted { opacity: 0.7; margin-top: 0.8rem; }
+        .ebx-small { font-size: 0.82rem; }
+        .ebx-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+        .ebx-item {
+          width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+          padding: 0.7rem 0.9rem; border-radius: 10px; text-align: left;
+          background: transparent; border: 1px solid transparent; color: inherit; font-family: inherit;
+        }
+        .ebx-item.active { border-color: #D4AF37; background: rgba(212,175,55,0.08); }
+        .ebx-item-title { font-weight: 600; }
+        .ebx-tag { font-size: 0.72rem; color: #D4AF37; font-weight: 700; }
+        .ebx-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.7rem; }
+        .ebx-tab {
+          padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.85rem;
+          border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit; font-family: inherit;
+        }
+        .ebx-tab.on { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
+        .ebx-input {
+          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
+          background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.3);
+          color: inherit; outline: none; font-family: inherit;
+        }
+        .ebx-textarea { min-height: 16rem; line-height: 1.6; font-size: 0.92rem; resize: vertical; }
+        .ebx-cover {
+          width: 100%; max-width: 20rem; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
+          border: 1px solid rgba(128,128,128,0.3);
+        }
+        .ebx-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ebx-cover-empty {
+          display: flex; align-items: center; justify-content: center;
+          font-size: 0.85rem; opacity: 0.6; border-style: dashed;
+        }
+        .ebx-cover-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+        .ebx-chip {
+          font-size: 0.8rem; padding: 0.35rem 0.7rem; border-radius: 999px; cursor: pointer;
+          border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit; font-family: inherit;
+        }
+        .ebx-file { display: inline-block; }
+        .ebx-ok { margin-top: 0.8rem; color: #16a34a; font-size: 0.9rem; font-weight: 600; }
+        .ebx-save { width: 100%; margin-top: 1.2rem; padding: 0.85rem; border-radius: 10px; font-weight: 600; }
+
         @media print {
-          @page { size: A4; margin: 0; }
-
-          html, body {
-            background: #fff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-
           .no-print, header, aside { display: none !important; }
-
-          /* Neutralise la mise en page du dashboard autour de l'ebook */
-          *:has(#ebook-print-area) {
-            display: block !important;
-            position: static !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: auto !important;
-            max-width: none !important;
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            border: 0 !important;
-            background: transparent !important;
-            transform: none !important;
-          }
-
-          .ebook-doc { background: #fff; width: 100%; }
-
-          /* Couverture et dernière page : une page A4 exacte */
-          .ebook-cover, .ebook-cta {
-            height: 296mm;
-            min-height: 0;
+          body { background: white; }
+          @page { margin: 0; }
+          .ebook-doc { background: white; }
+          .ebook-cover, .cv-ribbon {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .cv-ribbon {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          /* Sommaire + introduction sur la même page */
-          .ebook-toc { padding: 12mm 3rem 4mm; }
-          .ebook-chapter {
-            padding: 10mm 3rem 6mm;
-            -webkit-box-decoration-break: clone;
-            box-decoration-break: clone;
-          }
-          .ebook-chapter.is-intro {
-            page-break-before: auto;
-            break-before: auto;
-            padding-top: 4mm;
-          }
-          .ebook-cta { padding: 10mm 3rem 8mm; }
-
-          /* Texte un peu plus compact à l'impression */
-          .ebook-chapter-number { font-size: 3.6rem; }
-          .ebook-body h2 { font-size: 1.45rem; margin-bottom: 0.8rem; break-after: avoid; }
-          .ebook-body h3 { break-after: avoid; }
-          .ebook-body p {
-            font-size: 0.9rem;
-            line-height: 1.62;
-            margin: 0.7rem 0;
-          }
+          .ebook-illustration { break-inside: avoid; margin: 8mm 0; }
+          .ebook-illustration img { max-height: 130mm; object-fit: cover; }
         }
       `}</style>
     </DashboardLayout>
