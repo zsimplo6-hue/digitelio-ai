@@ -46,6 +46,11 @@ import {
   recordUsage,
   handleBilling,
 } from "./routes/billing.js";
+import {
+  handleCreateCheckout,
+  handleVerifyPayment,
+  handleSaspayWebhook,
+} from "./routes/payments.js";
 
 /* Routes réservées aux comptes dont l'abonnement n'a pas expiré. */
 const GATED_EXACT = new Set([
@@ -175,6 +180,18 @@ export default {
       if (url.pathname === "/api/billing" && request.method === "GET") {
         return withCors(await handleBilling(request, env), request);
       }
+
+      // ===== PAIEMENT DES ABONNEMENTS (SasPay) =====
+      if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
+        return withCors(await handleCreateCheckout(request, env), request);
+      }
+      if (url.pathname === "/api/billing/verify" && request.method === "GET") {
+        return withCors(await handleVerifyPayment(request, env), request);
+      }
+      if (url.pathname === "/api/webhooks/saspay" && request.method === "POST") {
+        return withCors(await handleSaspayWebhook(request, env), request);
+      }
+
       if (url.pathname === "/api/settings" && request.method === "GET") {
         return withCors(await handleGetSettings(request, env), request);
       }
