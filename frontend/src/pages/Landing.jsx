@@ -95,12 +95,22 @@ const pricingCss = `
 .dg-list li::before{content:"✓";position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--dg-blue),var(--dg-violet))}
 .dg-list li.off{color:var(--dg-muted)}
 .dg-list li.off::before{background:var(--dg-off)}
-.dg-btn{display:block;width:100%;text-align:center;text-decoration:none;font-weight:700;font-size:.95rem;padding:14px 18px;border-radius:14px;transition:transform .15s ease}
-.dg-btn:hover{transform:translateY(-2px)}
+.dg-btn{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;text-align:center;text-decoration:none;font-weight:800;font-size:.95rem;padding:15px 18px;border-radius:16px;background-size:220% 220%;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,filter .3s ease,border-color .3s ease}
+.dg-btn:hover{transform:translateY(-3px) scale(1.02)}
+.dg-btn:active{transform:scale(.97)}
 .dg-btn:focus-visible{outline:3px solid var(--dg-violet);outline-offset:3px}
+.dg-arrow{display:inline-block;transition:transform .3s ease}
+.dg-btn:hover .dg-arrow{transform:translateX(6px)}
 .dg-btn-free{color:var(--dg-ink);background:#fff;border:1.5px solid #D9DBE6}
-.dg-btn-pro{color:#fff;background:linear-gradient(135deg,var(--dg-blue),var(--dg-violet));box-shadow:0 12px 24px -10px rgba(99,102,241,.7)}
-.dg-btn-biz{color:#2B2308;background:linear-gradient(135deg,#D4AF37,#F3DE8C);box-shadow:0 12px 24px -10px rgba(212,175,55,.7)}
+.dg-btn-free:hover{border-color:var(--dg-violet);box-shadow:0 10px 22px -12px rgba(139,92,246,.6)}
+.dg-btn-pro,.dg-btn-biz{animation:dg-gradient 5s ease infinite}
+.dg-btn-pro{color:#fff;background-image:linear-gradient(120deg,#3B82F6,#8B5CF6,#3B82F6);box-shadow:0 12px 28px -10px rgba(99,102,241,.8)}
+.dg-btn-biz{color:#2B2308;background-image:linear-gradient(120deg,#D4AF37,#F3DE8C,#D4AF37);box-shadow:0 12px 28px -10px rgba(212,175,55,.8)}
+.dg-btn-pro:hover{filter:brightness(1.08);box-shadow:0 18px 36px -10px rgba(99,102,241,.95)}
+.dg-btn-biz:hover{filter:brightness(1.06);box-shadow:0 18px 36px -10px rgba(212,175,55,.95)}
+.dg-btn-pro::after,.dg-btn-biz::after{content:"";position:absolute;top:0;left:0;width:35%;height:100%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:dg-shine 3.4s ease-in-out infinite}
+@keyframes dg-gradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes dg-shine{0%{transform:translateX(-160%) skewX(-20deg)}55%,100%{transform:translateX(380%) skewX(-20deg)}}
 .dark .dg-card{color:#fff;background:rgba(255,255,255,.05);box-shadow:none}
 .dark .dg-pro{background:linear-gradient(160deg,rgba(139,92,246,.18),rgba(59,130,246,.08));box-shadow:0 26px 54px -20px rgba(139,92,246,.55)}
 .dark .dg-biz{background:linear-gradient(160deg,rgba(212,175,55,.14),rgba(255,255,255,.04))}
@@ -108,7 +118,7 @@ const pricingCss = `
 .dark .dg-list li.off::before{background:rgba(255,255,255,.22)}
 .dark .dg-btn-free{color:#fff;background:transparent;border-color:rgba(255,255,255,.25)}
 @media (max-width:860px){.dg-grid{grid-template-columns:1fr;max-width:420px;gap:30px}.dg-pro{transform:none;order:-1}}
-@media (prefers-reduced-motion:reduce){.dg-btn{transition:none}.dg-btn:hover{transform:none}}
+@media (prefers-reduced-motion:reduce){.dg-btn,.dg-btn::after{animation:none!important;transition:none!important}.dg-btn:hover{transform:none}}
 `;
 
 const sidebarItems = [
@@ -340,7 +350,10 @@ export default function Landing() {
               </ul>
 
               <a href="/signup" className={`dg-btn dg-btn-${p.tone}`}>
-                {p.cta}
+                <span>{p.cta}</span>
+                <span className="dg-arrow" aria-hidden="true">
+                  →
+                </span>
               </a>
             </div>
           ))}
@@ -443,4 +456,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-                                     }
+}
