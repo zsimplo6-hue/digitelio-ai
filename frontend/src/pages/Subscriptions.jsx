@@ -62,6 +62,8 @@ export default function Subscriptions() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const reloadedRef = useRef(false);
+  const [paying, setPaying] = useState("");
+  const [payMsg, setPayMsg] = useState(null);
 
   async function load() {
     try {
@@ -84,10 +86,87 @@ export default function Subscriptions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* Retour depuis la page de paiement SasPay : l'adresse contient ?paiement=<référence> */
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("paiement");
+    if (!ref) return;
+    let cancelled = false;
+    setPayMsg({ type: "info", text: "Vérification de votre paiement en cours…" });
+
+    (async () => {
+      for (let i = 0; i < 8 && !cancelled; i++) {
+        try {
+          const res = await fetch(`${API}/api/billing/verify?ref=${encodeURIComponent(ref)}`, {
+            credentials: "include",
+          });
+          const json = await res.json().catch(() => ({}));
+          if (res.ok && json.paid) {
+            if (cancelled) return;
+            setPayMsg({ type: "ok", text: "✅ Paiement confirmé : votre abonnement est activé." });
+            await load();
+            window.history.replaceState({}, "", window.location.pathname);
+            return;
+          }
+          if (res.status === 404 || res.status === 401) {
+            if (!cancelled) setPayMsg({ type: "error", text: json.error || "Paiement introuvable." });
+            return;
+          }
+        } catch {
+          /* on réessaie */
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      if (!cancelled) {
+        setPayMsg({
+          type: "info",
+          text:
+            "Votre paiement n'est pas encore confirmé. Si vous avez bien payé, l'abonnement s'activera automatiquement dans quelques minutes : actualisez cette page.",
+        });
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* Si le client revient avec le bouton « retour » du navigateur, on débloque le bouton */
+  useEffect(() => {
+    const onShow = (e) => {
+      if (e.persisted) setPaying("");
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now() + offset), 1000);
     return () => clearInterval(t);
   }, [offset]);
+
+  async function startPayment(planKey) {
+    if (paying) return;
+    setPaying(planKey);
+    setPayMsg(null);
+    try {
+      const res = await fetch(`${API}/api/billing/checkout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planKey, return_path: window.location.pathname }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.checkout_url) {
+        throw new Error(json.error || "Impossible de démarrer le paiement.");
+      }
+      window.location.href = json.checkout_url;
+    } catch (e) {
+      setPayMsg({ type: "error", text: e.message });
+      setPaying("");
+    }
+  }
 
   const status = data?.status;
   const active = status === "active";
@@ -121,7 +200,6 @@ export default function Subscriptions() {
         active ? RANK[p.key] >= RANK[data.plan] && p.key !== "free" : p.key !== "free"
       )
     : [];
-  const anyContact = !!contact.whatsapp || targets.some((p) => contact.payment_urls?.[p.key]);
 
   const waFor = (planName, renew) =>
     contact.whatsapp
@@ -143,6 +221,8 @@ export default function Subscriptions() {
         {error && (
           <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>
         )}
+
+        {payMsg && <div className={`sb-pay-msg ${payMsg.type}`}>{payMsg.text}</div>}
 
         {loading ? (
           <p className="sb-muted" style={{ marginTop: "1.5rem" }}>Chargement...</p>
@@ -262,36 +342,36 @@ export default function Subscriptions() {
                   <div className="sb-cta-actions">
                     {targets.map((p) => {
                       const renew = active && p.key === data.plan;
-                      const payUrl = contact.payment_urls?.[p.key] || "";
                       const wa = waFor(p.name, renew);
                       return (
                         <div key={p.key} className="sb-up">
                           <div className="sb-up-name">
                             {p.name} · {p.price_text}
                           </div>
-                          {payUrl && (
-                            <a className="sb-btn gold" href={payUrl} target="_blank" rel="noopener noreferrer">
-                              {renew ? `🔄 Renouveler le plan ${p.name} (+30 jours)` : `🚀 Passer au plan ${p.name}`}
-                            </a>
-                          )}
+                          <button
+                            type="button"
+                            className="sb-btn gold"
+                            disabled={!!paying}
+                            onClick={() => startPayment(p.key)}
+                          >
+                            {paying === p.key
+                              ? "Redirection vers le paiement…"
+                              : renew
+                              ? `🔄 Renouveler le plan ${p.name} (+30 jours)`
+                              : `🚀 Passer au plan ${p.name}`}
+                          </button>
                           {wa && (
-                            <a
-                              className={payUrl ? "sb-btn out" : "sb-btn gold"}
-                              href={wa}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              💬 {payUrl ? "Poser une question sur WhatsApp" : `${renew ? "Renouveler" : "Demander"} le plan ${p.name}`}
+                            <a className="sb-btn out" href={wa} target="_blank" rel="noopener noreferrer">
+                              💬 Poser une question sur WhatsApp
                             </a>
                           )}
                         </div>
                       );
                     })}
-                    {!anyContact && (
-                      <div className="sb-muted sb-small">
-                        Contactez l'administrateur de la plateforme pour activer un plan payant.
-                      </div>
-                    )}
+                    <div className="sb-muted sb-small">
+                      Paiement sécurisé par SasPay (Mobile Money). Votre abonnement s'active
+                      automatiquement dès la confirmation du paiement.
+                    </div>
                   </div>
                 </div>
               )}
@@ -364,8 +444,14 @@ export default function Subscriptions() {
           display: block; padding: 0.9rem; border-radius: 10px; font-weight: 700; text-decoration: none;
         }
         .sb-btn.gold { background: #D4AF37; color: #0B0B0B; }
+        button.sb-btn { width: 100%; border: 0; cursor: pointer; font-size: inherit; font-family: inherit; }
+        button.sb-btn:disabled { opacity: 0.6; cursor: wait; }
+        .sb-pay-msg { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+        .sb-pay-msg.info { background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.6); }
+        .sb-pay-msg.ok { background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.7); }
+        .sb-pay-msg.error { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.6); }
         .sb-btn.out { border: 1px solid rgba(128,128,128,0.5); color: inherit; }
       `}</style>
     </DashboardLayout>
   );
-    }
+      }
