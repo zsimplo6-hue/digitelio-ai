@@ -172,14 +172,15 @@ export async function handleCreateCheckout(request, env) {
     if (Number.isFinite(testAmount) && testAmount > 0 && testAmount < amount) amount = testAmount;
   }
 
-  // Anti double-clic : on réutilise une session ouverte il y a moins de 30 minutes
+  // Anti double-clic : on réutilise une session ouverte il y a moins de 30 minutes,
+  // seulement si elle porte le même montant (sinon un changement de prix serait ignoré)
   const recent = await env.DB.prepare(
     `SELECT id, checkout_url FROM payments
-     WHERE user_id = ? AND plan = ? AND status = 'PENDING' AND checkout_url IS NOT NULL
+     WHERE user_id = ? AND plan = ? AND amount = ? AND status = 'PENDING' AND checkout_url IS NOT NULL
        AND created_at > datetime('now', ?)
      ORDER BY created_at DESC LIMIT 1`
   )
-    .bind(auth.sub, plan, `-${REUSE_MINUTES} minutes`)
+    .bind(auth.sub, plan, amount, `-${REUSE_MINUTES} minutes`)
     .first();
   if (recent) return json({ checkout_url: recent.checkout_url, payment_id: recent.id });
 
