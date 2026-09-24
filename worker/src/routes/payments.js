@@ -2,13 +2,7 @@ import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 import { PLANS, activatePlan } from "./billing.js";
 
-/* ============================ À PERSONNALISER ============================ */
-
-// Prix mensuel facturé via SasPay, en XOF (francs CFA).
-// 12 500 XOF ≈ 19 €  |  32 000 XOF ≈ 49 €  -> à ajuster selon vos prix réels.
-export const PLAN_PRICES_XOF = { pro: 12500, business: 32000 };
-
-/* ========================================================================= */
+/* Les prix (en XOF) se règlent dans routes/billing.js : PLANS.<plan>.price_xof */
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
@@ -155,8 +149,8 @@ export async function handleCreateCheckout(request, env) {
 
   const body = await request.json().catch(() => null);
   const plan = String(body?.plan || "");
-  const amount = PLAN_PRICES_XOF[plan];
-  if (!amount || !PLANS[plan] || plan === "free") {
+  const amount = PLANS[plan]?.price_xof;
+  if (!amount || plan === "free") {
     return json({ error: "Plan invalide." }, 400);
   }
 
@@ -179,13 +173,17 @@ export async function handleCreateCheckout(request, env) {
   const paymentId = crypto.randomUUID();
   const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
 
+  // Page où renvoyer le client après paiement (chemin interne uniquement)
+  let returnPath = String(body?.return_path || "");
+  if (!/^\/[A-Za-z0-9_\-\/]{0,100}$/.test(returnPath) || returnPath.includes("//")) returnPath = "/";
+
   const res = await saspay(env, "POST", "/checkout-sessions", {
     amount: amount.toFixed(2),
     currency: "XOF",
     description: `Abonnement Digitelio AI ${PLANS[plan].name}`,
     customer_email: user.email,
     customer_name: user.full_name || user.email,
-    return_url: `${appUrl}/?paiement=${paymentId}`,
+    return_url: `${appUrl}${returnPath}?paiement=${paymentId}`,
     metadata: { payment_id: paymentId },
   });
   const data = await res.json().catch(() => null);
@@ -260,4 +258,4 @@ export async function handleSaspayWebhook(request, env) {
   }
 
   return json({ received: true });
-  }
+    }
