@@ -6,7 +6,7 @@ import { verifyJWT } from "../utils/jwt.js";
 export const CONTACT = {
   whatsapp: "", // votre WhatsApp au format international, sans + ni espaces. Ex : "2250700000000"
   payment_urls: {
-    pro: "",      // lien de paiement du plan Pro (sera remplacé par Orqex)
+    pro: "",      // lien de paiement du plan Pro (inutilisé : le paiement passe désormais par SasPay)
     business: "", // lien de paiement du plan Business
   },
 };
@@ -14,17 +14,20 @@ export const CONTACT = {
 export const PLANS = {
   free: {
     name: "Gratuit",
-    price_text: "0 €",
+    price_text: "Gratuit",
+    price_xof: 0,
     limits: { ebook: 1, formation: 1, lesson: 15, marketing: 10, learners: 10 },
   },
   pro: {
     name: "Pro",
-    price_text: "19 € / mois",
+    price_text: "12 500 FCFA / mois",
+    price_xof: 12500, // montant réellement facturé via SasPay (en XOF) : à garder cohérent avec price_text
     limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
   },
   business: {
     name: "Business",
-    price_text: "49 € / mois",
+    price_text: "32 000 FCFA / mois",
+    price_xof: 32000,
     limits: { ebook: 50, formation: 30, lesson: 600, marketing: 300, learners: 300 },
   },
 };
@@ -300,4 +303,4 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-  }
+    }
