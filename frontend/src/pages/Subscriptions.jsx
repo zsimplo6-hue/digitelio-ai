@@ -31,6 +31,12 @@ function planLines(l) {
   ];
 }
 
+/* "9 900 FCFA / mois" -> { amount: "9 900", unit: "FCFA / mois" } ; "Gratuit" reste tel quel */
+function splitPrice(text) {
+  const m = String(text || "").match(/^([\d\s\u00a0\u202f.,]+?)\s+(\D.*)$/);
+  return m ? { amount: m[1].trim(), unit: m[2].trim() } : { amount: String(text || ""), unit: "" };
+}
+
 function fmtDateTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -194,23 +200,6 @@ export default function Subscriptions() {
 
   const contact = data?.contact || {};
 
-  /* Plans proposés : abonné actif = son plan (renouvellement) et supérieurs ; sinon tous les plans payants */
-  const targets = data
-    ? data.plans.filter((p) =>
-        active ? RANK[p.key] >= RANK[data.plan] && p.key !== "free" : p.key !== "free"
-      )
-    : [];
-
-  const waFor = (planName, renew) =>
-    contact.whatsapp
-      ? `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(
-          `Bonjour, je souhaite ${renew ? "renouveler" : "passer au"} plan ${planName} de Digitelio AI. Mon email : ${data?.email || ""}`
-        )}`
-      : "";
-
-  let ctaTitle = "Passez à un plan payant";
-  if (expired) ctaTitle = "Renouvelez votre abonnement";
-  else if (active) ctaTitle = "Renouveler ou changer de plan";
 
   return (
     <DashboardLayout>
@@ -257,7 +246,7 @@ export default function Subscriptions() {
                     <div className="sb-count-label">Temps restant</div>
                     <div className="sb-count-n">{fmtRemaining(remaining)}</div>
                     <div className="sb-bar">
-                      <div className="sb-bar-fill" style={{ width: `${elapsedPct}%`, background: "#D4AF37" }} />
+                      <div className="sb-bar-fill" style={{ width: `${elapsedPct}%`, background: "linear-gradient(90deg,#D4AF37,#f3d77a)" }} />
                     </div>
                     <div className="sb-muted sb-small">
                       {startMs ? `Actif depuis le ${fmtDateTime(data.started_at)}. ` : ""}
@@ -275,7 +264,12 @@ export default function Subscriptions() {
                     const used = data.usage[r.kind] || 0;
                     const limit = data.limits[r.kind] || 1;
                     const pct = Math.min(100, Math.round((used / limit) * 100));
-                    const color = pct >= 100 ? "#ef4444" : pct >= 80 ? "#d97706" : "#D4AF37";
+                    const color =
+                      pct >= 100
+                        ? "linear-gradient(90deg,#ef4444,#f87171)"
+                        : pct >= 80
+                        ? "linear-gradient(90deg,#d97706,#fbbf24)"
+                        : "linear-gradient(90deg,#3B82F6,#8B5CF6)";
                     return (
                       <div key={r.kind} className="sb-usage">
                         <div className="sb-usage-top">
@@ -304,154 +298,271 @@ export default function Subscriptions() {
                 </div>
               )}
 
-              {/* Comparaison des plans */}
-              <div className="sb-label" style={{ marginTop: "2rem" }}>Les plans</div>
+              {/* Plans */}
+              <div className="sb-label" style={{ marginTop: "2.4rem" }}>Choisissez votre plan</div>
               <div className="sb-plans">
-                {data.plans.map((p) => {
-                  const current = active && p.key === data.plan;
+                {data.plans.map((p, i) => {
+                  const isFree = p.key === "free";
+                  const isCurrent = active ? p.key === data.plan : isFree && status === "free";
+                  const lower = active && RANK[p.key] < RANK[data.plan];
+                  const renew = active && p.key === data.plan;
+                  const featured = p.key === "pro";
+                  const { amount, unit } = splitPrice(p.price_text);
+                  const busy = paying === p.key;
+
+                  let btn;
+                  if (isFree) {
+                    btn = (
+                      <button type="button" className="sb-cta-btn ghost" disabled>
+                        {isCurrent ? "✓ Votre plan actuel" : "Plan gratuit"}
+                      </button>
+                    );
+                  } else if (lower) {
+                    btn = (
+                      <button type="button" className="sb-cta-btn ghost" disabled>
+                        Déjà inclus dans votre plan
+                      </button>
+                    );
+                  } else {
+                    btn = (
+                      <button
+                        type="button"
+                        className={`sb-cta-btn ${p.key}`}
+                        disabled={!!paying}
+                        onClick={() => startPayment(p.key)}
+                      >
+                        {busy ? (
+                          <>
+                            <span className="sb-spin" />
+                            Redirection…
+                          </>
+                        ) : (
+                          <>
+                            <span>{renew ? "Renouveler (+30 jours)" : `Passer au plan ${p.name}`}</span>
+                            <span className="sb-arrow" aria-hidden="true">
+                              →
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  }
+
                   return (
-                    <div key={p.key} className={p.key === "pro" ? "sb-plan featured" : "sb-plan"}>
+                    <div
+                      key={p.key}
+                      className={`sb-plan sb-plan-${p.key}${featured ? " featured" : ""}${isCurrent ? " current" : ""}`}
+                      style={{ animationDelay: `${i * 0.12}s` }}
+                    >
+                      {featured && <div className="sb-pop">✦ Populaire</div>}
                       <div className="sb-plan-head">
                         <div className="sb-plan-name">{p.name}</div>
-                        {current && <span className="sb-current-tag">Votre plan</span>}
+                        {isCurrent && <span className="sb-current-tag">Votre plan</span>}
                       </div>
-                      <div className="sb-plan-price">{p.price_text}</div>
+                      <div className="sb-plan-price">
+                        <span className="sb-price-n">{amount}</span>
+                        {unit && <span className="sb-price-u">{unit}</span>}
+                      </div>
                       <ul className="sb-plan-list">
                         {planLines(p.limits).map((t) => (
-                          <li key={t}>◆ {t}</li>
+                          <li key={t}>
+                            <span className="sb-check">✓</span>
+                            {t}
+                          </li>
                         ))}
                         {COMMON.map((t) => (
-                          <li key={t} className="sb-common">✓ {t}</li>
+                          <li key={t} className="sb-common">
+                            <span className="sb-check soft">✓</span>
+                            {t}
+                          </li>
                         ))}
                       </ul>
+                      <div className="sb-plan-cta">{btn}</div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Renouveler / changer de plan */}
-              {targets.length > 0 && (
-                <div className="sb-cta">
-                  <div className="sb-cta-title">{ctaTitle}</div>
-                  <div className="sb-muted sb-small" style={{ marginTop: 0 }}>
-                    Chaque abonnement dure 30 jours à partir du paiement. Le renouvellement du même plan
-                    ajoute 30 jours à votre échéance. Un changement de plan repart pour 30 jours à
-                    compter du paiement.
-                  </div>
-
-                  <div className="sb-cta-actions">
-                    {targets.map((p) => {
-                      const renew = active && p.key === data.plan;
-                      const wa = waFor(p.name, renew);
-                      return (
-                        <div key={p.key} className="sb-up">
-                          <div className="sb-up-name">
-                            {p.name} · {p.price_text}
-                          </div>
-                          <button
-                            type="button"
-                            className="sb-btn gold"
-                            disabled={!!paying}
-                            onClick={() => startPayment(p.key)}
-                          >
-                            {paying === p.key
-                              ? "Redirection vers le paiement…"
-                              : renew
-                              ? `🔄 Renouveler le plan ${p.name} (+30 jours)`
-                              : `🚀 Passer au plan ${p.name}`}
-                          </button>
-                          {wa && (
-                            <a className="sb-btn out" href={wa} target="_blank" rel="noopener noreferrer">
-                              💬 Poser une question sur WhatsApp
-                            </a>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <div className="sb-muted sb-small">
-                      Paiement sécurisé par SasPay (Mobile Money). Votre abonnement s'active
-                      automatiquement dès la confirmation du paiement.
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="sb-foot">
+                🔒 Paiement sécurisé par SasPay (Mobile Money). Chaque abonnement dure 30 jours à partir
+                du paiement et ne se renouvelle pas automatiquement : renouvelez-le quand vous le
+                souhaitez. Le renouvellement du même plan ajoute 30 jours à votre échéance ; un
+                changement de plan repart pour 30 jours.
+                {contact.whatsapp && (
+                  <>
+                    {" "}
+                    <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noopener noreferrer">
+                      Une question ? Écrivez-nous sur WhatsApp
+                    </a>
+                  </>
+                )}
+              </div>
             </>
           )
         )}
       </div>
 
       <style>{`
-        .sb-page { max-width: 56rem; }
+        .sb-page { max-width: 62rem; }
         .sb-muted { opacity: 0.7; margin-top: 0.4rem; }
         .sb-small { font-size: 0.8rem; margin-top: 0.7rem; line-height: 1.5; }
         .sb-label {
-          font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
-          text-transform: uppercase; color: #D4AF37; margin-bottom: 0.8rem;
+          font-size: 0.75rem; font-weight: 800; letter-spacing: 0.14em;
+          text-transform: uppercase; color: #D4AF37; margin-bottom: 1rem;
         }
         .sb-card {
-          margin-top: 1.3rem; padding: 1.2rem; border-radius: 14px;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
+          margin-top: 1.3rem; padding: 1.3rem; border-radius: 24px;
+          background: rgba(128,128,128,0.08); border: 1px solid rgba(128,128,128,0.22);
+          -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+          box-shadow: 0 12px 34px -16px rgba(0,0,0,0.28);
         }
         .sb-expired {
-          margin-top: 1.3rem; padding: 1rem 1.2rem; border-radius: 14px; line-height: 1.6; font-size: 0.92rem;
+          margin-top: 1.3rem; padding: 1rem 1.2rem; border-radius: 24px; line-height: 1.6; font-size: 0.92rem;
           border: 1px solid rgba(239,68,68,0.6); background: rgba(239,68,68,0.08);
         }
         .sb-expired-title { font-weight: 800; margin-bottom: 0.4rem; color: #ef4444; }
         .sb-current { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
         .sb-badge {
-          padding: 0.3rem 1rem; border-radius: 999px; font-weight: 800; font-size: 0.85rem;
+          padding: 0.35rem 1.1rem; border-radius: 999px; font-weight: 800; font-size: 0.85rem;
           border: 1px solid rgba(128,128,128,0.5);
         }
-        .sb-badge.paid { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
+        .sb-badge.paid {
+          background: linear-gradient(120deg,#D4AF37,#f3d77a); color: #1a1405; border-color: transparent;
+          box-shadow: 0 6px 18px -6px rgba(212,175,55,0.7);
+        }
         .sb-count { margin-top: 1rem; }
         .sb-count-label { font-size: 0.78rem; opacity: 0.7; }
         .sb-count-n {
-          font-size: 1.6rem; font-weight: 800; color: #D4AF37; margin: 0.2rem 0 0.7rem;
+          font-size: 1.7rem; font-weight: 800; margin: 0.2rem 0 0.7rem;
           font-variant-numeric: tabular-nums;
+          background: linear-gradient(120deg,#D4AF37,#f3d77a); -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent; color: transparent;
         }
         .sb-usage { margin-bottom: 1rem; }
         .sb-usage-top { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem; }
         .sb-usage-n { opacity: 0.8; }
-        .sb-bar { height: 9px; border-radius: 999px; background: rgba(128,128,128,0.25); overflow: hidden; }
-        .sb-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+        .sb-bar { height: 10px; border-radius: 999px; background: rgba(128,128,128,0.22); overflow: hidden; }
+        .sb-bar-fill { height: 100%; border-radius: 999px; transition: width 0.8s cubic-bezier(.2,.8,.2,1); }
 
-        .sb-plans { display: grid; gap: 0.8rem; }
-        @media (min-width: 900px) { .sb-plans { grid-template-columns: repeat(3, 1fr); } }
-        .sb-plan {
-          padding: 1.1rem; border-radius: 14px;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .sb-plan.featured { border-color: #D4AF37; background: rgba(212,175,55,0.07); }
-        .sb-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-        .sb-plan-name { font-weight: 800; font-size: 1.15rem; }
-        .sb-current-tag {
-          font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px;
-          background: #16a34a; color: #fff;
-        }
-        .sb-plan-price { font-size: 1.4rem; font-weight: 800; color: #D4AF37; margin: 0.4rem 0 0.8rem; }
-        .sb-plan-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; font-size: 0.88rem; }
-        .sb-common { opacity: 0.75; }
-
-        .sb-cta {
-          margin-top: 1.5rem; padding: 1.2rem; border-radius: 14px; text-align: center;
-          border: 1px solid rgba(212,175,55,0.7); background: rgba(212,175,55,0.07);
-        }
-        .sb-cta-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 0.5rem; }
-        .sb-cta-actions { display: grid; gap: 1rem; margin-top: 1rem; }
-        .sb-up { display: grid; gap: 0.5rem; }
-        .sb-up-name { font-weight: 700; }
-        .sb-btn {
-          display: block; padding: 0.9rem; border-radius: 10px; font-weight: 700; text-decoration: none;
-        }
-        .sb-btn.gold { background: #D4AF37; color: #0B0B0B; }
-        button.sb-btn { width: 100%; border: 0; cursor: pointer; font-size: inherit; font-family: inherit; }
-        button.sb-btn:disabled { opacity: 0.6; cursor: wait; }
-        .sb-pay-msg { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+        .sb-pay-msg { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 16px; font-size: 0.9rem; line-height: 1.5; }
         .sb-pay-msg.info { background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.6); }
         .sb-pay-msg.ok { background: rgba(22,163,74,0.12); border: 1px solid rgba(22,163,74,0.7); }
         .sb-pay-msg.error { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.6); }
-        .sb-btn.out { border: 1px solid rgba(128,128,128,0.5); color: inherit; }
+
+        /* ---------- Plans premium ---------- */
+        @keyframes sb-rise { from { opacity: 0; transform: translateY(28px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes sb-gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes sb-shine { 0% { transform: translateX(-160%) skewX(-20deg); } 55%, 100% { transform: translateX(380%) skewX(-20deg); } }
+        @keyframes sb-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.5); } 50% { box-shadow: 0 0 0 10px rgba(139,92,246,0); } }
+        @keyframes sb-spin { to { transform: rotate(360deg); } }
+
+        .sb-plans { position: relative; isolation: isolate; display: grid; gap: 1.6rem; padding-top: 0.9rem; }
+        @media (min-width: 900px) { .sb-plans { grid-template-columns: repeat(3, 1fr); gap: 1.2rem; align-items: stretch; } }
+        .sb-plans::before {
+          content: ""; position: absolute; inset: -40px -20px; z-index: -1; pointer-events: none; filter: blur(12px);
+          background:
+            radial-gradient(420px 220px at 15% 8%, rgba(59,130,246,0.16), transparent 70%),
+            radial-gradient(420px 260px at 85% 18%, rgba(139,92,246,0.16), transparent 70%),
+            radial-gradient(380px 200px at 50% 100%, rgba(212,175,55,0.12), transparent 70%);
+        }
+
+        .sb-plan {
+          position: relative; display: flex; flex-direction: column; padding: 1.7rem 1.4rem 1.4rem; border-radius: 24px;
+          background: rgba(128,128,128,0.08); border: 1px solid rgba(128,128,128,0.22);
+          -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+          box-shadow: 0 14px 36px -18px rgba(0,0,0,0.3);
+          animation: sb-rise 0.7s cubic-bezier(.2,.8,.2,1) backwards;
+          transition: transform 0.35s cubic-bezier(.2,.8,.2,1), box-shadow 0.35s ease, border-color 0.35s ease;
+        }
+        .sb-plan:hover { transform: translateY(-8px); box-shadow: 0 28px 54px -20px rgba(139,92,246,0.5); border-color: rgba(139,92,246,0.55); }
+        .sb-plan-business:hover { box-shadow: 0 28px 54px -20px rgba(212,175,55,0.5); border-color: rgba(212,175,55,0.6); }
+        .sb-plan.current { border-color: rgba(22,163,74,0.6); }
+        @media (min-width: 900px) { .sb-plan.featured { scale: 1.03; } }
+
+        .sb-plan.featured { border-color: transparent; background: rgba(139,92,246,0.07); }
+        .sb-plan.featured::before {
+          content: ""; position: absolute; inset: 0; padding: 1.6px; border-radius: 24px; pointer-events: none;
+          background: linear-gradient(120deg,#3B82F6,#8B5CF6,#D4AF37,#3B82F6); background-size: 300% 300%;
+          animation: sb-gradient 6s ease infinite;
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor; mask-composite: exclude;
+        }
+        .sb-pop {
+          position: absolute; top: -14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+          padding: 0.3rem 1rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; color: #fff;
+          background: linear-gradient(90deg,#3B82F6,#8B5CF6); animation: sb-pulse 2.4s ease-in-out infinite;
+        }
+ 
+        .sb-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .sb-plan-name { font-weight: 800; font-size: 1.2rem; }
+        .sb-current-tag {
+          font-size: 0.68rem; font-weight: 800; padding: 0.2rem 0.7rem; border-radius: 999px; color: #fff;
+          background: linear-gradient(120deg,#16a34a,#22c55e);
+        }
+        .sb-plan-price { margin: 0.7rem 0 1.1rem; display: flex; align-items: baseline; flex-wrap: wrap; }
+        .sb-price-n {
+          font-size: 2.3rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1;
+          background: linear-gradient(120deg,#3B82F6,#8B5CF6); -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent; color: transparent;
+          }
+        .sb-plan-business .sb-price-n { background-image: linear-gradient(120deg,#D4AF37,#f3d77a); }
+        .sb-plan-free .sb-price-n { background: none; -webkit-text-fill-color: currentColor; color: inherit; }
+        .sb-price-u { font-size: 0.9rem; font-weight: 600; opacity: 0.7; margin-left: 0.45rem; }
+ 
+        .sb-plan-list { list-style: none; padding: 0; margin: 0 0 1.4rem; display: grid; gap: 0.6rem; font-size: 0.88rem; flex: 1; }
+        .sb-plan-list li { display: flex; align-items: flex-start; gap: 0.6rem; line-height: 1.4; }
+        .sb-common { opacity: 0.78; }
+        .sb-check {
+          flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; display: inline-flex;
+          align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 900; color: #fff;
+          background: linear-gradient(135deg,#3B82F6,#8B5CF6);
+        }
+        .sb-check.soft { background: rgba(128,128,128,0.45); }
+ 
+        .sb-cta-btn {
+          position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+          width: 100%; padding: 1rem 1.1rem; border: 0; border-radius: 16px; font-family: inherit; font-size: 0.95rem;
+          font-weight: 800; color: #fff; cursor: pointer; background-size: 220% 220%;
+          animation: sb-gradient 5s ease infinite;
+          transition: transform 0.25s cubic-bezier(.2,.8,.2,1), box-shadow 0.3s ease, filter 0.3s ease;
+        }
+        .sb-cta-btn.pro {
+          background-image: linear-gradient(120deg,#3B82F6,#8B5CF6,#3B82F6);
+          box-shadow: 0 12px 28px -10px rgba(99,102,241,0.8);
+        }
+        .sb-cta-btn.business {
+          background-image: linear-gradient(120deg,#D4AF37,#f3d77a,#D4AF37); color: #1a1405;
+          box-shadow: 0 12px 28px -10px rgba(212,175,55,0.8);
+        }
+        .sb-cta-btn::after {
+          content: ""; position: absolute; top: 0; left: 0; width: 35%; height: 100%; pointer-events: none;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+          animation: sb-shine 3.4s ease-in-out infinite;
+        }
+        .sb-cta-btn:hover:not(:disabled) { transform: translateY(-3px) scale(1.02); filter: brightness(1.08); }
+        .sb-cta-btn.pro:hover:not(:disabled) { box-shadow: 0 18px 36px -10px rgba(99,102,241,0.95); }
+        .sb-cta-btn.business:hover:not(:disabled) { box-shadow: 0 18px 36px -10px rgba(212,175,55,0.95); }
+        .sb-cta-btn:active:not(:disabled) { transform: scale(0.97); }
+        .sb-arrow { display: inline-block; transition: transform 0.3s ease; }
+        .sb-cta-btn:hover:not(:disabled) .sb-arrow { transform: translateX(6px); }
+        .sb-cta-btn:disabled { cursor: wait; }
+        .sb-cta-btn.pro:disabled, .sb-cta-btn.business:disabled { opacity: 0.75; }
+        .sb-cta-btn.ghost {
+          background: transparent; color: inherit; border: 1px solid rgba(128,128,128,0.4);
+          box-shadow: none; animation: none; opacity: 0.85; cursor: default;
+        }
+        .sb-cta-btn.ghost::after { display: none; }
+        .sb-spin {
+          width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
+          animation: sb-spin 0.7s linear infinite;
+
+          .sb-foot { margin-top: 1.6rem; font-size: 0.8rem; line-height: 1.6; opacity: 0.75; text-align: center; }
+        .sb-foot a { color: #D4AF37; text-decoration: underline; }
+ 
+        @media (prefers-reduced-motion: reduce) {
+          .sb-plan, .sb-plan.featured::before, .sb-pop, .sb-cta-btn, .sb-cta-btn::after, .sb-bar-fill { animation: none !important; transition: none !important; }
+        }
       `}</style>
     </DashboardLayout>
   );
-      }
+}
