@@ -1,0 +1,306 @@
+/* ==========================================================================
+   Digitelio AI — Design System v1
+   Fichier ADDITIF : toutes les classes sont préfixées `dg-` pour ne jamais
+   entrer en collision avec le code existant. Aucune logique, aucune route.
+   À importer UNE fois dans frontend/src/main.jsx :
+     import './styles/digitelio-design-system.css'
+   Polices (à ajouter dans frontend/index.html, <head>) :
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+   ========================================================================== */
+
+/* ---------- 1. TOKENS ---------- */
+:root {
+  /* Marque (palette validée : bleu #3B82F6, violet #8B5CF6, or #D4AF37) */
+  --dg-blue: #3B82F6;
+  --dg-indigo: #5B6CF6;
+  --dg-violet: #8B5CF6;
+  --dg-gold: #D4AF37;
+  --dg-gold-soft: #F7E7A8;
+  --dg-grad-brand: linear-gradient(135deg, #3B82F6 0%, #5B6CF6 45%, #8B5CF6 100%);
+  --dg-grad-gold: linear-gradient(135deg, #F5D76E 0%, #D4AF37 100%);
+  --dg-grad-navy: linear-gradient(135deg, #0B1233 0%, #17226B 100%);
+
+  /* Chrome (barre latérale + barre du haut) */
+  --dg-navy-950: #070C26;
+  --dg-navy-900: #0B1233;
+  --dg-navy-800: #111A47;
+  --dg-navy-700: #1B2661;
+  --dg-on-navy: #E8ECFF;
+  --dg-on-navy-muted: #9AA5D6;
+
+  /* Contenu (mode clair) */
+  --dg-bg: #F6F7FE;
+  --dg-surface: #FFFFFF;
+  --dg-surface-2: #F1F3FC;
+  --dg-border: #E4E8F5;
+  --dg-text: #0F1636;
+  --dg-text-2: #56608A;
+  --dg-text-3: #8A93B2;
+
+  /* États */
+  --dg-success: #16A34A;  --dg-success-bg: #E7F8EE;
+  --dg-warning: #D97706;  --dg-warning-bg: #FFF4DD;
+  --dg-danger:  #DC2626;  --dg-danger-bg:  #FEE9E9;
+  --dg-info:    #2563EB;  --dg-info-bg:    #E8F0FF;
+  --dg-violet-bg: #EFE9FF;
+
+  /* Rayons */
+  --dg-r-sm: 8px; --dg-r-md: 12px; --dg-r-lg: 16px; --dg-r-xl: 20px; --dg-r-pill: 999px;
+
+  /* Ombres (teintées bleu-indigo, jamais grises) */
+  --dg-shadow-sm: 0 1px 2px rgba(15, 22, 54, .05);
+  --dg-shadow-md: 0 8px 24px -10px rgba(59, 74, 180, .16);
+  --dg-shadow-lg: 0 18px 40px -16px rgba(59, 74, 180, .28);
+  --dg-glow: 0 10px 28px -10px rgba(109, 93, 246, .6);
+
+  /* Espacements (base 4px) */
+  --dg-s1: 4px; --dg-s2: 8px; --dg-s3: 12px; --dg-s4: 16px;
+  --dg-s5: 20px; --dg-s6: 24px; --dg-s8: 32px; --dg-s10: 40px;
+
+  /* Typographie */
+  --dg-font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --dg-font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --dg-fs-xs: 12px; --dg-fs-sm: 13px; --dg-fs-md: 14px; --dg-fs-lg: 16px;
+  --dg-fs-xl: 20px; --dg-fs-2xl: 26px; --dg-fs-3xl: 32px;
+
+  /* Layout */
+  --dg-sidebar-w: 256px;
+  --dg-topbar-h: 64px;
+  --dg-ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/* Mode sombre : se branche sur le ThemeToggle existant (classe .dark ou data-theme) */
+.dark, [data-theme="dark"] {
+  --dg-bg: #0A1030;
+  --dg-surface: #111A47;
+  --dg-surface-2: #17226B;
+  --dg-border: #24307A;
+  --dg-text: #EEF1FF;
+  --dg-text-2: #B4BDE6;
+  --dg-text-3: #8791C4;
+  --dg-success-bg: rgba(22, 163, 74, .18);
+  --dg-warning-bg: rgba(217, 119, 6, .2);
+  --dg-danger-bg: rgba(220, 38, 38, .2);
+  --dg-info-bg: rgba(37, 99, 235, .22);
+  --dg-violet-bg: rgba(139, 92, 246, .22);
+  --dg-shadow-md: 0 8px 24px -10px rgba(0, 0, 0, .5);
+}
+
+/* ---------- 2. BASE ---------- */
+.dg-shell {
+  min-height: 100dvh;
+  background: var(--dg-bg);
+  color: var(--dg-text);
+  font-family: var(--dg-font-body);
+  font-size: var(--dg-fs-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.dg-h1, .dg-h2, .dg-h3 { font-family: var(--dg-font-display); color: var(--dg-text); margin: 0; letter-spacing: -.01em; }
+.dg-h1 { font-size: var(--dg-fs-2xl); font-weight: 800; line-height: 1.15; }
+.dg-h2 { font-size: var(--dg-fs-xl); font-weight: 700; line-height: 1.25; }
+.dg-h3 { font-size: var(--dg-fs-lg); font-weight: 700; }
+.dg-sub { color: var(--dg-text-2); font-size: var(--dg-fs-md); margin: var(--dg-s1) 0 0; }
+.dg-muted { color: var(--dg-text-3); font-size: var(--dg-fs-sm); }
+.dg-num { font-family: var(--dg-font-display); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+.dg-shell :focus-visible { outline: 2px solid var(--dg-violet); outline-offset: 2px; border-radius: var(--dg-r-sm); }
+
+/* ---------- 3. LAYOUT (mobile-first : menu en tiroir < 1024px) ---------- */
+.dg-sidebar {
+  position: fixed; inset: 0 auto 0 0; z-index: 50;
+  width: min(84vw, var(--dg-sidebar-w));
+  background: var(--dg-navy-900);
+  color: var(--dg-on-navy);
+  display: flex; flex-direction: column; gap: var(--dg-s2);
+  padding: var(--dg-s4);
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform .28s var(--dg-ease);
+}
+.dg-sidebar.is-open { transform: translateX(0); box-shadow: var(--dg-shadow-lg); }
+.dg-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(7, 12, 38, .55); backdrop-filter: blur(2px); }
+
+.dg-topbar {
+  position: sticky; top: 0; z-index: 30;
+  height: var(--dg-topbar-h);
+  display: flex; align-items: center; gap: var(--dg-s3);
+  padding: 0 var(--dg-s4);
+  background: var(--dg-navy-900);
+  color: var(--dg-on-navy);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.dg-main { padding: var(--dg-s4); display: grid; gap: var(--dg-s4); max-width: 1440px; margin-inline: auto; }
+
+@media (min-width: 1024px) {
+  .dg-sidebar { transform: none; width: var(--dg-sidebar-w); box-shadow: none; }
+  .dg-scrim { display: none; }
+  .dg-topbar, .dg-page { margin-left: var(--dg-sidebar-w); }
+  .dg-main { padding: var(--dg-s6); gap: var(--dg-s5); }
+}
+
+/* Navigation */
+.dg-nav-item {
+  display: flex; align-items: center; gap: var(--dg-s3);
+  min-height: 44px; padding: 0 var(--dg-s3);
+  border-radius: var(--dg-r-md);
+  color: var(--dg-on-navy); font-weight: 500; text-decoration: none;
+  transition: background .18s var(--dg-ease);
+}
+.dg-nav-item:hover { background: rgba(255, 255, 255, .07); }
+.dg-nav-item.is-active, .dg-nav-item[aria-current="page"] {
+  background: var(--dg-grad-brand); color: #fff; box-shadow: var(--dg-glow);
+}
+.dg-nav-item svg { width: 20px; height: 20px; flex: none; }
+
+/* Carte promo de la barre latérale ("Passez au plan Pro") */
+.dg-upsell {
+  margin-top: auto; padding: var(--dg-s4);
+  border: 1px solid rgba(139, 92, 246, .45);
+  border-radius: var(--dg-r-lg);
+  background: linear-gradient(180deg, rgba(91, 108, 246, .16), rgba(11, 18, 51, 0));
+}
+
+/* Recherche */
+.dg-search {
+  flex: 1; max-width: 560px; height: 42px;
+  display: flex; align-items: center; gap: var(--dg-s2);
+  padding: 0 var(--dg-s4);
+  background: var(--dg-navy-700); color: var(--dg-on-navy-muted);
+  border: 1px solid rgba(255, 255, 255, .08); border-radius: var(--dg-r-pill);
+}
+.dg-search input { flex: 1; min-width: 0; background: none; border: 0; color: var(--dg-on-navy); font: inherit; outline: 0; }
+
+/* ---------- 4. CARTES ---------- */
+.dg-card {
+  background: var(--dg-surface);
+  border: 1px solid var(--dg-border);
+  border-radius: var(--dg-r-xl);
+  padding: var(--dg-s5);
+  box-shadow: var(--dg-shadow-sm);
+}
+.dg-card--lift { box-shadow: var(--dg-shadow-md); }
+.dg-card--navy { background: var(--dg-grad-navy); border-color: transparent; color: var(--dg-on-navy); }
+.dg-card--gold { background: var(--dg-grad-gold); border-color: transparent; color: #2A2100; }
+.dg-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--dg-s3); margin-bottom: var(--dg-s4); }
+
+/* KPI : la teinte se règle avec --tint (fond de l'icône) */
+.dg-stat { display: grid; gap: var(--dg-s2); padding: var(--dg-s4); border-radius: var(--dg-r-lg); background: var(--dg-surface); border: 1px solid var(--dg-border); }
+.dg-stat-icon { width: 40px; height: 40px; border-radius: var(--dg-r-md); display: grid; place-items: center; background: var(--tint, var(--dg-violet-bg)); }
+.dg-stat-value { font-size: var(--dg-fs-2xl); }
+.dg-trend { font-size: var(--dg-fs-xs); font-weight: 600; color: var(--dg-success); }
+.dg-trend.is-down { color: var(--dg-danger); }
+.dg-trend.is-flat { color: var(--dg-text-3); }
+
+.dg-grid-kpi { display: grid; gap: var(--dg-s3); grid-template-columns: repeat(2, 1fr); }
+.dg-split { display: grid; gap: var(--dg-s4); }
+@media (min-width: 768px)  { .dg-grid-kpi { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1280px) { .dg-grid-kpi { grid-template-columns: repeat(5, 1fr); } .dg-split { grid-template-columns: minmax(0, 1fr) 340px; } }
+
+/* ---------- 5. BOUTONS ---------- */
+.dg-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--dg-s2);
+  min-height: 44px; padding: 0 var(--dg-s5);
+  border: 1px solid transparent; border-radius: var(--dg-r-md);
+  font: 600 var(--dg-fs-md)/1 var(--dg-font-body);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: transform .15s var(--dg-ease), box-shadow .2s var(--dg-ease), background .2s var(--dg-ease);
+}
+.dg-btn:active { transform: translateY(1px) scale(.99); }
+.dg-btn[disabled], .dg-btn.is-disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+.dg-btn--primary { background: var(--dg-grad-brand); color: #fff; box-shadow: var(--dg-glow); }
+.dg-btn--primary:hover:not([disabled]) { box-shadow: 0 14px 32px -10px rgba(109, 93, 246, .75); }
+.dg-btn--gold { background: var(--dg-grad-gold); color: #2A2100; }
+.dg-btn--outline { background: var(--dg-surface); color: var(--dg-indigo); border-color: var(--dg-border); }
+.dg-btn--outline:hover:not([disabled]) { border-color: var(--dg-violet); }
+.dg-btn--ghost { background: transparent; color: var(--dg-text-2); }
+.dg-btn--danger { background: var(--dg-danger-bg); color: var(--dg-danger); }
+.dg-btn--sm { min-height: 36px; padding: 0 var(--dg-s4); font-size: var(--dg-fs-sm); }
+.dg-btn--block { width: 100%; }
+
+/* ---------- 6. BADGES ---------- */
+.dg-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--dg-r-pill); font-size: var(--dg-fs-xs); font-weight: 600; background: var(--dg-surface-2); color: var(--dg-text-2); }
+.dg-badge--success { background: var(--dg-success-bg); color: var(--dg-success); }
+.dg-badge--info    { background: var(--dg-info-bg);    color: var(--dg-info); }
+.dg-badge--violet  { background: var(--dg-violet-bg);  color: var(--dg-violet); }
+.dg-badge--warning { background: var(--dg-warning-bg); color: var(--dg-warning); }
+.dg-badge--danger  { background: var(--dg-danger-bg);  color: var(--dg-danger); }
+.dg-badge--gold    { background: var(--dg-gold-soft);  color: #6B5410; }
+
+/* ---------- 7. FORMULAIRES ---------- */
+.dg-field { display: grid; gap: 6px; }
+.dg-label { font-size: var(--dg-fs-sm); font-weight: 600; color: var(--dg-text); }
+.dg-input, .dg-select, .dg-textarea {
+  width: 100%; min-height: 46px; padding: 0 var(--dg-s4);
+  background: var(--dg-surface); color: var(--dg-text);
+  border: 1px solid var(--dg-border); border-radius: var(--dg-r-md);
+  font: inherit; font-size: 16px; /* 16px = pas de zoom automatique sur Android/iOS */
+  transition: border-color .18s, box-shadow .18s;
+}
+.dg-textarea { padding: var(--dg-s3) var(--dg-s4); min-height: 120px; resize: vertical; }
+.dg-input:focus, .dg-select:focus, .dg-textarea:focus { outline: 0; border-color: var(--dg-violet); box-shadow: 0 0 0 4px rgba(139, 92, 246, .16); }
+.dg-input.is-error { border-color: var(--dg-danger); }
+.dg-help { font-size: var(--dg-fs-xs); color: var(--dg-text-3); }
+.dg-error { font-size: var(--dg-fs-xs); color: var(--dg-danger); }
+
+/* Interrupteur : à poser sur un <input type="checkbox" class="dg-toggle"> existant */
+input.dg-toggle { appearance: none; -webkit-appearance: none; flex: none; width: 44px; height: 26px; border-radius: var(--dg-r-pill); background: var(--dg-border); position: relative; cursor: pointer; transition: background .2s var(--dg-ease); }
+input.dg-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: var(--dg-shadow-sm); transition: transform .2s var(--dg-ease); }
+input.dg-toggle:checked { background: var(--dg-grad-brand); }
+input.dg-toggle:checked::after { transform: translateX(18px); }
+
+/* Onglets en pilules (Style / Contenu / SEO, Vue d'ensemble / Ventes...) */
+.dg-tabs { display: flex; gap: var(--dg-s2); overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.dg-tab { flex: none; min-height: 38px; padding: 0 var(--dg-s4); border-radius: var(--dg-r-pill); border: 1px solid var(--dg-border); background: var(--dg-surface); color: var(--dg-text-2); font-weight: 500; cursor: pointer; }
+.dg-tab.is-active, .dg-tab[aria-selected="true"] { background: var(--dg-grad-brand); color: #fff; border-color: transparent; box-shadow: var(--dg-glow); }
+
+/* Étapes (Informations → Contenu → Design → Tarification → Publication) */
+.dg-stepper { display: flex; align-items: center; gap: var(--dg-s3); overflow-x: auto; scrollbar-width: none; }
+.dg-step { display: flex; align-items: center; gap: var(--dg-s2); flex: none; color: var(--dg-text-3); font-size: var(--dg-fs-sm); }
+.dg-step-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--dg-surface-2); font-weight: 700; font-size: var(--dg-fs-xs); }
+.dg-step.is-active { color: var(--dg-indigo); font-weight: 600; }
+.dg-step.is-active .dg-step-dot, .dg-step.is-done .dg-step-dot { background: var(--dg-grad-brand); color: #fff; }
+.dg-step-line { flex: 1; min-width: 24px; height: 1px; background: var(--dg-border); }
+
+/* ---------- 8. PROGRESSION ---------- */
+.dg-progress { height: 8px; border-radius: var(--dg-r-pill); background: var(--dg-surface-2); overflow: hidden; }
+.dg-progress > span { display: block; height: 100%; width: var(--value, 0%); background: var(--dg-grad-brand); border-radius: inherit; transition: width .6s var(--dg-ease); }
+/* Anneau de progression : style="--value: 68" */
+.dg-ring { --size: 112px; width: var(--size); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--dg-violet) calc(var(--value, 0) * 1%), var(--dg-surface-2) 0);
+  -webkit-mask: radial-gradient(circle calc(var(--size) / 2 - 10px), transparent 98%, #000 100%);
+          mask: radial-gradient(circle calc(var(--size) / 2 - 10px), transparent 98%, #000 100%); }
+
+/* ---------- 9. TARIFS / ABONNEMENTS ---------- */
+.dg-plans { display: grid; gap: var(--dg-s4); }
+@media (min-width: 768px)  { .dg-plans { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1280px) { .dg-plans { grid-template-columns: repeat(3, 1fr); } }
+.dg-plan { position: relative; display: grid; gap: var(--dg-s4); align-content: start; padding: var(--dg-s6); background: var(--dg-surface); border: 1px solid var(--dg-border); border-radius: var(--dg-r-xl); }
+.dg-plan--featured { background: var(--dg-grad-brand); color: #fff; border-color: transparent; box-shadow: var(--dg-shadow-lg); }
+.dg-plan--current { border: 2px solid var(--dg-violet); }
+.dg-plan-price { font-size: var(--dg-fs-3xl); }
+.dg-plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--dg-s2); font-size: var(--dg-fs-sm); }
+.dg-plan-list li::before { content: '✓'; margin-right: var(--dg-s2); color: var(--dg-success); font-weight: 800; }
+.dg-plan--featured .dg-plan-list li::before { color: #fff; }
+
+/* ---------- 10. TABLEAUX & LISTES ---------- */
+.dg-table-wrap { overflow-x: auto; border-radius: var(--dg-r-lg); }
+.dg-table { width: 100%; border-collapse: collapse; font-size: var(--dg-fs-sm); }
+.dg-table th { text-align: left; color: var(--dg-text-3); font-weight: 600; padding: var(--dg-s3) var(--dg-s4); }
+.dg-table td { padding: var(--dg-s3) var(--dg-s4); border-top: 1px solid var(--dg-border); }
+.dg-list-row { display: flex; align-items: center; gap: var(--dg-s3); padding: var(--dg-s3) 0; border-top: 1px solid var(--dg-border); }
+.dg-list-row:first-child { border-top: 0; }
+
+/* ---------- 11. ÉTATS & MOUVEMENT ---------- */
+.dg-skeleton { border-radius: var(--dg-r-md); background: linear-gradient(90deg, var(--dg-surface-2) 25%, var(--dg-border) 37%, var(--dg-surface-2) 63%); background-size: 400% 100%; animation: dg-shimmer 1.4s ease infinite; }
+@keyframes dg-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+.dg-empty { display: grid; justify-items: center; gap: var(--dg-s3); text-align: center; padding: var(--dg-s10) var(--dg-s4); color: var(--dg-text-2); }
+/* Une seule entrée discrète, à poser sur le conteneur de page (pas sur chaque carte) */
+.dg-enter { animation: dg-enter .32s var(--dg-ease) both; }
+@keyframes dg-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-shell *, .dg-shell *::before, .dg-shell *::after { animation: none !important; transition: none !important; }
+    }
