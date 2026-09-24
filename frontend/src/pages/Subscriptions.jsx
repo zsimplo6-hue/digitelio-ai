@@ -555,6 +555,7 @@ export default function Subscriptions() {
         .sb-spin {
           width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
           animation: sb-spin 0.7s linear infinite;
+        }
 
           .sb-foot { margin-top: 1.6rem; font-size: 0.8rem; line-height: 1.6; opacity: 0.75; text-align: center; }
         .sb-foot a { color: #D4AF37; text-decoration: underline; }
