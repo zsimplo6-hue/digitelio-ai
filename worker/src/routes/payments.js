@@ -149,7 +149,7 @@ export async function handleCreateCheckout(request, env) {
 
   const body = await request.json().catch(() => null);
   const plan = String(body?.plan || "");
-  const amount = PLANS[plan]?.price_xof;
+  let amount = PLANS[plan]?.price_xof;
   if (!amount || plan === "free") {
     return json({ error: "Plan invalide." }, 400);
   }
@@ -158,6 +158,17 @@ export async function handleCreateCheckout(request, env) {
     .bind(auth.sub)
     .first();
   if (!user) return json({ error: "Compte introuvable." }, 404);
+
+  // Test réel à petit prix : SEUL le compte TEST_EMAIL peut payer le montant TEST_AMOUNT_XOF.
+  // Les autres clients paient toujours le vrai prix. Supprimez ces 2 variables après le test.
+  if (
+    env.TEST_EMAIL &&
+    env.TEST_AMOUNT_XOF &&
+    String(user.email).toLowerCase() === String(env.TEST_EMAIL).trim().toLowerCase()
+  ) {
+    const testAmount = Math.round(Number(env.TEST_AMOUNT_XOF));
+    if (Number.isFinite(testAmount) && testAmount > 0 && testAmount < amount) amount = testAmount;
+  }
 
   // Anti double-clic : on réutilise une session ouverte il y a moins de 30 minutes
   const recent = await env.DB.prepare(
@@ -258,4 +269,4 @@ export async function handleSaspayWebhook(request, env) {
   }
 
   return json({ received: true });
-    }
+      }
