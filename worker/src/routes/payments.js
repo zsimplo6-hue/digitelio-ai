@@ -200,8 +200,16 @@ export async function handleCreateCheckout(request, env) {
   const data = await res.json().catch(() => null);
 
   if (!res.ok || !data?.checkout_url || !data?.id) {
-    console.error("SasPay checkout refusé", res.status, data?.message || data?.detail || "");
-    return json({ error: "Impossible de créer le paiement. Réessayez dans un instant." }, 502);
+    // TEMPORAIRE (diagnostic) : on affiche la réponse de SasPay dans le message.
+    // À remettre au message simple une fois le paiement réparé.
+    const detail = JSON.stringify(data);
+    console.error("SasPay checkout refusé", res.status, detail);
+    return json(
+      {
+        error: `Impossible de créer le paiement (SasPay ${res.status} : ${String(detail).slice(0, 300)})`,
+      },
+      502
+    );
   }
 
   await env.DB.prepare(
@@ -269,4 +277,4 @@ export async function handleSaspayWebhook(request, env) {
   }
 
   return json({ received: true });
-      }
+}
