@@ -72,7 +72,8 @@ function safeEqual(a, b) {
    de la session puis de la transaction avec notre clé API secrète. */
 async function checkPayment(env, p) {
   const sRes = await saspay(env, "GET", `/checkout-sessions/${p.session_id}`);
-  const session = await sRes.json().catch(() => null);
+  const sBody = await sRes.json().catch(() => null);
+  const session = sBody?.data ?? sBody; // SasPay enveloppe la réponse dans { success, data }
   if (!sRes.ok || !session) return p.status;
 
   const tx = session.transaction;
@@ -80,7 +81,8 @@ async function checkPayment(env, p) {
   if (!txId) return "PENDING"; // pas encore payé
 
   const pRes = await saspay(env, "GET", `/payments/${txId}`);
-  const pay = await pRes.json().catch(() => null);
+  const pBody = await pRes.json().catch(() => null);
+  const pay = pBody?.data ?? pBody; // idem : enveloppe { success, data }
   if (!pRes.ok || !pay) return "PENDING";
   if (pay.status !== "SUCCESS") return "PENDING"; // en cours, échoué ou annulé : le client peut réessayer
 
@@ -197,19 +199,12 @@ export async function handleCreateCheckout(request, env) {
     return_url: `${appUrl}${returnPath}?paiement=${paymentId}`,
     metadata: { payment_id: paymentId },
   });
-  const data = await res.json().catch(() => null);
+  const resBody = await res.json().catch(() => null);
+  const data = resBody?.data ?? resBody; // SasPay enveloppe la réponse dans { success, data }
 
   if (!res.ok || !data?.checkout_url || !data?.id) {
-    // TEMPORAIRE (diagnostic) : on affiche la réponse de SasPay dans le message.
-    // À remettre au message simple une fois le paiement réparé.
-    const detail = JSON.stringify(data);
-    console.error("SasPay checkout refusé", res.status, detail);
-    return json(
-      {
-        error: `Impossible de créer le paiement (SasPay ${res.status} : ${String(detail).slice(0, 300)})`,
-      },
-      502
-    );
+    console.error("SasPay checkout refusé", res.status, JSON.stringify(resBody));
+    return json({ error: "Impossible de créer le paiement. Réessayez dans un instant." }, 502);
   }
 
   await env.DB.prepare(
