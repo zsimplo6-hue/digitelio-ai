@@ -371,8 +371,12 @@ export default function Subscriptions() {
                           </li>
                         ))}
                         {COMMON.map((t) => (
-                          <li key={t} className="sb-common">
-                            <span className="sb-check soft">✓</span>
+                          <li key={t} className={isFree ? "sb-common" : ""}>
+                            {isFree ? (
+                              <span className="sb-check soft" />
+                            ) : (
+                              <span className="sb-check">✓</span>
+                            )}
                             {t}
                           </li>
                         ))}
@@ -517,7 +521,7 @@ export default function Subscriptions() {
           align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 900; color: #fff;
           background: linear-gradient(135deg,#3B82F6,#8B5CF6);
         }
-        .sb-check.soft { background: rgba(128,128,128,0.45); }
+        .sb-check.soft { background: transparent; border: 1.5px solid rgba(128,128,128,0.45); }
  
         .sb-cta-btn {
           position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
