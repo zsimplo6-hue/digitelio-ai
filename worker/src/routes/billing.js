@@ -20,14 +20,14 @@ export const PLANS = {
   },
   pro: {
     name: "Pro",
-    price_text: "12 500 FCFA / mois",
-    price_xof: 12500, // montant réellement facturé via SasPay (en XOF) : à garder cohérent avec price_text
+    price_text: "9 900 FCFA / mois",
+    price_xof: 9900, // montant réellement facturé via SasPay (en XOF) : à garder cohérent avec price_text
     limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
   },
   business: {
     name: "Business",
-    price_text: "32 000 FCFA / mois",
-    price_xof: 32000,
+    price_text: "24 900 FCFA / mois",
+    price_xof: 24900,
     limits: { ebook: 50, formation: 30, lesson: 600, marketing: 300, learners: 300 },
   },
 };
@@ -303,4 +303,4 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-    }
+}
