@@ -21,6 +21,7 @@ const pillars = [
 const plans = [
   {
     tone: "free",
+    common: false,
     name: "Gratuit",
     price: "Gratuit",
     unit: "pour toujours",
@@ -36,6 +37,7 @@ const plans = [
   },
   {
     tone: "pro",
+    common: true,
     name: "Pro",
     price: "9 900",
     unit: "FCFA / mois",
@@ -51,6 +53,7 @@ const plans = [
   },
   {
     tone: "biz",
+    common: true,
     name: "Business",
     price: "24 900",
     unit: "FCFA / mois",
@@ -73,9 +76,6 @@ const commonFeatures = [
   "Analytics de vos pages",
 ];
 
-/* true = les 4 avantages communs sont en gris (comme dans l'app) ; false = coche colorée */
-const COMMON_MUTED = true;
-
 const pricingCss = `
 .dg-pricing{--dg-blue:#3B82F6;--dg-violet:#8B5CF6;--dg-gold:#D4AF37;--dg-ink:#0F1029;--dg-muted:#8A8DA3;--dg-off:#D5D7E0}
 .dg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:48px auto 0;align-items:start}
@@ -94,7 +94,7 @@ const pricingCss = `
 .dg-list li{position:relative;padding-left:30px;font-size:.9rem;line-height:1.35}
 .dg-list li::before{content:"✓";position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--dg-blue),var(--dg-violet))}
 .dg-list li.off{color:var(--dg-muted)}
-.dg-list li.off::before{background:var(--dg-off)}
+.dg-list li.off::before{content:"";background:transparent;border:1.5px solid var(--dg-off)}
 .dg-btn{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;text-align:center;text-decoration:none;font-weight:800;font-size:.95rem;padding:15px 18px;border-radius:16px;background-size:220% 220%;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,filter .3s ease,border-color .3s ease}
 .dg-btn:hover{transform:translateY(-3px) scale(1.02)}
 .dg-btn:active{transform:scale(.97)}
@@ -115,7 +115,7 @@ const pricingCss = `
 .dark .dg-pro{background:linear-gradient(160deg,rgba(139,92,246,.18),rgba(59,130,246,.08));box-shadow:0 26px 54px -20px rgba(139,92,246,.55)}
 .dark .dg-biz{background:linear-gradient(160deg,rgba(212,175,55,.14),rgba(255,255,255,.04))}
 .dark .dg-unit,.dark .dg-list li.off{color:rgba(255,255,255,.55)}
-.dark .dg-list li.off::before{background:rgba(255,255,255,.22)}
+.dark .dg-list li.off::before{background:transparent;border-color:rgba(255,255,255,.28)}
 .dark .dg-btn-free{color:#fff;background:transparent;border-color:rgba(255,255,255,.25)}
 @media (max-width:860px){.dg-grid{grid-template-columns:1fr;max-width:420px;gap:30px}.dg-pro{transform:none;order:-1}}
 @media (prefers-reduced-motion:reduce){.dg-btn,.dg-btn::after{animation:none!important;transition:none!important}.dg-btn:hover{transform:none}}
@@ -343,7 +343,7 @@ export default function Landing() {
                   <li key={f}>{f}</li>
                 ))}
                 {commonFeatures.map((f) => (
-                  <li key={f} className={COMMON_MUTED ? "off" : ""}>
+                  <li key={f} className={p.common ? "" : "off"}>
                     {f}
                   </li>
                 ))}
