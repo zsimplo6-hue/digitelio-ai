@@ -20,9 +20,10 @@ const pillars = [
 /* À garder identique aux limites de src/routes/billing.js (Worker) */
 const plans = [
   {
-    name: "Free",
-    price: "0€",
-    period: "pour toujours",
+    tone: "free",
+    name: "Gratuit",
+    price: "Gratuit",
+    unit: "pour toujours",
     features: [
       "1 eBook par mois",
       "1 formation par mois",
@@ -34,9 +35,10 @@ const plans = [
     featured: false,
   },
   {
+    tone: "pro",
     name: "Pro",
-    price: "19€",
-    period: "pour 30 jours",
+    price: "9 900",
+    unit: "FCFA / mois",
     features: [
       "10 eBooks par mois",
       "10 formations par mois",
@@ -44,13 +46,14 @@ const plans = [
       "100 contenus marketing par mois",
       "100 apprenants par formation",
     ],
-    cta: "Essayer Pro",
+    cta: "Passer au plan Pro",
     featured: true,
   },
   {
+    tone: "biz",
     name: "Business",
-    price: "49€",
-    period: "pour 30 jours",
+    price: "24 900",
+    unit: "FCFA / mois",
     features: [
       "50 eBooks par mois",
       "30 formations par mois",
@@ -58,7 +61,7 @@ const plans = [
       "300 contenus marketing par mois",
       "300 apprenants par formation",
     ],
-    cta: "Essayer Business",
+    cta: "Passer au plan Business",
     featured: false,
   },
 ];
@@ -69,6 +72,44 @@ const commonFeatures = [
   "Export PDF premium",
   "Analytics de vos pages",
 ];
+
+/* true = les 4 avantages communs sont en gris (comme dans l'app) ; false = coche colorée */
+const COMMON_MUTED = true;
+
+const pricingCss = `
+.dg-pricing{--dg-blue:#3B82F6;--dg-violet:#8B5CF6;--dg-gold:#D4AF37;--dg-ink:#0F1029;--dg-muted:#8A8DA3;--dg-off:#D5D7E0}
+.dg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;max-width:1040px;margin:48px auto 0;align-items:start}
+.dg-card{position:relative;border-radius:22px;padding:26px 22px 24px;border:1.5px solid;color:var(--dg-ink);
+  background:linear-gradient(160deg,rgba(255,255,255,.95),rgba(244,242,252,.9));box-shadow:0 18px 40px -22px rgba(60,50,120,.35)}
+.dg-free{border-color:rgba(34,197,94,.55)}
+.dg-pro{border-color:var(--dg-violet);background:linear-gradient(160deg,#fff,#EFEAFE);box-shadow:0 26px 54px -20px rgba(139,92,246,.5);transform:translateY(-10px)}
+.dg-biz{border-color:rgba(212,175,55,.6);background:linear-gradient(160deg,#fff,#FBF5E0)}
+.dg-badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);padding:6px 16px;border-radius:999px;font-size:.75rem;font-weight:700;color:#fff;white-space:nowrap;background:linear-gradient(90deg,var(--dg-blue),var(--dg-violet))}
+.dg-name{font-size:1.15rem;font-weight:700;margin:0 0 6px}
+.dg-price{font-size:2.7rem;font-weight:800;line-height:1.1;margin:0}
+.dg-pro .dg-price{background:linear-gradient(90deg,var(--dg-blue),var(--dg-violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+.dg-biz .dg-price{background:linear-gradient(90deg,#C9A227,#F0D97A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.dg-unit{display:block;font-size:.85rem;font-weight:500;color:var(--dg-muted);margin:2px 0 20px}
+.dg-list{list-style:none;margin:0 0 24px;padding:0;display:grid;gap:11px;text-align:left}
+.dg-list li{position:relative;padding-left:30px;font-size:.9rem;line-height:1.35}
+.dg-list li::before{content:"✓";position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--dg-blue),var(--dg-violet))}
+.dg-list li.off{color:var(--dg-muted)}
+.dg-list li.off::before{background:var(--dg-off)}
+.dg-btn{display:block;width:100%;text-align:center;text-decoration:none;font-weight:700;font-size:.95rem;padding:14px 18px;border-radius:14px;transition:transform .15s ease}
+.dg-btn:hover{transform:translateY(-2px)}
+.dg-btn:focus-visible{outline:3px solid var(--dg-violet);outline-offset:3px}
+.dg-btn-free{color:var(--dg-ink);background:#fff;border:1.5px solid #D9DBE6}
+.dg-btn-pro{color:#fff;background:linear-gradient(135deg,var(--dg-blue),var(--dg-violet));box-shadow:0 12px 24px -10px rgba(99,102,241,.7)}
+.dg-btn-biz{color:#2B2308;background:linear-gradient(135deg,#D4AF37,#F3DE8C);box-shadow:0 12px 24px -10px rgba(212,175,55,.7)}
+.dark .dg-card{color:#fff;background:rgba(255,255,255,.05);box-shadow:none}
+.dark .dg-pro{background:linear-gradient(160deg,rgba(139,92,246,.18),rgba(59,130,246,.08));box-shadow:0 26px 54px -20px rgba(139,92,246,.55)}
+.dark .dg-biz{background:linear-gradient(160deg,rgba(212,175,55,.14),rgba(255,255,255,.04))}
+.dark .dg-unit,.dark .dg-list li.off{color:rgba(255,255,255,.55)}
+.dark .dg-list li.off::before{background:rgba(255,255,255,.22)}
+.dark .dg-btn-free{color:#fff;background:transparent;border-color:rgba(255,255,255,.25)}
+@media (max-width:860px){.dg-grid{grid-template-columns:1fr;max-width:420px;gap:30px}.dg-pro{transform:none;order:-1}}
+@media (prefers-reduced-motion:reduce){.dg-btn{transition:none}.dg-btn:hover{transform:none}}
+`;
 
 const sidebarItems = [
   { icon: "🏠", label: "Tableau de bord", active: true },
@@ -269,7 +310,9 @@ export default function Landing() {
       </section>
 
       {/* TARIFS */}
-      <section id="tarifs" className="mx-auto max-w-7xl px-6 py-16">
+      <section id="tarifs" className="dg-pricing mx-auto max-w-7xl px-6 py-16">
+        <style>{pricingCss}</style>
+
         <h2 className="text-center text-2xl font-bold">
           Des <span className="text-gradient">tarifs</span> simples et transparents
         </h2>
@@ -277,49 +320,36 @@ export default function Landing() {
           Commencez gratuitement, évoluez quand vous êtes prêt.
         </p>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
+        <div className="dg-grid">
           {plans.map((p) => (
-            <div
-              key={p.name}
-              className={`card text-center ${p.featured ? "border-2 border-digi-blue" : ""}`}
-            >
-              {p.featured && (
-                <span className="mb-3 inline-block rounded-full bg-digi-gradient px-3 py-1 text-xs font-semibold text-white">
-                  Populaire
-                </span>
-              )}
-              <h3 className="text-xl font-semibold">{p.name}</h3>
-              <p className="mt-2 text-3xl font-bold">{p.price}</p>
-              <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">{p.period}</p>
+            <div key={p.name} className={`dg-card dg-${p.tone}`}>
+              {p.featured && <span className="dg-badge">✦ Populaire</span>}
+              <h3 className="dg-name">{p.name}</h3>
+              <p className="dg-price">{p.price}</p>
+              <span className="dg-unit">{p.unit}</span>
 
-              <ul className="mt-6 space-y-2 text-left text-sm text-digi-navy/80 dark:text-white/80">
+              <ul className="dg-list">
                 {p.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="text-digi-blue">✔</span>
-                    <span>{f}</span>
-                  </li>
+                  <li key={f}>{f}</li>
                 ))}
                 {commonFeatures.map((f) => (
-                  <li key={f} className="flex gap-2 text-digi-navy/60 dark:text-white/60">
-                    <span className="text-digi-blue">✔</span>
-                    <span>{f}</span>
+                  <li key={f} className={COMMON_MUTED ? "off" : ""}>
+                    {f}
                   </li>
                 ))}
               </ul>
 
-              <a
-                href="/signup"
-                className={`${p.featured ? "btn-primary" : "btn-secondary"} mt-6 inline-flex`}
-              >
+              <a href="/signup" className={`dg-btn dg-btn-${p.tone}`}>
                 {p.cta}
               </a>
             </div>
           ))}
         </div>
 
-        <p className="mt-6 text-center text-xs text-digi-navy/60 dark:text-white/60">
-          Chaque abonnement payant dure 30 jours à partir de votre paiement. Il ne se renouvelle pas
-          automatiquement : vous le renouvelez quand vous le souhaitez.
+        <p className="mx-auto mt-8 max-w-3xl text-center text-xs text-digi-navy/60 dark:text-white/60">
+          🔒 Paiement sécurisé par SasPay (Mobile Money). Chaque abonnement payant dure 30 jours à
+          partir de votre paiement. Il ne se renouvelle pas automatiquement : vous le renouvelez
+          quand vous le souhaitez.
         </p>
       </section>
 
@@ -413,4 +443,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-  }
+                                     }
