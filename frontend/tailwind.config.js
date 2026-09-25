@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
+import digitelio from "./tailwind.digitelio.preset.js";
+
 export default {
+  presets: [digitelio],
   darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
@@ -25,4 +28,3 @@ export default {
   },
   plugins: [],
 };
-
