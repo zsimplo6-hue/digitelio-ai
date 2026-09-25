@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { CURRENCIES, saveDefaultCurrency } from "../utils/currency.js";
+import { Card } from "../components/ui/Card.jsx";
+import { Button } from "../components/ui/Button.jsx";
+import { Input, Select } from "../components/ui/Field.jsx";
+import { IconUser, IconSettings, IconShield, IconCrown } from "../components/ui/Icons.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -14,6 +18,8 @@ async function api(path, options = {}) {
   if (!res.ok) throw new Error(data.error || "Une erreur est survenue.");
   return data;
 }
+
+const iconStyle = { width: 18, height: 18 };
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
@@ -68,7 +74,6 @@ export default function Settings() {
       });
       saveDefaultCurrency(d.settings.default_currency);
       setMsg("Réglages enregistrés ✓ Mise à jour du nom en cours...");
-      // Le nom affiché dans l'en-tête vient de la session : on recharge pour l'actualiser
       setTimeout(() => window.location.reload(), 900);
     } catch (e2) {
       setErr(e2.message);
@@ -110,196 +115,153 @@ export default function Settings() {
 
   return (
     <DashboardLayout>
-      <div className="st-page">
-        <h1 className="text-2xl font-bold">Paramètres</h1>
-        <p className="st-muted">Gérez votre profil et vos préférences.</p>
+      <div className="dg-settings-wrap">
+        <div className="dg-settings-header">
+          <h1 className="dg-page__title">Paramètres</h1>
+          <p className="dg-page__subtitle">Gérez votre profil et vos préférences.</p>
+        </div>
 
         {loading ? (
-          <p className="st-muted" style={{ marginTop: "1.5rem" }}>Chargement...</p>
+          <p className="dg-page__subtitle">Chargement...</p>
         ) : (
           <>
             <form onSubmit={save}>
-              <div className="st-card">
-                <div className="st-label">Profil</div>
-                <label className="st-field">
-                  <span>Nom affiché</span>
-                  <input
-                    className="st-input"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    maxLength={60}
-                    placeholder="Votre nom"
-                  />
-                </label>
-                <div className="st-muted st-small">
+              <Card icon={<IconUser style={iconStyle} />} title="Profil">
+                <Input
+                  label="Nom affiché"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={60}
+                  placeholder="Votre nom"
+                />
+                <p className="dg-helper-text">
                   Ce nom apparaît comme formateur sur vos pages de vente, dans l'espace de vos
                   apprenants et sur les certificats.
-                </div>
+                </p>
 
-                <label className="st-field" style={{ marginTop: "1.1rem" }}>
-                  <span>Email</span>
-                  <input className="st-input st-readonly" value={email} readOnly />
-                </label>
-              </div>
+                <Input label="Email" value={email} readOnly />
+              </Card>
 
-              <div className="st-card">
-                <div className="st-label">Préférences</div>
-                <label className="st-field">
-                  <span>Monnaie par défaut</span>
-                  <select
-                    className="st-input"
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                  >
-                    {CURRENCIES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="st-muted st-small">
+              <Card icon={<IconSettings style={iconStyle} />} title="Préférences" className="dg-mt-6">
+                <Select
+                  label="Monnaie par défaut"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+                <p className="dg-helper-text">
                   Elle est proposée automatiquement quand vous fixez le prix d'une nouvelle
                   formation. Vous pouvez toujours la changer formation par formation.
-                </div>
-              </div>
+                </p>
+              </Card>
 
-              <div className="st-card">
-                <div className="st-label">Mon plan</div>
-                <div className="st-plan">
-                  <span className="st-plan-badge">{plan || "free"}</span>
-                  <span className="st-muted st-small" style={{ margin: 0 }}>
+              <Card icon={<IconCrown style={iconStyle} />} title="Mon plan" className="dg-mt-6">
+                <div className="dg-plan-row">
+                  <span className="dg-badge dg-badge--brand">{plan || "free"}</span>
+                  <span className="dg-helper-text" style={{ margin: 0 }}>
                     La gestion des plans arrivera avec « Abonnements ».
                   </span>
                 </div>
-              </div>
+              </Card>
 
-              {err && <div className="st-err">{err}</div>}
-              {msg && <div className="st-ok">{msg}</div>}
+              {err && <div className="dg-alert dg-alert--error">{err}</div>}
+              {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
 
-              <button type="submit" className="st-save" disabled={saving || name.trim().length < 2}>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="dg-mt-6"
+                style={{ width: "100%" }}
+                disabled={saving || name.trim().length < 2}
+              >
                 {saving ? "Enregistrement..." : "💾 Enregistrer"}
-              </button>
+              </Button>
             </form>
 
             {/* ===== SÉCURITÉ ===== */}
             <form onSubmit={changePassword} autoComplete="off">
-              <div className="st-card" style={{ marginTop: "2rem" }}>
-                <div className="st-label">Sécurité</div>
-                <div className="st-title">
-                  {hasPassword ? "Changer mon mot de passe" : "Définir un mot de passe"}
-                </div>
-
+              <Card
+                icon={<IconShield style={iconStyle} />}
+                title="Sécurité"
+                subtitle={hasPassword ? "Changer mon mot de passe" : "Définir un mot de passe"}
+                className="dg-mt-8"
+              >
                 {!hasPassword && (
-                  <div className="st-muted st-small" style={{ marginTop: 0, marginBottom: "0.9rem" }}>
-                    Votre compte utilise la connexion Google. Vous pouvez définir un mot de passe pour
-                    vous connecter aussi avec votre email.
-                  </div>
+                  <p className="dg-helper-text" style={{ marginTop: 0 }}>
+                    Votre compte utilise la connexion Google. Vous pouvez définir un mot de passe
+                    pour vous connecter aussi avec votre email.
+                  </p>
                 )}
 
                 {hasPassword && (
-                  <label className="st-field">
-                    <span>Mot de passe actuel</span>
-                    <input
-                      className="st-input"
-                      type={showPwd ? "text" : "password"}
-                      value={curPwd}
-                      onChange={(e) => setCurPwd(e.target.value)}
-                      autoComplete="current-password"
-                    />
-                  </label>
+                  <Input
+                    label="Mot de passe actuel"
+                    type={showPwd ? "text" : "password"}
+                    value={curPwd}
+                    onChange={(e) => setCurPwd(e.target.value)}
+                    autoComplete="current-password"
+                  />
                 )}
 
-                <label className="st-field" style={{ marginTop: hasPassword ? "1rem" : 0 }}>
-                  <span>Nouveau mot de passe</span>
-                  <input
-                    className="st-input"
-                    type={showPwd ? "text" : "password"}
-                    value={newPwd}
-                    onChange={(e) => setNewPwd(e.target.value)}
-                    autoComplete="new-password"
-                    maxLength={128}
-                  />
-                </label>
-                {pwdTooShort && <div className="st-hint">8 caractères minimum.</div>}
+                <Input
+                  label="Nouveau mot de passe"
+                  type={showPwd ? "text" : "password"}
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  autoComplete="new-password"
+                  maxLength={128}
+                />
+                {pwdTooShort && <div className="dg-hint">8 caractères minimum.</div>}
 
-                <label className="st-field" style={{ marginTop: "1rem" }}>
-                  <span>Confirmer le nouveau mot de passe</span>
-                  <input
-                    className="st-input"
-                    type={showPwd ? "text" : "password"}
-                    value={confPwd}
-                    onChange={(e) => setConfPwd(e.target.value)}
-                    autoComplete="new-password"
-                    maxLength={128}
-                  />
-                </label>
-                {pwdMismatch && <div className="st-hint">Les deux mots de passe ne sont pas identiques.</div>}
+                <Input
+                  label="Confirmer le nouveau mot de passe"
+                  type={showPwd ? "text" : "password"}
+                  value={confPwd}
+                  onChange={(e) => setConfPwd(e.target.value)}
+                  autoComplete="new-password"
+                  maxLength={128}
+                />
+                {pwdMismatch && (
+                  <div className="dg-hint">Les deux mots de passe ne sont pas identiques.</div>
+                )}
 
-                <label className="st-check">
-                  <input type="checkbox" checked={showPwd} onChange={(e) => setShowPwd(e.target.checked)} />
+                <label className="dg-check-row">
+                  <input
+                    type="checkbox"
+                    checked={showPwd}
+                    onChange={(e) => setShowPwd(e.target.checked)}
+                  />
                   <span>Afficher les mots de passe</span>
                 </label>
 
-                {pwdErr && <div className="st-err">{pwdErr}</div>}
-                {pwdMsg && <div className="st-ok">{pwdMsg}</div>}
+                {pwdErr && <div className="dg-alert dg-alert--error">{pwdErr}</div>}
+                {pwdMsg && <div className="dg-alert dg-alert--success">{pwdMsg}</div>}
 
-                <button type="submit" className="st-save st-save-out" disabled={!pwdReady || pwdBusy}>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  size="lg"
+                  className="dg-mt-6"
+                  style={{ width: "100%" }}
+                  disabled={!pwdReady || pwdBusy}
+                >
                   {pwdBusy
                     ? "Enregistrement..."
                     : hasPassword
                     ? "🔒 Changer le mot de passe"
                     : "🔒 Définir le mot de passe"}
-                </button>
-              </div>
+                </Button>
+              </Card>
             </form>
           </>
         )}
       </div>
-
-      <style>{`
-        .st-page { max-width: 36rem; }
-        .st-muted { opacity: 0.7; margin-top: 0.4rem; }
-        .st-small { font-size: 0.8rem; margin-top: 0.5rem; line-height: 1.5; }
-        .st-card {
-          margin-top: 1.3rem; padding: 1.2rem; border-radius: 14px;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .st-label {
-          font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
-          text-transform: uppercase; color: #D4AF37; margin-bottom: 0.9rem;
-        }
-        .st-title { font-weight: 700; margin-bottom: 0.9rem; }
-        .st-field { display: block; }
-        .st-field > span { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
-        .st-input {
-          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
-          background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.3);
-          color: inherit; outline: none; font-family: inherit;
-        }
-        .st-input:focus { border-color: #D4AF37; }
-        .st-readonly { opacity: 0.6; cursor: not-allowed; }
-        .st-hint { font-size: 0.78rem; color: #d97706; margin-top: 0.35rem; }
-        .st-check { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.85rem; cursor: pointer; }
-        .st-check input { width: 1.1rem; height: 1.1rem; accent-color: #D4AF37; }
-        .st-plan { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
-        .st-plan-badge {
-          padding: 0.25rem 0.9rem; border-radius: 999px; font-weight: 700; text-transform: uppercase;
-          font-size: 0.8rem; background: #D4AF37; color: #0B0B0B;
-        }
-        .st-save {
-          width: 100%; margin-top: 1.4rem; padding: 0.95rem; border-radius: 10px; border: 0;
-          background: #D4AF37; color: #0B0B0B; font-weight: 700; font-size: 1rem; cursor: pointer;
-          font-family: inherit;
-        }
-        .st-save-out { background: transparent; color: inherit; border: 1px solid #D4AF37; }
-        .st-save:disabled { opacity: 0.5; cursor: not-allowed; }
-        .st-err {
-          margin-top: 1rem; padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.9rem;
-          color: #ef4444; background: rgba(239,68,68,0.1);
-        }
-        .st-ok { margin-top: 1rem; color: #16a34a; font-size: 0.9rem; font-weight: 600; }
-      `}</style>
     </DashboardLayout>
   );
-                                                              }
+    }
