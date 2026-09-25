@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
+import { Card } from "../components/ui/Card.jsx";
+import { Button } from "../components/ui/Button.jsx";
+import { Input, Select } from "../components/ui/Field.jsx";
 
 export default function CreateEbook() {
   const navigate = useNavigate();
@@ -41,72 +44,64 @@ export default function CreateEbook() {
 
   return (
     <DashboardLayout title="Créer un eBook">
-      <form onSubmit={handleGenerate} className="card max-w-2xl space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Titre de votre eBook *</label>
-          <input
+      <form onSubmit={handleGenerate} style={{ maxWidth: "42rem" }}>
+        <Card>
+          <Input
+            label="Titre de votre eBook *"
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ex : Le guide ultime du marketing digital"
-            className="w-full rounded-lg border border-digi-navy/10 bg-white px-4 py-2.5 text-sm outline-none focus:border-digi-blue dark:border-white/15 dark:bg-white/5"
           />
-        </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Description *</label>
-          <textarea
-            required
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Décrivez brièvement le sujet de votre eBook."
-            className="w-full rounded-lg border border-digi-navy/10 bg-white px-4 py-2.5 text-sm outline-none focus:border-digi-blue dark:border-white/15 dark:bg-white/5"
-          />
-        </div>
+          <div className="dg-field">
+            <label className="dg-field__label">Description *</label>
+            <textarea
+              required
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Décrivez brièvement le sujet de votre eBook."
+              className="dg-field__input"
+            />
+          </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Langue</label>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="w-full rounded-lg border border-digi-navy/10 bg-white px-4 py-2.5 text-sm outline-none focus:border-digi-blue dark:border-white/15 dark:bg-white/5"
-          >
+          <Select label="Langue" value={language} onChange={(e) => setLanguage(e.target.value)}>
             <option value="fr">Français</option>
             <option value="en">Anglais</option>
-          </select>
-        </div>
+          </Select>
 
-        {error && (
-          <div className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">
-            {error}
-          </div>
-        )}
+          {error && <div className="dg-alert dg-alert--error">{error}</div>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? "Rédaction complète en cours (peut prendre 30-60s)..." : "Générer l'eBook complet avec l'IA"}
-        </button>
+          <Button type="submit" variant="primary" size="lg" disabled={loading} style={{ width: "100%" }}>
+            {loading ? "Rédaction complète en cours (peut prendre 30-60s)..." : "Générer l'eBook complet avec l'IA"}
+          </Button>
+        </Card>
       </form>
 
       {result && (
-        <div className="card mt-6 max-w-2xl">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">{result.title}</h2>
-            <button
-              onClick={() => navigate(`/dashboard/ebooks/${result.id}`)}
-              className="btn-primary whitespace-nowrap text-sm"
-            >
+        <Card className="dg-mt-6" style={{ maxWidth: "42rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <h2 className="dg-card__title" style={{ fontSize: 20 }}>{result.title}</h2>
+            <Button variant="primary" size="sm" onClick={() => navigate(`/dashboard/ebooks/${result.id}`)}>
               Voir & télécharger en PDF
-            </button>
+            </Button>
           </div>
           <div
-            className="mt-3 max-h-64 overflow-hidden text-sm text-digi-navy/70 dark:text-white/70"
-            style={{ maskImage: "linear-gradient(to bottom, black 60%, transparent)" }}
+            style={{
+              marginTop: 12,
+              maxHeight: 256,
+              overflow: "hidden",
+              fontSize: 14,
+              color: "var(--dg-text-secondary)",
+              maskImage: "linear-gradient(to bottom, black 60%, transparent)",
+              WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent)",
+            }}
             dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }}
           />
-        </div>
+        </Card>
       )}
     </DashboardLayout>
   );
-}
+                }
