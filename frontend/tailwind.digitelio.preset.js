@@ -21,8 +21,10 @@ export default {
         },
       },
       fontFamily: {
+        // Volontairement PAS de clé "sans" ici : l'app utilise déjà
+        // fontFamily.sans = Poppins. Ajouter une autre police par défaut
+        // ici changerait la police de tout le site sans qu'on le veuille.
         display: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
-        sans: ['Inter', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif'],
       },
       borderRadius: { 'dg-md': '12px', 'dg-lg': '16px', 'dg-xl': '20px' },
       boxShadow: {
