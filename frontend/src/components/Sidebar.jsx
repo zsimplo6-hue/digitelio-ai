@@ -6,6 +6,7 @@ import {
   IconCart,
   IconMegaphone,
   IconTrendingUp,
+  IconShop,
   IconCreditCard,
   IconSettings,
 } from "./ui/Icons.jsx";
@@ -17,6 +18,7 @@ const links = [
   { to: "/dashboard/pages-vente", label: "Pages de vente", Icon: IconCart },
   { to: "/dashboard/marketing", label: "Marketing digital", Icon: IconMegaphone },
   { to: "/dashboard/analytics", label: "Analytics", Icon: IconTrendingUp },
+  { to: "/dashboard/boutique", label: "Ma boutique", Icon: IconShop },
   { to: "/dashboard/abonnements", label: "Abonnements", Icon: IconCreditCard },
   { to: "/dashboard/parametres", label: "Paramètres", Icon: IconSettings },
 ];
