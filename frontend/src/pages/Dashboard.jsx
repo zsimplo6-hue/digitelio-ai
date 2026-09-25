@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { formatPrice } from "../utils/currency.js";
+import { Card } from "../components/ui/Card.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -43,7 +44,6 @@ export default function Dashboard() {
   const recent = data?.recent;
   const revenue = t?.revenue_by_currency || [];
 
-  /* Conseils selon la situation du compte */
   const tips = [];
   if (t) {
     if (t.ebooks === 0 && t.formations === 0) {
@@ -82,63 +82,61 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="db-page">
+      <div className="dg-settings-wrap" style={{ maxWidth: "46rem" }}>
         <h1 className="text-2xl font-bold">
           Bonjour, <span className="text-gradient">{user?.fullName || "..."}</span> 👋
         </h1>
-        <p className="mt-2 text-digi-navy/60 dark:text-white/60">
-          Voici un aperçu de votre activité sur Digitelio AI.
-        </p>
+        <p className="dg-page__subtitle">Voici un aperçu de votre activité sur Digitelio AI.</p>
 
-        {error && (
-          <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>
-        )}
+        {error && <div className="dg-alert dg-alert--error">{error}</div>}
 
         {/* Indicateurs */}
-        <div className="db-stats">
-          <Link to="/dashboard/ebooks" className="db-stat">
-            <div className="db-n">{loading ? "…" : t?.ebooks ?? 0}</div>
-            <div className="db-l">📘 eBooks</div>
+        <div className="dg-stat-grid-2">
+          <Link to="/dashboard/ebooks" className="dg-stat-mini">
+            <div className="dg-stat-mini__n">{loading ? "…" : t?.ebooks ?? 0}</div>
+            <div className="dg-stat-mini__l">📘 eBooks</div>
           </Link>
-          <Link to="/dashboard/formations" className="db-stat">
-            <div className="db-n">{loading ? "…" : t?.formations ?? 0}</div>
-            <div className="db-l">🎓 Formations{t && t.published > 0 ? ` (${t.published} publiée${t.published > 1 ? "s" : ""})` : ""}</div>
+          <Link to="/dashboard/formations" className="dg-stat-mini">
+            <div className="dg-stat-mini__n">{loading ? "…" : t?.formations ?? 0}</div>
+            <div className="dg-stat-mini__l">
+              🎓 Formations{t && t.published > 0 ? ` (${t.published} publiée${t.published > 1 ? "s" : ""})` : ""}
+            </div>
           </Link>
-          <Link to="/dashboard/pages-vente" className="db-stat">
-            <div className="db-n">{loading ? "…" : t?.learners ?? 0}</div>
-            <div className="db-l">👥 Apprenants</div>
+          <Link to="/dashboard/pages-vente" className="dg-stat-mini">
+            <div className="dg-stat-mini__n">{loading ? "…" : t?.learners ?? 0}</div>
+            <div className="dg-stat-mini__l">👥 Apprenants</div>
           </Link>
-          <Link to="/dashboard/pages-vente" className="db-stat">
-            <div className="db-n">{loading ? "…" : t?.finished ?? 0}</div>
-            <div className="db-l">✅ Terminées</div>
+          <Link to="/dashboard/pages-vente" className="dg-stat-mini">
+            <div className="dg-stat-mini__n">{loading ? "…" : t?.finished ?? 0}</div>
+            <div className="dg-stat-mini__l">✅ Terminées</div>
           </Link>
         </div>
 
-        <div className="db-revenue">
-          <div className="db-l">💰 Revenu estimé</div>
-          <div className="db-rev-n">
+        <div className="dg-revenue-card">
+          <div className="dg-revenue-card__label">💰 Revenu estimé</div>
+          <div className="dg-revenue-card__value">
             {loading
               ? "…"
               : revenue.length === 0
               ? "0"
               : revenue.map((r) => <div key={r.currency}>{formatPrice(r.amount, r.currency)}</div>)}
           </div>
-          <div className="db-small">Prix × apprenants inscrits, par monnaie.</div>
+          <div className="dg-revenue-card__hint">Prix × apprenants inscrits, par monnaie.</div>
         </div>
 
         {/* Raccourcis */}
-        <div className="db-label">Actions rapides</div>
-        <div className="db-actions">
-          <Link to="/dashboard/ebooks/create" className="btn-primary db-act">
+        <div className="dg-section-label">Actions rapides</div>
+        <div className="dg-actions-grid">
+          <Link to="/dashboard/ebooks/create" className="dg-action-btn dg-action-btn--primary">
             📘 Créer un eBook
           </Link>
-          <Link to="/dashboard/formations" className="db-act db-act-gold">
+          <Link to="/dashboard/formations" className="dg-action-btn dg-action-btn--gold">
             🎓 Créer une formation
           </Link>
-          <Link to="/dashboard/marketing" className="db-act db-act-out">
+          <Link to="/dashboard/marketing" className="dg-action-btn dg-action-btn--outline">
             📣 Générer du marketing
           </Link>
-          <Link to="/dashboard/pages-vente" className="db-act db-act-out">
+          <Link to="/dashboard/pages-vente" className="dg-action-btn dg-action-btn--outline">
             🛒 Mes pages de vente
           </Link>
         </div>
@@ -146,14 +144,14 @@ export default function Dashboard() {
         {/* Prochaines étapes */}
         {tips.length > 0 && (
           <>
-            <div className="db-label">Prochaines étapes</div>
-            <div className="db-tips">
+            <div className="dg-section-label">Prochaines étapes</div>
+            <div className="dg-tips">
               {tips.map((tip, i) => (
-                <div key={i} className="db-tip">
-                  <div className="db-tip-icon">{tip.icon}</div>
-                  <div className="db-tip-body">
+                <div key={i} className="dg-tip-card">
+                  <div className="dg-tip-card__icon">{tip.icon}</div>
+                  <div className="dg-tip-card__body">
                     <div>{tip.text}</div>
-                    <Link to={tip.to} className="db-tip-link">
+                    <Link to={tip.to} className="dg-tip-card__link">
                       {tip.cta} →
                     </Link>
                   </div>
@@ -166,22 +164,22 @@ export default function Dashboard() {
         {/* Activité récente */}
         {recent && (recent.ebooks.length > 0 || recent.formations.length > 0 || recent.learners.length > 0) && (
           <>
-            <div className="db-label">Activité récente</div>
+            <div className="dg-section-label">Activité récente</div>
 
             {recent.learners.length > 0 && (
-              <div className="db-block">
-                <div className="db-block-title">Derniers apprenants</div>
+              <div className="dg-row-block">
+                <div className="dg-row-block__title">Derniers apprenants</div>
                 {recent.learners.map((l, i) => (
-                  <div key={i} className="db-row">
-                    <div className="db-row-main">
-                      <div className="db-row-title">{l.learner_name}</div>
-                      <div className="db-row-sub">{l.title}</div>
+                  <div key={i} className="dg-row">
+                    <div className="dg-row__main">
+                      <div className="dg-row__title">{l.learner_name}</div>
+                      <div className="dg-row__sub">{l.title}</div>
                     </div>
-                    <div className="db-row-side">
-                      <span className={l.completed_at ? "db-pill ok" : "db-pill"}>
+                    <div className="dg-row__side">
+                      <span className={`dg-pill ${l.completed_at ? "dg-pill--ok" : ""}`}>
                         {l.completed_at ? "✓ Terminé" : "En cours"}
                       </span>
-                      <span className="db-date">{fmtDate(l.created_at)}</span>
+                      <span className="dg-row__date">{fmtDate(l.created_at)}</span>
                     </div>
                   </div>
                 ))}
@@ -189,22 +187,22 @@ export default function Dashboard() {
             )}
 
             {recent.formations.length > 0 && (
-              <div className="db-block">
-                <div className="db-block-title">Dernières formations</div>
+              <div className="dg-row-block">
+                <div className="dg-row-block__title">Dernières formations</div>
                 {recent.formations.map((f) => (
-                  <Link key={f.id} to="/dashboard/formations" className="db-row db-row-link">
-                    <div className="db-row-main">
-                      <div className="db-row-title">{f.title}</div>
-                      <div className="db-row-sub">
+                  <Link key={f.id} to="/dashboard/formations" className="dg-row">
+                    <div className="dg-row__main">
+                      <div className="dg-row__title">{f.title}</div>
+                      <div className="dg-row__sub">
                         {f.modules_count} modules
                         {f.price !== null && f.price !== undefined ? ` · ${formatPrice(f.price, f.currency)}` : ""}
                       </div>
                     </div>
-                    <div className="db-row-side">
-                      <span className={f.status === "published" ? "db-pill ok" : "db-pill"}>
+                    <div className="dg-row__side">
+                      <span className={`dg-pill ${f.status === "published" ? "dg-pill--ok" : ""}`}>
                         {f.status === "published" ? "Publiée" : "Brouillon"}
                       </span>
-                      <span className="db-date">{fmtDate(f.created_at)}</span>
+                      <span className="dg-row__date">{fmtDate(f.created_at)}</span>
                     </div>
                   </Link>
                 ))}
@@ -212,18 +210,18 @@ export default function Dashboard() {
             )}
 
             {recent.ebooks.length > 0 && (
-              <div className="db-block">
-                <div className="db-block-title">Derniers eBooks</div>
+              <div className="dg-row-block">
+                <div className="dg-row-block__title">Derniers eBooks</div>
                 {recent.ebooks.map((b) => (
-                  <Link key={b.id} to={`/dashboard/ebooks/${b.id}`} className="db-row db-row-link">
-                    <div className="db-row-main">
-                      <div className="db-row-title">{b.title}</div>
+                  <Link key={b.id} to={`/dashboard/ebooks/${b.id}`} className="dg-row">
+                    <div className="dg-row__main">
+                      <div className="dg-row__title">{b.title}</div>
                     </div>
-                    <div className="db-row-side">
-                      <span className={b.status === "published" ? "db-pill ok" : "db-pill"}>
+                    <div className="dg-row__side">
+                      <span className={`dg-pill ${b.status === "published" ? "dg-pill--ok" : ""}`}>
                         {b.status === "published" ? "Publié" : "Brouillon"}
                       </span>
-                      <span className="db-date">{fmtDate(b.created_at)}</span>
+                      <span className="dg-row__date">{fmtDate(b.created_at)}</span>
                     </div>
                   </Link>
                 ))}
@@ -233,71 +231,12 @@ export default function Dashboard() {
         )}
 
         {/* Compte */}
-        <div className="db-label">Mon compte</div>
-        <div className="card text-left text-sm text-digi-navy/70 dark:text-white/70">
-          <p><strong>Email :</strong> {user?.email}</p>
-          <p className="mt-1"><strong>Plan :</strong> {user?.plan}</p>
-        </div>
+        <div className="dg-section-label">Mon compte</div>
+        <Card>
+          <p style={{ fontSize: 14 }}><strong>Email :</strong> {user?.email}</p>
+          <p style={{ fontSize: 14, marginTop: 4 }}><strong>Plan :</strong> {user?.plan}</p>
+        </Card>
       </div>
-
-      <style>{`
-        .db-page { max-width: 46rem; }
-        .db-label {
-          font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
-          text-transform: uppercase; color: #D4AF37; margin: 2rem 0 0.8rem;
-        }
-        .db-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.7rem; margin-top: 1.5rem; }
-        .db-stat {
-          padding: 1rem; border-radius: 14px; text-align: center; text-decoration: none; color: inherit;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .db-n { font-size: 1.8rem; font-weight: 800; color: #D4AF37; line-height: 1.2; }
-        .db-l { font-size: 0.8rem; opacity: 0.8; margin-top: 0.25rem; }
-        .db-revenue {
-          margin-top: 0.7rem; padding: 1rem; border-radius: 14px; text-align: center;
-          border: 1px solid rgba(212,175,55,0.6); background: rgba(212,175,55,0.07);
-        }
-        .db-rev-n { font-size: 1.5rem; font-weight: 800; color: #D4AF37; margin-top: 0.3rem; }
-        .db-small { font-size: 0.75rem; opacity: 0.65; margin-top: 0.3rem; }
-
-        .db-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
-        .db-act {
-          display: block; text-align: center; padding: 0.85rem 0.6rem; border-radius: 10px;
-          font-weight: 600; font-size: 0.9rem; text-decoration: none;
-        }
-        .db-act-gold { background: #D4AF37; color: #0B0B0B; }
-        .db-act-out { border: 1px solid rgba(128,128,128,0.45); color: inherit; }
-
-        .db-tips { display: grid; gap: 0.6rem; }
-        .db-tip {
-          display: flex; gap: 0.8rem; align-items: flex-start; padding: 0.9rem; border-radius: 12px;
-          border: 1px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
-        }
-        .db-tip-icon { font-size: 1.4rem; }
-        .db-tip-body { font-size: 0.9rem; line-height: 1.5; }
-        .db-tip-link { display: inline-block; margin-top: 0.35rem; color: #D4AF37; font-weight: 700; text-decoration: none; }
-
-        .db-block {
-          margin-bottom: 1rem; padding: 0.4rem 0.9rem 0.6rem; border-radius: 14px;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .db-block-title { font-weight: 700; font-size: 0.9rem; padding: 0.6rem 0 0.3rem; }
-        .db-row {
-          display: flex; justify-content: space-between; align-items: center; gap: 0.8rem;
-          padding: 0.65rem 0; border-top: 1px solid rgba(128,128,128,0.2);
-          text-decoration: none; color: inherit;
-        }
-        .db-row-main { min-width: 0; }
-        .db-row-title { font-weight: 600; line-height: 1.3; }
-        .db-row-sub { font-size: 0.8rem; opacity: 0.7; margin-top: 0.1rem; }
-        .db-row-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
-        .db-pill {
-          font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px;
-          border: 1px solid rgba(128,128,128,0.4);
-        }
-        .db-pill.ok { background: #16a34a; color: #fff; border-color: #16a34a; }
-        .db-date { font-size: 0.72rem; opacity: 0.6; }
-      `}</style>
     </DashboardLayout>
   );
-        }
+      }
