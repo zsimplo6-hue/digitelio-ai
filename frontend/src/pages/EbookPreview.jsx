@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
+import { Card } from "../components/ui/Card.jsx";
+import { Button } from "../components/ui/Button.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -99,56 +101,58 @@ function SectionEditor({ ebookId, section, onChange }) {
   const previewSection = { ...section, content, image };
 
   return (
-    <div className="ebx-card no-print">
-      <div className="ebx-label">Édition : {section.title}</div>
-
-      <div className="ebx-tabs">
-        <button className={tab === "edit" ? "ebx-tab on" : "ebx-tab"} onClick={() => setTab("edit")}>
+    <Card className="no-print" title={`Édition : ${section.title}`}>
+      <div className="dg-editor-tabs">
+        <button className={`dg-editor-tab ${tab === "edit" ? "is-active" : ""}`} onClick={() => setTab("edit")}>
           Éditer
         </button>
-        <button className={tab === "preview" ? "ebx-tab on" : "ebx-tab"} onClick={() => setTab("preview")}>
-          Aperçu
+        <button className={`dg-editor-tab ${tab === "preview" ? "is-active" : ""}`} onClick={() => setTab("preview")}>
+          Aperçu réel
         </button>
       </div>
 
       {tab === "edit" ? (
         <textarea
-          className="ebx-input ebx-textarea"
+          className="dg-field__input dg-textarea-lg"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Texte de cette partie (Markdown : ### Titre, - puce)..."
         />
       ) : (
-        <SectionBody section={previewSection} />
+        <div style={{ background: "#F5F5F2", borderRadius: 12, padding: "1.5rem" }}>
+          <SectionBody section={previewSection} />
+        </div>
       )}
 
-      <div className="ebx-label" style={{ marginTop: "1.2rem" }}>Image d'illustration</div>
-      {image ? (
-        <div className="ebx-cover">
-          <img src={image} alt="Illustration" />
-        </div>
-      ) : (
-        <div className="ebx-cover ebx-cover-empty">Aucune image</div>
-      )}
-      <div className="ebx-cover-actions">
-        <label className="ebx-chip ebx-file">
-          {image ? "Changer l'image" : "+ Ajouter une image"}
-          <input type="file" accept="image/*" onChange={onImageFile} hidden />
-        </label>
-        {image && (
-          <button type="button" className="ebx-chip" onClick={() => setImage("")}>
-            Retirer
-          </button>
+      <div>
+        <label className="dg-field__label">Image d'illustration</label>
+        {image ? (
+          <div className="dg-cover-box" style={{ marginTop: 8 }}>
+            <img src={image} alt="Illustration" />
+          </div>
+        ) : (
+          <div className="dg-cover-box dg-cover-box--empty" style={{ marginTop: 8 }}>Aucune image</div>
         )}
+        <div className="dg-cover-actions">
+          <label className="dg-chip">
+            {image ? "Changer l'image" : "+ Ajouter une image"}
+            <input type="file" accept="image/*" onChange={onImageFile} hidden />
+          </label>
+          {image && (
+            <button type="button" className="dg-chip" onClick={() => setImage("")}>
+              Retirer
+            </button>
+          )}
+        </div>
       </div>
 
-      {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
-      {msg && <div className="ebx-ok">{msg}</div>}
+      {err && <div className="dg-alert dg-alert--error">{err}</div>}
+      {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
 
-      <button className="btn-primary ebx-save" onClick={save} disabled={saving}>
+      <Button variant="primary" size="lg" onClick={save} disabled={saving} style={{ width: "100%" }}>
         {saving ? "Enregistrement..." : "💾 Enregistrer"}
-      </button>
-    </div>
+      </Button>
+    </Card>
   );
 }
 
@@ -178,7 +182,7 @@ export default function EbookPreview() {
   if (error) {
     return (
       <DashboardLayout title="eBook">
-        <div className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>
+        <div className="dg-alert dg-alert--error">{error}</div>
       </DashboardLayout>
     );
   }
@@ -186,13 +190,18 @@ export default function EbookPreview() {
   if (!ebook) {
     return (
       <DashboardLayout title="eBook">
-        <p>Chargement...</p>
+        <p className="dg-page__subtitle">Chargement...</p>
       </DashboardLayout>
     );
   }
 
   function patchSection(patch) {
     setSections((list) => list.map((s) => (s.id === patch.id ? { ...s, ...patch } : s)));
+  }
+
+  function scrollToSection(sectionId) {
+    const el = document.getElementById(`sec-${sectionId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const chapterSections = sections.filter((s) => s.type === "chapter");
@@ -202,34 +211,33 @@ export default function EbookPreview() {
 
   return (
     <DashboardLayout>
-      <div className="no-print mb-6 flex items-center justify-between">
+      <div className="no-print" style={{ marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <h1 className="text-2xl font-bold">{ebook.title}</h1>
-        <button onClick={() => window.print()} className="btn-primary">
-          Télécharger en PDF
-        </button>
+        <div className="dg-export-group">
+          <Button variant="primary" onClick={() => window.print()}>📄 Télécharger en PDF</Button>
+        </div>
       </div>
 
-      <div className="no-print ebx-wrap">
-        <div className="ebx-card">
-          <div className="ebx-label">Plan de l'eBook</div>
-          <ol className="ebx-list">
+      <div className="no-print" style={{ display: "grid", gap: 16 }}>
+        <Card title="Plan de l'eBook">
+          <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 4 }}>
             {sections.map((s) => (
               <li key={s.id}>
                 <button
-                  className={`ebx-item${s.id === activeId ? " active" : ""}`}
+                  className={`dg-plan-item ${s.id === activeId ? "is-active" : ""}`}
                   onClick={() => setActiveId(s.id === activeId ? null : s.id)}
                 >
-                  <span className="ebx-item-title">{s.title}</span>
-                  {s.image && <span className="ebx-tag">🖼 Illustrée</span>}
+                  <span className="dg-plan-item__title">{s.title}</span>
+                  {s.image && <span className="dg-plan-item__tag">🖼 Illustrée</span>}
                 </button>
               </li>
             ))}
           </ol>
-          <div className="ebx-muted ebx-small">
+          <p className="dg-helper-text">
             Touchez une partie pour modifier son texte ou ajouter une image d'illustration.
             Enregistrez avant de télécharger le PDF pour inclure vos modifications.
-          </div>
-        </div>
+          </p>
+        </Card>
 
         {activeSection && (
           <SectionEditor
@@ -259,7 +267,7 @@ export default function EbookPreview() {
 
             <h1 className="cv-title">{(() => {
               const words = (ebook.title || "").trim().split(/\s+/);
-              const sub = words.length > 2 ? words.pop() : "";
+              if (words.length > 2) words.pop();
               return words.join(" ");
             })()}</h1>
             {(() => {
@@ -278,15 +286,17 @@ export default function EbookPreview() {
           </div>
         </section>
 
-        {/* SOMMAIRE */}
+        {/* SOMMAIRE — désormais cliquable, avec numérotation */}
         {chapterSections.length > 0 && (
           <section className="ebook-toc">
             <div className="ebook-section-label">Sommaire</div>
             <ul>
-              {chapterSections.map((s) => (
+              {chapterSections.map((s, i) => (
                 <li key={s.id}>
-                  <span className="ebook-toc-icon">◆</span>
-                  <span>{s.title}</span>
+                  <a href={`#sec-${s.id}`} className="dg-toc-link no-print-color" onClick={(e) => { e.preventDefault(); scrollToSection(s.id); }}>
+                    <span className="dg-toc-num">{i + 1}</span>
+                    <span>{s.title.replace(/^Chapitre\s*\d+\s*:\s*/i, "")}</span>
+                  </a>
                 </li>
               ))}
             </ul>
@@ -295,7 +305,7 @@ export default function EbookPreview() {
 
         {/* INTRODUCTION + CHAPITRES */}
         {bodySections.map((s) => (
-          <section key={s.id} className={`ebook-chapter${s.type === "intro" ? " is-intro" : ""}`}>
+          <section key={s.id} id={`sec-${s.id}`} className={`ebook-chapter${s.type === "intro" ? " is-intro" : ""}`}>
             {s.type === "chapter" && (
               <div className="ebook-chapter-number">
                 {chapterSections.findIndex((c) => c.id === s.id) + 1}
@@ -351,7 +361,6 @@ export default function EbookPreview() {
           margin-bottom: 1.5rem;
         }
 
-        /* ===== PAGE DE TITRE PREMIUM ===== */
         .ebook-cover {
           position: relative;
           overflow: hidden;
@@ -464,24 +473,19 @@ export default function EbookPreview() {
           margin: 0;
         }
 
-        /* ===== SOMMAIRE ===== */
         .ebook-toc {
           padding: 3rem 3rem;
         }
         .ebook-toc ul { list-style: none; padding: 0; margin: 0; }
         .ebook-toc li {
-          display: flex;
-          align-items: baseline;
-          gap: 0.75rem;
-          padding: 0.9rem 0;
           border-bottom: 1px solid #e3e0d8;
           font-family: 'Manrope', sans-serif;
           font-weight: 600;
           font-size: 1rem;
         }
-        .ebook-toc-icon { color: var(--digi-gold); font-size: 0.7rem; }
+        .dg-toc-link { padding: 0.9rem 0; }
+        .no-print-color { color: inherit; }
 
-        /* ===== CHAPITRES ===== */
         .ebook-chapter {
           padding: 2.5rem 3rem;
           page-break-before: always;
@@ -524,7 +528,6 @@ export default function EbookPreview() {
         }
         .ebook-body li { margin: 0.4rem 0; line-height: 1.7; }
 
-        /* Image d'illustration */
         .ebook-illustration {
           margin: 1.4rem 0;
           border-radius: 8px;
@@ -532,7 +535,6 @@ export default function EbookPreview() {
         }
         .ebook-illustration img { display: block; width: 100%; height: auto; }
 
-        /* ===== DERNIÈRE PAGE : CONCLUSION + CTA + COPYRIGHT EN BAS ===== */
         .ebook-cta {
           display: flex;
           flex-direction: column;
@@ -578,57 +580,6 @@ export default function EbookPreview() {
         }
         .ebook-copyright p { margin: 0; }
 
-        /* ===== ÉDITEUR (écran uniquement) ===== */
-        .ebx-wrap { display: grid; gap: 1rem; }
-        .ebx-card {
-          padding: 1.2rem; border-radius: 14px;
-          background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .ebx-label {
-          font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
-          text-transform: uppercase; color: #D4AF37; margin-bottom: 0.7rem;
-        }
-        .ebx-muted { opacity: 0.7; margin-top: 0.8rem; }
-        .ebx-small { font-size: 0.82rem; }
-        .ebx-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
-        .ebx-item {
-          width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-          padding: 0.7rem 0.9rem; border-radius: 10px; text-align: left;
-          background: transparent; border: 1px solid transparent; color: inherit; font-family: inherit;
-        }
-        .ebx-item.active { border-color: #D4AF37; background: rgba(212,175,55,0.08); }
-        .ebx-item-title { font-weight: 600; }
-        .ebx-tag { font-size: 0.72rem; color: #D4AF37; font-weight: 700; }
-        .ebx-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.7rem; }
-        .ebx-tab {
-          padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.85rem;
-          border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit; font-family: inherit;
-        }
-        .ebx-tab.on { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
-        .ebx-input {
-          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
-          background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.3);
-          color: inherit; outline: none; font-family: inherit;
-        }
-        .ebx-textarea { min-height: 16rem; line-height: 1.6; font-size: 0.92rem; resize: vertical; }
-        .ebx-cover {
-          width: 100%; max-width: 20rem; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
-          border: 1px solid rgba(128,128,128,0.3);
-        }
-        .ebx-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .ebx-cover-empty {
-          display: flex; align-items: center; justify-content: center;
-          font-size: 0.85rem; opacity: 0.6; border-style: dashed;
-        }
-        .ebx-cover-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
-        .ebx-chip {
-          font-size: 0.8rem; padding: 0.35rem 0.7rem; border-radius: 999px; cursor: pointer;
-          border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit; font-family: inherit;
-        }
-        .ebx-file { display: inline-block; }
-        .ebx-ok { margin-top: 0.8rem; color: #16a34a; font-size: 0.9rem; font-weight: 600; }
-        .ebx-save { width: 100%; margin-top: 1.2rem; padding: 0.85rem; border-radius: 10px; font-weight: 600; }
-
         @media print {
           .no-print, header, aside { display: none !important; }
           body { background: white; }
@@ -644,4 +595,4 @@ export default function EbookPreview() {
       `}</style>
     </DashboardLayout>
   );
-      }
+}
