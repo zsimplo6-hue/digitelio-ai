@@ -21,59 +21,51 @@ export default function DashboardLayout({ title, children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-white dark:bg-digi-navy">
+    <div className="dg-shell">
       {/* Fond sombre (mobile uniquement) */}
       {menuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={() => setMenuOpen(false)}
-        />
+        <div className="dg-scrim lg:hidden" onClick={() => setMenuOpen(false)} />
       )}
 
       {/* Sidebar : tiroir sur mobile, fixe sur ordinateur */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 overflow-y-auto bg-white transition-transform duration-300 dark:bg-digi-navy md:static md:z-auto md:translate-x-0 md:overflow-visible ${
-          menuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
+      <aside className={`dg-sidebar${menuOpen ? " is-open" : ""}`}>
         <Sidebar />
-      </div>
+      </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="flex items-center justify-between gap-2 border-b border-digi-navy/5 px-4 py-4 dark:border-white/10 md:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMenuOpen(true)}
-              aria-label="Ouvrir le menu"
-              className="btn-secondary !px-3 !py-2 text-xl md:hidden"
-            >
-              ☰
-            </button>
-            <div className="flex items-center gap-2 text-lg font-bold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-digi-gradient text-white">
-                D
-              </span>
-              <span>
-                Digitelio <span className="text-gradient">AI</span>
-              </span>
-            </div>
+      <div className="dg-page min-w-0">
+        <header className="dg-topbar">
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label="Ouvrir le menu"
+            className="dg-btn dg-btn--ghost dg-btn--sm !px-3 text-lg lg:hidden"
+            style={{ color: "var(--dg-on-navy)" }}
+          >
+            ☰
+          </button>
+          <div className="flex items-center gap-2 text-lg font-bold">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-digi-gradient text-white">
+              D
+            </span>
+            <span>
+              Digitelio <span className="text-gradient">AI</span>
+            </span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="hidden text-sm text-digi-navy/60 dark:text-white/60 sm:inline">
+          <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <span className="hidden text-sm opacity-70 sm:inline">
               {user?.fullName}
             </span>
             <ThemeToggle />
-            <button onClick={handleLogout} className="btn-secondary text-sm">
+            <button onClick={handleLogout} className="dg-btn dg-btn--outline dg-btn--sm">
               Se déconnecter
             </button>
           </div>
         </header>
 
-        <main className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10">
-          {title && <h1 className="mb-6 text-2xl font-bold">{title}</h1>}
+        <main className="dg-main">
+          {title && <h1 className="dg-h1 mb-6">{title}</h1>}
           {children}
         </main>
       </div>
     </div>
   );
-      }
+}
