@@ -7,7 +7,11 @@ import {
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
-import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
+import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";import {
+  handleGetMyShop,
+  handleUpdateShop,
+  handleGetPublicShop,
+} from "./routes/shop.js";
 import { handleUpdateEbookSection } from "./routes/ebook_sections.js";
 import {
   handleCreateFormation,
