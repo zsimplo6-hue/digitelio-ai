@@ -165,3 +165,21 @@ body { font-family: var(--dg-font-body); background: var(--dg-bg-canvas); color:
   .dg-profile-row { flex-direction: column; }
   .dg-page { padding: var(--dg-space-4); }
                                  }
+/* ===== DARK MODE (piloté par ThemeContext → <html class="dark">) ===== */
+html.dark {
+  --dg-bg-canvas: #0F0F1A;
+  --dg-surface: #1A1A2E;
+  --dg-text-primary: #F5F5FA;
+  --dg-text-secondary: #A0A0C0;
+  --dg-text-muted: #6B6B85;
+  --dg-border-subtle: #26263D;
+  --dg-border-default: #32324A;
+  --dg-success-bg: rgba(22, 199, 132, 0.14);
+}
+
+html.dark .dg-card { background: var(--dg-surface); border-color: var(--dg-border-subtle); }
+html.dark .dg-card__icon { background: rgba(124, 58, 237, 0.16); }
+html.dark .dg-field__input { background: #12121F; border-color: var(--dg-border-default); color: var(--dg-text-primary); }
+html.dark .dg-btn--secondary { background: #1A1A2E; border-color: var(--dg-border-default); color: var(--dg-text-primary); }
+html.dark .dg-settings-nav__item:hover { background: #1F1F35; }
+html.dark .dg-settings-nav__item.is-active { background: rgba(124, 58, 237, 0.18); }
