@@ -10,8 +10,8 @@ function fmtXof(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
 }
 
-function qrUrl(link) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(link)}`;
+function qrUrl(link, size = 160) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(link)}`;
 }
 
 /* ---------- Carte "Partager & Vendre" d'un produit ---------- */
@@ -41,13 +41,24 @@ function ProductShareCard({ product }) {
           )}
         </div>
         {product.sellable && (
-          <img
-            src={qrUrl(product.pay_url)}
-            alt="QR code de paiement"
-            width={64}
-            height={64}
-            style={{ borderRadius: 8, border: "1px solid var(--dg-border-subtle)" }}
-          />
+          <div style={{ textAlign: "center" }}>
+            <img
+              src={qrUrl(product.pay_url, 160)}
+              alt="QR code de paiement"
+              width={64}
+              height={64}
+              style={{ borderRadius: 8, border: "1px solid var(--dg-border-subtle)" }}
+            />
+            <a
+              href={qrUrl(product.pay_url, 512)}
+              download={`qr-${product.title.replace(/\s+/g, "-").toLowerCase()}.png`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "block", fontSize: 11, color: "var(--dg-brand-solid)", marginTop: 4, textDecoration: "none", fontWeight: 600 }}
+            >
+              Télécharger
+            </a>
+          </div>
         )}
       </div>
 
@@ -195,4 +206,4 @@ export default function Boutique() {
       </div>
     </DashboardLayout>
   );
-                                                       }
+  }
