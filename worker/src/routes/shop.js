@@ -15,8 +15,9 @@ function slugify(s) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 30) || "createur";
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "produit";
 }
 
 async function ensureUniqueSlug(env, base) {
@@ -27,6 +28,13 @@ async function ensureUniqueSlug(env, base) {
     slug = `${base}${Math.random().toString(36).slice(2, 5)}`;
   }
   return `${base}${Date.now().toString(36).slice(-4)}`;
+}
+
+function generatePayCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans caractères ambigus
+  let code = "";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 }
 
 const SOCIAL_KEYS = ["instagram", "tiktok", "whatsapp", "facebook", "youtube", "linkedin"];
@@ -57,12 +65,8 @@ export async function handleGetMyShop(request, env) {
     const shopId = crypto.randomUUID();
 
     await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO shops (id, user_id, slug) VALUES (?, ?, ?)`
-      ).bind(shopId, payload.sub, slug),
-      env.DB.prepare(
-        `INSERT OR IGNORE INTO wallets (user_id) VALUES (?)`
-      ).bind(payload.sub),
+      env.DB.prepare(`INSERT INTO shops (id, user_id, slug) VALUES (?, ?, ?)`).bind(shopId, payload.sub, slug),
+      env.DB.prepare(`INSERT OR IGNORE INTO wallets (user_id) VALUES (?)`).bind(payload.sub),
     ]);
 
     shop = await env.DB.prepare("SELECT * FROM shops WHERE id = ?").bind(shopId).first();
@@ -230,4 +234,93 @@ export async function handleGetPublicShop(request, env, slug) {
     formations: formations.map((f) => ({ ...f, currency: f.currency || "EUR" })),
     ebooks,
   });
+}
+
+/* ===== GET /api/shop/products — liens produit + paiement (génération à la volée) ===== */
+export async function handleListProductLinks(request, env) {
+  const payload = await getAuthenticatedUser(request, env);
+  if (!payload) return unauthorized();
+
+  const shop = await env.DB.prepare("SELECT slug FROM shops WHERE user_id = ?").bind(payload.sub).first();
+  if (!shop) return Response.json({ error: "Boutique introuvable." }, { status: 404 });
+
+  const appUrl = String(env.APP_URL || "https://app.digitelio.com").replace(/\/$/, "");
+
+  const { results: formations } = await env.DB.prepare(
+    `SELECT id, title, price, currency FROM formations WHERE user_id = ? AND status = 'published'`
+  )
+    .bind(payload.sub)
+    .all();
+
+  const products = [];
+
+  for (const f of formations) {
+    let link = await env.DB.prepare(
+      "SELECT * FROM product_links WHERE user_id = ? AND product_type = 'formation' AND product_id = ?"
+    )
+      .bind(payload.sub, f.id)
+      .first();
+
+    if (!link) {
+      const baseSlug = slugify(f.title);
+      let productSlug = baseSlug;
+      let attempt = 0;
+      while (
+        attempt < 5 &&
+        (await env.DB.prepare(
+          "SELECT id FROM product_links WHERE user_id = ? AND product_slug = ?"
+        )
+          .bind(payload.sub, productSlug)
+          .first())
+      ) {
+        attempt++;
+        productSlug = `${baseSlug}-${attempt}`;
       }
+
+      const linkId = crypto.randomUUID();
+      const payCode = generatePayCode();
+      const priceXof = f.currency === "XOF" ? f.price : null;
+
+      await env.DB.prepare(
+        `INSERT INTO product_links (id, user_id, product_type, product_id, product_slug, pay_code, price_xof)
+         VALUES (?, ?, 'formation', ?, ?, ?, ?)`
+      )
+        .bind(linkId, payload.sub, f.id, productSlug, payCode, priceXof || 0)
+        .run();
+
+      link = { id: linkId, product_slug: productSlug, pay_code: payCode };
+    }
+
+    products.push({
+      type: "formation",
+      id: f.id,
+      title: f.title,
+      price: f.price,
+      currency: f.currency || "EUR",
+      sellable: f.currency === "XOF",
+      product_url: `${appUrl}/shop/${shop.slug}/${link.product_slug}`,
+      pay_url: f.currency === "XOF" ? `${appUrl}/pay/${link.pay_code}` : null,
+    });
+  }
+
+  const { results: ebooks } = await env.DB.prepare(
+    `SELECT id, title FROM ebooks WHERE user_id = ? AND status = 'published'`
+  )
+    .bind(payload.sub)
+    .all();
+
+  for (const b of ebooks) {
+    products.push({
+      type: "ebook",
+      id: b.id,
+      title: b.title,
+      price: null,
+      currency: null,
+      sellable: false,
+      product_url: null,
+      pay_url: null,
+    });
+  }
+
+  return Response.json({ products });
+  }
