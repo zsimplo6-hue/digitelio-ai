@@ -7,6 +7,17 @@ function fmtXof(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
 }
 
+const inputStyle = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid #E1E1EC",
+  fontSize: 14,
+  boxSizing: "border-box",
+  color: "#0F0F1E",
+  background: "#fff",
+};
+
 export default function Pay() {
   const { code } = useParams();
   const [searchParams] = useSearchParams();
@@ -167,7 +178,7 @@ export default function Pay() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Jean Dupont"
-                    style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #E1E1EC", fontSize: 14, boxSizing: "border-box" }}
+                    style={inputStyle}
                   />
                 </div>
                 <div>
@@ -180,7 +191,7 @@ export default function Pay() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="vous@email.com"
-                    style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #E1E1EC", fontSize: 14, boxSizing: "border-box" }}
+                    style={inputStyle}
                   />
                 </div>
 
@@ -214,4 +225,4 @@ export default function Pay() {
       </div>
     </div>
   );
-          }
+                                                   }
