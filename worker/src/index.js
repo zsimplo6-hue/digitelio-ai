@@ -12,6 +12,7 @@ import {
   handleGetMyShop,
   handleUpdateShop,
   handleGetPublicShop,
+  handleListProductLinks,
 } from "./routes/shop.js";
 import { handleUpdateEbookSection } from "./routes/ebook_sections.js";
 import {
@@ -132,7 +133,6 @@ export default {
         return withCors(await handleListEbooks(request, env), request);
       }
       if (url.pathname.startsWith("/api/ebooks/")) {
-        // parts = ["api", "ebooks", id, "sections", sectionId]
         const parts = url.pathname.split("/").filter(Boolean);
         const ebookId = parts[2];
         if (parts.length === 3 && request.method === "GET") {
@@ -211,6 +211,9 @@ export default {
       }
       if (url.pathname === "/api/shop" && request.method === "PUT") {
         return withCors(await handleUpdateShop(request, env), request);
+      }
+      if (url.pathname === "/api/shop/products" && request.method === "GET") {
+        return withCors(await handleListProductLinks(request, env), request);
       }
 
       if (url.pathname === "/api/settings" && request.method === "GET") {
