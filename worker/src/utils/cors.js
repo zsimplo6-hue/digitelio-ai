@@ -1,6 +1,8 @@
 // Liste des origines autorisées à appeler l'API avec des cookies (credentials)
 const ALLOWED_ORIGINS = [
   "https://digitelio-ai-frontend.zsimplo6.workers.dev",
+  "https://app.digitelio.com",
+  "https://digitelio.com",
   "http://localhost:5173",
 ];
 
@@ -26,4 +28,3 @@ export function withCors(response, request) {
     headers: newHeaders,
   });
 }
-
