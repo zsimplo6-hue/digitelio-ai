@@ -14,12 +14,12 @@ import Subscriptions from "./pages/Subscriptions.jsx";
 import Settings from "./pages/Settings.jsx";
 import Boutique from "./pages/Boutique.jsx";
 import ShopPublic from "./pages/ShopPublic.jsx";
+import Pay from "./pages/Pay.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
-/* Page du tableau de bord : connexion obligatoire + abonnement non expiré */
 const guard = (page) => (
   <ProtectedRoute>
     <SubscriptionGate>{page}</SubscriptionGate>
@@ -37,6 +37,7 @@ export default function App() {
       <Route path="/formation/:id" element={<FormationPublic />} />
       <Route path="/learn/:token" element={<Learn />} />
       <Route path="/shop/:slug" element={<ShopPublic />} />
+      <Route path="/pay/:code" element={<Pay />} />
 
       <Route path="/dashboard" element={guard(<Dashboard />)} />
       <Route path="/dashboard/ebooks" element={guard(<EbooksList />)} />
