@@ -4,10 +4,10 @@ import { verifyJWT } from "../utils/jwt.js";
 /* ============================ À PERSONNALISER ============================ */
 
 export const CONTACT = {
-  whatsapp: "", // votre WhatsApp au format international, sans + ni espaces. Ex : "2250700000000"
+  whatsapp: "",
   payment_urls: {
-    pro: "",      // lien de paiement du plan Pro (inutilisé : le paiement passe désormais par SasPay)
-    business: "", // lien de paiement du plan Business
+    pro: "",
+    business: "",
   },
 };
 
@@ -21,7 +21,7 @@ export const PLANS = {
   pro: {
     name: "Pro",
     price_text: "9 900 FCFA / mois",
-    price_xof: 9900, // montant réellement facturé via SasPay (en XOF) : à garder cohérent avec price_text
+    price_xof: 9900,
     limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
   },
   business: {
@@ -32,7 +32,14 @@ export const PLANS = {
   },
 };
 
-export const PLAN_DAYS = 30; // durée d'un abonnement
+export const PLAN_DAYS = 30;
+
+/* Commission Digitelio sur chaque vente de produit, selon le plan du vendeur */
+export const COMMISSION_RATES = {
+  free: 0.15,
+  pro: 0.05,
+  business: 0.03,
+};
 
 /* ========================================================================= */
 
@@ -56,8 +63,6 @@ async function getAuthenticatedUser(request, env) {
   }
 }
 
-/* ---------- Dates : stockées en UTC "AAAA-MM-JJ HH:MM:SS" ---------- */
-
 function parseDb(s, endOfDay = false) {
   if (!s) return null;
   const str = String(s).trim();
@@ -70,8 +75,6 @@ function parseDb(s, endOfDay = false) {
 
 const toDb = (ms) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
 const toIso = (ms) => (ms === null || ms === undefined ? null : new Date(ms).toISOString());
-
-/* ---------- État de l'abonnement ---------- */
 
 function subscriptionState(user, now = Date.now()) {
   const paid = user && user.plan && user.plan !== "free" && PLANS[user.plan];
@@ -86,9 +89,6 @@ function subscriptionState(user, now = Date.now()) {
   return { status: "active", planKey: user.plan, startMs, untilMs };
 }
 
-/* Période de comptage des quotas :
-   - abonné : fenêtres de 30 jours à partir de son paiement
-   - gratuit (ou abonné sans date de début) : mois calendaire */
 function usagePeriod(state, now = Date.now()) {
   if (state.status === "active" && state.startMs !== null) {
     const idx = Math.max(0, Math.floor((now - state.startMs) / WINDOW_MS));
@@ -150,7 +150,6 @@ function blockedResponse(planKey, what, limit, used, recurring) {
   );
 }
 
-/* Bloque tout compte dont l'abonnement a expiré. Renvoie une Response si bloqué, sinon null */
 export async function checkAccess(request, env) {
   const auth = await getAuthenticatedUser(request, env);
   if (!auth) return null;
@@ -160,10 +159,9 @@ export async function checkAccess(request, env) {
   return state.status === "expired" ? expiredResponse(state) : null;
 }
 
-/* Vérifie le quota AVANT une action. Renvoie { blocked, userId, period } */
 export async function checkQuota(request, env, kind) {
   const auth = await getAuthenticatedUser(request, env);
-  if (!auth) return { blocked: null, userId: null, period: null }; // la route répondra elle-même 401
+  if (!auth) return { blocked: null, userId: null, period: null };
 
   const user = await loadUser(env, auth.sub);
   const state = subscriptionState(user);
@@ -191,7 +189,6 @@ export async function checkQuota(request, env, kind) {
   return { userId: auth.sub, period: period.key, blocked: null };
 }
 
-/* Enregistre une utilisation réussie */
 export async function recordUsage(env, userId, kind, periodKey) {
   if (!userId) return;
   const key = periodKey || new Date().toISOString().slice(0, 7);
@@ -203,7 +200,6 @@ export async function recordUsage(env, userId, kind, periodKey) {
     .run();
 }
 
-/* Limite d'apprenants par formation. Renvoie une Response si bloqué, sinon null */
 export async function checkLearners(request, env, formationId) {
   const auth = await getAuthenticatedUser(request, env);
   if (!auth) return null;
@@ -224,9 +220,6 @@ export async function checkLearners(request, env, formationId) {
   return null;
 }
 
-/* ===== ACTIVATION : à appeler quand un paiement est CONFIRMÉ (webhook Orqex) =====
-   - abonnement expiré, gratuit ou changement de plan : démarre à l'instant T pour 30 jours
-   - renouvellement du même plan encore actif : ajoute 30 jours à la date de fin actuelle */
 export async function activatePlan(env, email, planKey) {
   if (!PLANS[planKey] || planKey === "free") throw new Error("Plan invalide.");
 
@@ -261,7 +254,15 @@ export async function activatePlan(env, email, planKey) {
   return { plan: planKey, started_at: toIso(startMs), until: toIso(untilMs) };
 }
 
-/* GET /api/billing : plan, échéance, consommation, comparaison des plans */
+/* Taux de commission applicable au vendeur, selon son plan actif (expiré = traité comme "free") */
+export async function getActiveCommission(env, userId) {
+  const user = await loadUser(env, userId);
+  if (!user) return COMMISSION_RATES.free;
+  const state = subscriptionState(user);
+  const planKey = state.status === "active" ? state.planKey : "free";
+  return COMMISSION_RATES[planKey] ?? COMMISSION_RATES.free;
+}
+
 export async function handleBilling(request, env) {
   const auth = await getAuthenticatedUser(request, env);
   if (!auth) return Response.json({ error: "Non authentifié." }, { status: 401 });
@@ -284,7 +285,7 @@ export async function handleBilling(request, env) {
 
   return Response.json({
     email: user.email,
-    status: state.status, // "free" | "active" | "expired"
+    status: state.status,
     plan: state.planKey,
     plan_name: PLANS[state.planKey].name,
     expired: state.status === "expired",
@@ -303,4 +304,4 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-}
+                        }
