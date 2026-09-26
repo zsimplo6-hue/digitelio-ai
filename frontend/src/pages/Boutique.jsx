@@ -54,9 +54,9 @@ function ProductShareCard({ product }) {
               download={`qr-${product.title.replace(/\s+/g, "-").toLowerCase()}.png`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: "block", fontSize: 11, color: "var(--dg-brand-solid)", marginTop: 4, textDecoration: "none", fontWeight: 600 }}
+              style={{ display: "block", fontSize: 11, color: "var(--dg-brand-solid)", marginTop: 4, textDecoration: "none", fontWeight: 600, lineHeight: 1.3 }}
             >
-              Télécharger
+              Ouvrir (appui long pour enregistrer)
             </a>
           </div>
         )}
@@ -206,4 +206,4 @@ export default function Boutique() {
       </div>
     </DashboardLayout>
   );
-  }
+}
