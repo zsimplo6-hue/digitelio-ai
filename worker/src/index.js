@@ -14,6 +14,11 @@ import {
   handleGetPublicShop,
   handleListProductLinks,
 } from "./routes/shop.js";
+import {
+  handleGetPayInfo,
+  handleCreateProductCheckout,
+  handleVerifyProductPayment,
+} from "./routes/shop_payments.js";
 import { handleUpdateEbookSection } from "./routes/ebook_sections.js";
 import {
   handleCreateFormation,
@@ -58,7 +63,6 @@ import {
   handleSaspayWebhook,
 } from "./routes/payments.js";
 
-/* Routes réservées aux comptes dont l'abonnement n'a pas expiré. */
 const GATED_EXACT = new Set([
   "/api/generate/ebook",
   "/api/overview",
@@ -96,7 +100,6 @@ export default {
         );
       }
 
-      // ===== BLOCAGE DES ABONNEMENTS EXPIRÉS =====
       if (needsSubscription(url.pathname)) {
         const blocked = await checkAccess(request, env);
         if (blocked) return withCors(blocked, request);
@@ -121,7 +124,6 @@ export default {
         return await handleGoogleCallback(request, env);
       }
 
-      // ===== EBOOKS (quota : eBooks générés par période) =====
       if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
         const gate = await checkQuota(request, env, "ebook");
         if (gate.blocked) return withCors(gate.blocked, request);
@@ -143,6 +145,20 @@ export default {
             await handleUpdateEbookSection(request, env, ebookId, parts[4]),
             request
           );
+        }
+      }
+
+      // ===== PAIEMENT D'UN PRODUIT (sans connexion) =====
+      if (url.pathname === "/api/pay/verify" && request.method === "GET") {
+        return withCors(await handleVerifyProductPayment(request, env), request);
+      }
+      if (url.pathname.startsWith("/api/pay/")) {
+        const parts = url.pathname.split("/").filter(Boolean); // ["api","pay",code] ou [...,"checkout"]
+        if (parts.length === 3 && request.method === "GET") {
+          return withCors(await handleGetPayInfo(request, env, parts[2]), request);
+        }
+        if (parts.length === 4 && parts[3] === "checkout" && request.method === "POST") {
+          return withCors(await handleCreateProductCheckout(request, env, parts[2]), request);
         }
       }
 
@@ -168,7 +184,6 @@ export default {
         }
       }
 
-      // ===== ESPACE APPRENANT (public, protégé par le lien secret) =====
       if (url.pathname.startsWith("/api/learn/")) {
         const parts = url.pathname.split("/").filter(Boolean);
         const token = parts[2];
@@ -180,7 +195,6 @@ export default {
         }
       }
 
-      // ===== TABLEAU DE BORD, VENTES, ANALYTICS, PARAMÈTRES ET ABONNEMENT =====
       if (url.pathname === "/api/overview" && request.method === "GET") {
         return withCors(await handleOverview(request, env), request);
       }
@@ -194,7 +208,6 @@ export default {
         return withCors(await handleBilling(request, env), request);
       }
 
-      // ===== PAIEMENT DES ABONNEMENTS (SasPay) =====
       if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
         return withCors(await handleCreateCheckout(request, env), request);
       }
@@ -205,7 +218,6 @@ export default {
         return withCors(await handleSaspayWebhook(request, env), request);
       }
 
-      // ===== MA BOUTIQUE =====
       if (url.pathname === "/api/shop" && request.method === "GET") {
         return withCors(await handleGetMyShop(request, env), request);
       }
@@ -226,7 +238,6 @@ export default {
         return withCors(await handleChangePassword(request, env), request);
       }
 
-      // ===== MARKETING DIGITAL (quota : contenus marketing par période) =====
       if (url.pathname === "/api/marketing/generate" && request.method === "POST") {
         const gate = await checkQuota(request, env, "marketing");
         if (gate.blocked) return withCors(gate.blocked, request);
@@ -235,7 +246,6 @@ export default {
         return withCors(res, request);
       }
 
-      // ===== FORMATIONS =====
       if (url.pathname === "/api/formations" && request.method === "GET") {
         return withCors(await handleListFormations(request, env), request);
       }
