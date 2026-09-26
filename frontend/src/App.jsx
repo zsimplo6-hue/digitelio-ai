@@ -12,6 +12,8 @@ import Marketing from "./pages/Marketing.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import Subscriptions from "./pages/Subscriptions.jsx";
 import Settings from "./pages/Settings.jsx";
+import Boutique from "./pages/Boutique.jsx";
+import ShopPublic from "./pages/ShopPublic.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -34,6 +36,7 @@ export default function App() {
       {/* Pages publiques (sans connexion) */}
       <Route path="/formation/:id" element={<FormationPublic />} />
       <Route path="/learn/:token" element={<Learn />} />
+      <Route path="/shop/:slug" element={<ShopPublic />} />
 
       <Route path="/dashboard" element={guard(<Dashboard />)} />
       <Route path="/dashboard/ebooks" element={guard(<EbooksList />)} />
@@ -43,6 +46,7 @@ export default function App() {
       <Route path="/dashboard/pages-vente" element={guard(<PagesVente />)} />
       <Route path="/dashboard/marketing" element={guard(<Marketing />)} />
       <Route path="/dashboard/analytics" element={guard(<Analytics />)} />
+      <Route path="/dashboard/boutique" element={guard(<Boutique />)} />
       <Route path="/dashboard/parametres" element={guard(<Settings />)} />
 
       {/* Toujours accessible, même expiré : c'est ici qu'on renouvelle */}
@@ -56,4 +60,4 @@ export default function App() {
       />
     </Routes>
   );
-}
+      }
