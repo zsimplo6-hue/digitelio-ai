@@ -7,7 +7,8 @@ import {
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
-import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";import {
+import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
+import {
   handleGetMyShop,
   handleUpdateShop,
   handleGetPublicShop,
@@ -145,6 +146,14 @@ export default {
         }
       }
 
+      // ===== BOUTIQUE PUBLIQUE (sans connexion) =====
+      if (url.pathname.startsWith("/api/public/shop/")) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length === 4 && request.method === "GET") {
+          return withCors(await handleGetPublicShop(request, env, parts[3]), request);
+        }
+      }
+
       // ===== PAGES PUBLIQUES D'UNE FORMATION (sans connexion) =====
       if (url.pathname.startsWith("/api/public/formations/")) {
         const parts = url.pathname.split("/").filter(Boolean);
@@ -194,6 +203,14 @@ export default {
       }
       if (url.pathname === "/api/webhooks/saspay" && request.method === "POST") {
         return withCors(await handleSaspayWebhook(request, env), request);
+      }
+
+      // ===== MA BOUTIQUE =====
+      if (url.pathname === "/api/shop" && request.method === "GET") {
+        return withCors(await handleGetMyShop(request, env), request);
+      }
+      if (url.pathname === "/api/shop" && request.method === "PUT") {
+        return withCors(await handleUpdateShop(request, env), request);
       }
 
       if (url.pathname === "/api/settings" && request.method === "GET") {
