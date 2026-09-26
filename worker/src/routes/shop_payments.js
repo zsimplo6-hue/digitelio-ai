@@ -95,6 +95,20 @@ export async function handleCreateProductCheckout(request, env, code) {
     return json({ error: "Adresse email invalide." }, 400);
   }
 
+  // Test réel à petit prix : SEUL l'email TEST_EMAIL peut payer le montant TEST_AMOUNT_XOF.
+  // Tous les autres acheteurs paient toujours le vrai prix. Supprimez ces 2 variables après le test.
+  let chargeAmount = link.price_xof;
+  if (
+    env.TEST_EMAIL &&
+    env.TEST_AMOUNT_XOF &&
+    buyerEmail === String(env.TEST_EMAIL).trim().toLowerCase()
+  ) {
+    const testAmount = Math.round(Number(env.TEST_AMOUNT_XOF));
+    if (Number.isFinite(testAmount) && testAmount > 0 && testAmount < chargeAmount) {
+      chargeAmount = testAmount;
+    }
+  }
+
   const recent = await env.DB.prepare(
     `SELECT id, session_id FROM sales
      WHERE product_link_id = ? AND buyer_email = ? AND status = 'PENDING'
@@ -105,14 +119,14 @@ export async function handleCreateProductCheckout(request, env, code) {
     .first();
 
   const commissionPct = await getActiveCommission(env, link.user_id);
-  const feeXof = Math.round(link.price_xof * commissionPct);
-  const netXof = link.price_xof - feeXof;
+  const feeXof = Math.round(chargeAmount * commissionPct);
+  const netXof = chargeAmount - feeXof;
 
   const saleId = crypto.randomUUID();
   const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
 
   const res = await saspay(env, "POST", "/checkout-sessions", {
-    amount: link.price_xof.toFixed(2),
+    amount: chargeAmount.toFixed(2),
     currency: "XOF",
     description: "Achat via Digitelio AI",
     customer_email: buyerEmail,
@@ -133,7 +147,7 @@ export async function handleCreateProductCheckout(request, env, code) {
        (id, seller_id, product_link_id, buyer_email, buyer_name, amount_xof, commission_pct, fee_xof, net_xof, session_id, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`
   )
-    .bind(saleId, link.user_id, link.id, buyerEmail, buyerName, link.price_xof, commissionPct, feeXof, netXof, data.id)
+    .bind(saleId, link.user_id, link.id, buyerEmail, buyerName, chargeAmount, commissionPct, feeXof, netXof, data.id)
     .run();
 
   return json({ checkout_url: data.checkout_url, sale_id: saleId });
@@ -213,4 +227,4 @@ export async function reconcilePendingSales(env) {
   if (outcomes.some((o) => o.status === "rejected")) {
     throw new Error("Vérification de vente incomplète.");
   }
-    }
+      }
