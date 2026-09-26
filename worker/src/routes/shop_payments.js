@@ -42,17 +42,31 @@ export async function handleGetPayInfo(request, env, code) {
   }
 
   let title = "Produit";
+  let description = "";
+  let coverUrl = "";
+
   if (link.product_type === "formation") {
-    const f = await env.DB.prepare("SELECT title FROM formations WHERE id = ?").bind(link.product_id).first();
+    const f = await env.DB.prepare(
+      "SELECT title, description, cover_url FROM formations WHERE id = ?"
+    )
+      .bind(link.product_id)
+      .first();
     title = f?.title || title;
+    description = f?.description || "";
+    coverUrl = f?.cover_url || "";
   } else {
-    const b = await env.DB.prepare("SELECT title FROM ebooks WHERE id = ?").bind(link.product_id).first();
+    const b = await env.DB.prepare("SELECT title, description FROM ebooks WHERE id = ?")
+      .bind(link.product_id)
+      .first();
     title = b?.title || title;
+    description = b?.description || "";
   }
 
   return json({
     product: {
       title,
+      description,
+      cover_url: coverUrl,
       price_xof: link.price_xof,
       seller_name: link.seller_name,
       product_type: link.product_type,
@@ -163,7 +177,6 @@ async function checkSalePayment(env, s) {
     return row?.status || "PENDING";
   }
 
-  // Crédit du wallet du vendeur (montant net, après commission)
   await env.DB.prepare(
     `INSERT INTO wallets (user_id, balance_xof) VALUES (?, ?)
      ON CONFLICT(user_id) DO UPDATE SET balance_xof = balance_xof + ?, updated_at = datetime('now')`
