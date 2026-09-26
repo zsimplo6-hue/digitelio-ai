@@ -98,6 +98,16 @@ export async function handleCreateProductCheckout(request, env, code) {
   // Test réel à petit prix : SEUL l'email TEST_EMAIL peut payer le montant TEST_AMOUNT_XOF.
   // Tous les autres acheteurs paient toujours le vrai prix. Supprimez ces 2 variables après le test.
   let chargeAmount = link.price_xof;
+
+  // 🔍 LOG DE DIAGNOSTIC TEMPORAIRE — à retirer après le test
+  console.log("DIAG checkout:", {
+    buyerEmail,
+    TEST_EMAIL: env.TEST_EMAIL,
+    TEST_AMOUNT_XOF: env.TEST_AMOUNT_XOF,
+    typeofTestAmount: typeof env.TEST_AMOUNT_XOF,
+    match: buyerEmail === String(env.TEST_EMAIL || "").trim().toLowerCase(),
+  });
+
   if (
     env.TEST_EMAIL &&
     env.TEST_AMOUNT_XOF &&
@@ -108,6 +118,9 @@ export async function handleCreateProductCheckout(request, env, code) {
       chargeAmount = testAmount;
     }
   }
+
+  // 🔍 LOG DE DIAGNOSTIC TEMPORAIRE — à retirer après le test
+  console.log("DIAG chargeAmount final:", chargeAmount);
 
   const recent = await env.DB.prepare(
     `SELECT id, session_id FROM sales
@@ -227,4 +240,4 @@ export async function reconcilePendingSales(env) {
   if (outcomes.some((o) => o.status === "rejected")) {
     throw new Error("Vérification de vente incomplète.");
   }
-      }
+    }
