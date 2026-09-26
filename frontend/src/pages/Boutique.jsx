@@ -10,19 +10,95 @@ function fmtXof(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
 }
 
+function qrUrl(link) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(link)}`;
+}
+
+/* ---------- Carte "Partager & Vendre" d'un produit ---------- */
+function ProductShareCard({ product }) {
+  const [copiedField, setCopiedField] = useState("");
+
+  function copy(text, field) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(""), 2000);
+    });
+  }
+
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div className="dg-card__title" style={{ fontSize: 16 }}>{product.title}</div>
+          {product.sellable ? (
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--dg-brand-solid)", marginTop: 2 }}>
+              {fmtXof(product.price)}
+            </div>
+          ) : (
+            <span className="dg-badge dg-badge--info" style={{ marginTop: 6, display: "inline-block" }}>
+              {product.type === "ebook" ? "Vente bientôt disponible" : "Prix non défini en FCFA"}
+            </span>
+          )}
+        </div>
+        {product.sellable && (
+          <img
+            src={qrUrl(product.pay_url)}
+            alt="QR code de paiement"
+            width={64}
+            height={64}
+            style={{ borderRadius: 8, border: "1px solid var(--dg-border-subtle)" }}
+          />
+        )}
+      </div>
+
+      {product.sellable && (
+        <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+          <div>
+            <label className="dg-field__label">Lien du produit</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <div className="dg-field__input" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
+                {product.product_url}
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => copy(product.product_url, "product")}>
+                {copiedField === "product" ? "✓" : "Copier"}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className="dg-field__label">Lien de paiement</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <div className="dg-field__input" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
+                {product.pay_url}
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => copy(product.pay_url, "pay")}>
+                {copiedField === "pay" ? "✓" : "Copier"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Boutique() {
   const [data, setData] = useState(null);
+  const [products, setProducts] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    fetch(`${API}/api/shop`, { credentials: "include" })
-      .then(async (res) => {
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "Erreur de chargement.");
-        if (alive) setData(json);
+    Promise.all([
+      fetch(`${API}/api/shop`, { credentials: "include" }).then((r) => r.json()),
+      fetch(`${API}/api/shop/products`, { credentials: "include" }).then((r) => r.json()),
+    ])
+      .then(([shopData, productsData]) => {
+        if (!alive) return;
+        if (shopData.error) throw new Error(shopData.error);
+        setData(shopData);
+        setProducts(productsData.products || []);
       })
       .catch((e) => alive && setError(e.message))
       .finally(() => alive && setLoading(false));
@@ -95,9 +171,23 @@ export default function Boutique() {
                 </Card>
               </div>
 
+              {/* Produits : Partager & Vendre */}
+              <div className="dg-section-label">Partager & vendre</div>
+              {products && products.length > 0 ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {products.map((p) => (
+                    <ProductShareCard key={`${p.type}-${p.id}`} product={p} />
+                  ))}
+                </div>
+              ) : (
+                <p className="dg-helper-text">
+                  Publiez un eBook ou une formation pour obtenir vos liens de partage.
+                </p>
+              )}
+
               <p className="dg-helper-text dg-mt-6">
-                La personnalisation de votre boutique (bannière, logo, description, réseaux sociaux) et
-                la gestion détaillée de vos produits arrivent dans une prochaine mise à jour.
+                La personnalisation de votre boutique (bannière, logo, description, réseaux sociaux)
+                arrive dans une prochaine mise à jour.
               </p>
             </>
           )
@@ -105,4 +195,4 @@ export default function Boutique() {
       </div>
     </DashboardLayout>
   );
-            }
+                                                       }
