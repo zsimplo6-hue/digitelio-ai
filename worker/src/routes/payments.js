@@ -1,15 +1,14 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 import { PLANS, activatePlan } from "./billing.js";
-
-/* Les prix (en XOF) se règlent dans routes/billing.js : PLANS.<plan>.price_xof */
+import { reconcilePendingSales } from "./shop_payments.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
-const TOLERANCE_SECONDS = 300; // rejet d'un webhook trop ancien (5 min)
-const PENDING_WINDOW_HOURS = 48; // on ne revérifie que les paiements récents
+const TOLERANCE_SECONDS = 300;
+const PENDING_WINDOW_HOURS = 48;
 const MAX_PENDING_CHECKS = 15;
-const REUSE_MINUTES = 30; // réutilise une session ouverte récemment (anti double-clic)
+const REUSE_MINUTES = 30;
 
 const json = (obj, status = 200) => Response.json(obj, { status });
 
@@ -24,8 +23,6 @@ async function getAuthenticatedUser(request, env) {
   }
 }
 
-/* ---------- Appel à l'API SasPay ---------- */
-/* Le chemin exact peut se terminer ou non par "/" : on essaie les deux. */
 async function saspay(env, method, path, body) {
   const init = {
     method,
@@ -44,8 +41,6 @@ async function saspay(env, method, path, body) {
   return res;
 }
 
-/* ---------- Signature des webhooks ---------- */
-
 async function hmacHex(secret, message) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -59,7 +54,6 @@ async function hmacHex(secret, message) {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/* Comparaison en temps constant */
 function safeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -67,26 +61,22 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-/* ---------- Vérification d'un paiement auprès de SasPay ----------
-   On ne fait JAMAIS confiance au contenu du webhook : on relit l'état réel
-   de la session puis de la transaction avec notre clé API secrète. */
 async function checkPayment(env, p) {
   const sRes = await saspay(env, "GET", `/checkout-sessions/${p.session_id}`);
   const sBody = await sRes.json().catch(() => null);
-  const session = sBody?.data ?? sBody; // SasPay enveloppe la réponse dans { success, data }
+  const session = sBody?.data ?? sBody;
   if (!sRes.ok || !session) return p.status;
 
   const tx = session.transaction;
   const txId = typeof tx === "string" ? tx : tx?.id;
-  if (!txId) return "PENDING"; // pas encore payé
+  if (!txId) return "PENDING";
 
   const pRes = await saspay(env, "GET", `/payments/${txId}`);
   const pBody = await pRes.json().catch(() => null);
-  const pay = pBody?.data ?? pBody; // idem : enveloppe { success, data }
+  const pay = pBody?.data ?? pBody;
   if (!pRes.ok || !pay) return "PENDING";
-  if (pay.status !== "SUCCESS") return "PENDING"; // en cours, échoué ou annulé : le client peut réessayer
+  if (pay.status !== "SUCCESS") return "PENDING";
 
-  // Contrôle du montant et de la devise
   const paidAmount = Number(pay.requested_amount ?? pay.amount);
   if (pay.currency !== "XOF" || paidAmount !== Number(p.amount)) {
     console.error("Paiement SasPay incohérent", p.id, pay.currency, paidAmount, p.amount);
@@ -104,7 +94,6 @@ async function checkPayment(env, p) {
     return "REVIEW";
   }
 
-  // On "réserve" le paiement : une seule exécution peut l'activer (anti double-activation)
   const claim = await env.DB.prepare(
     `UPDATE payments SET status = 'PAID', transaction_id = ?, paid_at = datetime('now')
      WHERE id = ? AND status = 'PENDING'`
@@ -122,7 +111,6 @@ async function checkPayment(env, p) {
     await env.DB.prepare("UPDATE payments SET status = 'ACTIVATED' WHERE id = ?").bind(p.id).run();
     return "ACTIVATED";
   } catch (err) {
-    // On remet en attente pour qu'une prochaine vérification réessaie
     await env.DB.prepare("UPDATE payments SET status = 'PENDING' WHERE id = ?").bind(p.id).run();
     throw err;
   }
@@ -143,7 +131,6 @@ async function reconcilePending(env) {
   }
 }
 
-/* ===== POST /api/billing/checkout  { plan: "pro" | "business" } ===== */
 export async function handleCreateCheckout(request, env) {
   const auth = await getAuthenticatedUser(request, env);
   if (!auth) return json({ error: "Non authentifié." }, 401);
@@ -161,8 +148,6 @@ export async function handleCreateCheckout(request, env) {
     .first();
   if (!user) return json({ error: "Compte introuvable." }, 404);
 
-  // Test réel à petit prix : SEUL le compte TEST_EMAIL peut payer le montant TEST_AMOUNT_XOF.
-  // Les autres clients paient toujours le vrai prix. Supprimez ces 2 variables après le test.
   if (
     env.TEST_EMAIL &&
     env.TEST_AMOUNT_XOF &&
@@ -172,8 +157,6 @@ export async function handleCreateCheckout(request, env) {
     if (Number.isFinite(testAmount) && testAmount > 0 && testAmount < amount) amount = testAmount;
   }
 
-  // Anti double-clic : on réutilise une session ouverte il y a moins de 30 minutes,
-  // seulement si elle porte le même montant (sinon un changement de prix serait ignoré)
   const recent = await env.DB.prepare(
     `SELECT id, checkout_url FROM payments
      WHERE user_id = ? AND plan = ? AND amount = ? AND status = 'PENDING' AND checkout_url IS NOT NULL
@@ -187,7 +170,6 @@ export async function handleCreateCheckout(request, env) {
   const paymentId = crypto.randomUUID();
   const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
 
-  // Page où renvoyer le client après paiement (chemin interne uniquement)
   let returnPath = String(body?.return_path || "");
   if (!/^\/[A-Za-z0-9_\-\/]{0,100}$/.test(returnPath) || returnPath.includes("//")) returnPath = "/";
 
@@ -201,7 +183,7 @@ export async function handleCreateCheckout(request, env) {
     metadata: { payment_id: paymentId },
   });
   const resBody = await res.json().catch(() => null);
-  const data = resBody?.data ?? resBody; // SasPay enveloppe la réponse dans { success, data }
+  const data = resBody?.data ?? resBody;
 
   if (!res.ok || !data?.checkout_url || !data?.id) {
     console.error("SasPay checkout refusé", res.status, JSON.stringify(resBody));
@@ -218,7 +200,6 @@ export async function handleCreateCheckout(request, env) {
   return json({ checkout_url: data.checkout_url, payment_id: paymentId });
 }
 
-/* ===== GET /api/billing/verify?ref=<payment_id> : appelé au retour du client ===== */
 export async function handleVerifyPayment(request, env) {
   const auth = await getAuthenticatedUser(request, env);
   if (!auth) return json({ error: "Non authentifié." }, 401);
@@ -237,24 +218,21 @@ export async function handleVerifyPayment(request, env) {
   return json({ status, paid: status === "ACTIVATED", plan: p.plan });
 }
 
-/* ===== POST /api/webhooks/saspay : appelé par SasPay ===== */
 export async function handleSaspayWebhook(request, env) {
   if (!env.SASPAY_WEBHOOK_SECRET || !env.SASPAY_API_KEY) {
     return json({ error: "Webhook non configuré." }, 500);
   }
 
-  const rawBody = await request.text(); // corps brut : la signature est calculée dessus
+  const rawBody = await request.text();
   const timestamp = request.headers.get("X-Webhook-Timestamp") || "";
   const signature = (request.headers.get("X-Webhook-Signature") || "").toLowerCase();
 
-  // 1) Contrôle de l'âge
   let ts = Number(timestamp);
-  if (ts > 1e12) ts = ts / 1000; // au cas où l'horodatage serait en millisecondes
+  if (ts > 1e12) ts = ts / 1000;
   if (!Number.isFinite(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > TOLERANCE_SECONDS) {
     return json({ error: "Horodatage invalide." }, 400);
   }
 
-  // 2) Contrôle de la signature
   const expected = await hmacHex(env.SASPAY_WEBHOOK_SECRET, `${timestamp}.${rawBody}`);
   if (!safeEqual(signature, expected)) {
     return json({ error: "Signature invalide." }, 401);
@@ -267,10 +245,10 @@ export async function handleSaspayWebhook(request, env) {
     return json({ error: "Corps invalide." }, 400);
   }
 
-  // Le webhook sert de déclencheur : l'état réel est relu auprès de SasPay
   if (typeof event === "string" && event.startsWith("transaction.")) {
-    await reconcilePending(env); // en cas d'erreur -> 500 -> SasPay réessaie
+    // Réconcilie à la fois les abonnements ET les ventes de produits
+    await Promise.all([reconcilePending(env), reconcilePendingSales(env)]);
   }
 
   return json({ received: true });
-}
+    }
