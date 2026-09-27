@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -163,6 +164,14 @@ export default function Boutique() {
               </Card>
 
               {/* Stats */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--dg-brand-solid)" }}>
+                  Aperçu
+                </span>
+                <Link to="/dashboard/wallet" style={{ fontSize: 13, color: "var(--dg-brand-solid)", fontWeight: 600, textDecoration: "none" }}>
+                  Voir le wallet détaillé →
+                </Link>
+              </div>
               <div className="dg-stat-grid-2">
                 <Card className="dg-stat-mini" style={{ textAlign: "center" }}>
                   <div className="dg-stat-mini__n">{fmtXof(data.stats.balance_xof)}</div>
@@ -206,4 +215,4 @@ export default function Boutique() {
       </div>
     </DashboardLayout>
   );
-}
+          }
