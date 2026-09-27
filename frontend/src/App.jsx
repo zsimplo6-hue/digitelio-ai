@@ -13,6 +13,7 @@ import Analytics from "./pages/Analytics.jsx";
 import Subscriptions from "./pages/Subscriptions.jsx";
 import Settings from "./pages/Settings.jsx";
 import Boutique from "./pages/Boutique.jsx";
+import Wallet from "./pages/Wallet.jsx";
 import ShopPublic from "./pages/ShopPublic.jsx";
 import Pay from "./pages/Pay.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
@@ -48,6 +49,7 @@ export default function App() {
       <Route path="/dashboard/marketing" element={guard(<Marketing />)} />
       <Route path="/dashboard/analytics" element={guard(<Analytics />)} />
       <Route path="/dashboard/boutique" element={guard(<Boutique />)} />
+      <Route path="/dashboard/wallet" element={guard(<Wallet />)} />
       <Route path="/dashboard/parametres" element={guard(<Settings />)} />
 
       {/* Toujours accessible, même expiré : c'est ici qu'on renouvelle */}
