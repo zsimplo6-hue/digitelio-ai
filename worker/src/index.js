@@ -19,6 +19,7 @@ import {
   handleCreateProductCheckout,
   handleVerifyProductPayment,
 } from "./routes/shop_payments.js";
+import { handleGetWallet, handleRequestWithdrawal } from "./routes/wallet.js";
 import { handleUpdateEbookSection } from "./routes/ebook_sections.js";
 import {
   handleCreateFormation,
@@ -153,7 +154,7 @@ export default {
         return withCors(await handleVerifyProductPayment(request, env), request);
       }
       if (url.pathname.startsWith("/api/pay/")) {
-        const parts = url.pathname.split("/").filter(Boolean); // ["api","pay",code] ou [...,"checkout"]
+        const parts = url.pathname.split("/").filter(Boolean);
         if (parts.length === 3 && request.method === "GET") {
           return withCors(await handleGetPayInfo(request, env, parts[2]), request);
         }
@@ -226,6 +227,14 @@ export default {
       }
       if (url.pathname === "/api/shop/products" && request.method === "GET") {
         return withCors(await handleListProductLinks(request, env), request);
+      }
+
+      // ===== WALLET =====
+      if (url.pathname === "/api/wallet" && request.method === "GET") {
+        return withCors(await handleGetWallet(request, env), request);
+      }
+      if (url.pathname === "/api/wallet/withdraw" && request.method === "POST") {
+        return withCors(await handleRequestWithdrawal(request, env), request);
       }
 
       if (url.pathname === "/api/settings" && request.method === "GET") {
