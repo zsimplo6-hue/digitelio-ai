@@ -1,4 +1,5 @@
 import { getActiveCommission } from "./billing.js";
+import { sendEmail, purchaseDeliveryEmailHtml } from "../utils/email.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
@@ -24,6 +25,12 @@ async function saspay(env, method, path, body) {
     if (![301, 302, 307, 308, 404, 405].includes(res.status)) return res;
   }
   return res;
+}
+
+function newLearnToken() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /* ===== GET /api/pay/:code — infos publiques avant paiement ===== */
@@ -153,7 +160,47 @@ export async function handleCreateProductCheckout(request, env, code) {
   return json({ checkout_url: data.checkout_url, sale_id: saleId });
 }
 
-/* ===== Vérification d'une vente auprès de SasPay + crédit du wallet ===== */
+/* ===== Livraison automatique après paiement confirmé =====
+   - formation : crée une inscription (réutilise la table enrollments existante) + envoie le lien d'accès
+   - ebook : pas encore vendable (Vague 2), on ne fait rien pour l'instant */
+async function deliverProduct(env, sale, link) {
+  if (link.product_type !== "formation") return; // eBooks : rien à livrer pour l'instant
+
+  const formation = await env.DB.prepare("SELECT id, title FROM formations WHERE id = ?")
+    .bind(link.product_id)
+    .first();
+  if (!formation) return;
+
+  const seller = await env.DB.prepare("SELECT full_name FROM users WHERE id = ?")
+    .bind(sale.seller_id)
+    .first();
+
+  const enrollmentId = crypto.randomUUID();
+  const token = newLearnToken();
+
+  await env.DB.prepare(
+    "INSERT INTO enrollments (id, formation_id, learner_name, token, completed) VALUES (?, ?, ?, ?, '[]')"
+  )
+    .bind(enrollmentId, link.product_id, sale.buyer_name || sale.buyer_email, token)
+    .run();
+
+  const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
+  const learnUrl = `${appUrl}/learn/${token}`;
+
+  await sendEmail(env, {
+    to: sale.buyer_email,
+    toName: sale.buyer_name || sale.buyer_email,
+    subject: `Votre accès à "${formation.title}" est prêt`,
+    html: purchaseDeliveryEmailHtml({
+      buyerName: sale.buyer_name,
+      productTitle: formation.title,
+      sellerName: seller?.full_name || "",
+      learnUrl,
+    }),
+  });
+}
+
+/* ===== Vérification d'une vente auprès de SasPay + crédit du wallet + livraison ===== */
 async function checkSalePayment(env, s) {
   const sRes = await saspay(env, "GET", `/checkout-sessions/${s.session_id}`);
   const sBody = await sRes.json().catch(() => null);
@@ -197,6 +244,18 @@ async function checkSalePayment(env, s) {
   )
     .bind(s.seller_id, s.net_xof, s.net_xof)
     .run();
+
+  // Livraison automatique : ne doit jamais faire échouer la confirmation du paiement
+  try {
+    const link = await env.DB.prepare(
+      "SELECT product_type, product_id FROM product_links WHERE id = ?"
+    )
+      .bind(s.product_link_id)
+      .first();
+    if (link) await deliverProduct(env, s, link);
+  } catch (err) {
+    console.error("Échec de la livraison automatique", s.id, err.message);
+  }
 
   return "PAID";
 }
