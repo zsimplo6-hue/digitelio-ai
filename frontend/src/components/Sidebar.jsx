@@ -19,6 +19,7 @@ const links = [
   { to: "/dashboard/marketing", label: "Marketing digital", Icon: IconMegaphone },
   { to: "/dashboard/analytics", label: "Analytics", Icon: IconTrendingUp },
   { to: "/dashboard/boutique", label: "Ma boutique", Icon: IconShop },
+  { to: "/dashboard/wallet", label: "Wallet", Icon: IconCreditCard },
   { to: "/dashboard/abonnements", label: "Abonnements", Icon: IconCreditCard },
   { to: "/dashboard/parametres", label: "Paramètres", Icon: IconSettings },
 ];
