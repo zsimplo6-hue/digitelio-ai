@@ -151,7 +151,10 @@ export async function handleCreateProductCheckout(request, env, code) {
 
 /* ===== Livraison automatique après paiement confirmé ===== */
 async function deliverProduct(env, sale, link) {
-  if (link.product_type !== "formation") return; // eBooks : rien à livrer pour l'instant
+  if (link.product_type !== "formation") {
+    console.log("Livraison ignorée (pas une formation)", sale.id, link.product_type);
+    return;
+  }
 
   const formation = await env.DB.prepare("SELECT id, title FROM formations WHERE id = ?")
     .bind(link.product_id)
@@ -253,16 +256,17 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
     return "REVIEW";
   }
 
-  // Verrou anti-doublon : une seule exécution passe (PENDING ou REVIEW -> PAID)
+  // Verrou anti-doublon : une seule exécution passe (PENDING / REVIEW / EXPIRED -> PAID)
   const claim = await env.DB.prepare(
     `UPDATE sales SET status = 'PAID', transaction_id = ?, paid_at = datetime('now')
-     WHERE id = ? AND status IN ('PENDING', 'REVIEW')`
+     WHERE id = ? AND status IN ('PENDING', 'REVIEW', 'EXPIRED')`
   )
     .bind(txId, s.id)
     .run();
 
   if (!claim.meta?.changes) {
     const row = await env.DB.prepare("SELECT status FROM sales WHERE id = ?").bind(s.id).first();
+    console.log("Verrou: vente non modifiée, statut actuel =", row?.status, s.id);
     return row?.status || "PENDING";
   }
 
@@ -274,6 +278,7 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
   )
     .bind(s.seller_id, s.net_xof, s.net_xof)
     .run();
+  console.log("Wallet crédité", s.seller_id, s.net_xof);
 
   // Livraison automatique : ne doit jamais faire échouer la confirmation du paiement
   try {
@@ -283,6 +288,7 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
       .bind(s.product_link_id)
       .first();
     if (link) await deliverProduct(env, s, link);
+    else console.error("Livraison: lien produit introuvable", s.id, s.product_link_id);
   } catch (err) {
     console.error("Échec de la livraison automatique", s.id, err.message);
   }
@@ -309,16 +315,25 @@ export async function handleSaspayProductWebhook(env, payload) {
   const data = payload?.data ?? payload;
   const saleId = data?.metadata?.sale_id;
   const txId = data?.id;
-  if (!saleId) return false; // pas une vente boutique (ex. abonnement)
+  if (!saleId) {
+    console.log("Webhook produit ignoré: pas de sale_id");
+    return false; // pas une vente boutique (ex. abonnement)
+  }
 
   const sale = await env.DB.prepare("SELECT * FROM sales WHERE id = ?").bind(saleId).first();
   if (!sale) {
     console.error("Webhook: vente introuvable", saleId);
     return false;
   }
-  if (sale.status === "PAID") return true; // déjà traité (idempotent)
+  console.log("Webhook: statut actuel de la vente", saleId, sale.status, "webhook status:", data?.status);
+
+  if (sale.status === "PAID") {
+    console.log("Webhook: vente déjà PAID, rien à faire", saleId);
+    return true; // déjà traité (idempotent)
+  }
 
   const status = await checkSalePayment(env, sale, txId || null, data);
+  console.log("Webhook: résultat", saleId, status);
   return status === "PAID";
 }
 
@@ -340,4 +355,4 @@ export async function reconcilePendingSales(env) {
       console.error("Réconciliation en échec", results[i].id, o.reason?.message || o.reason);
     }
   });
-                                                  }
+      }
