@@ -84,13 +84,16 @@ export default function FormationPublic() {
   const cta = isFree ? "S'inscrire gratuitement" : `Acheter la formation · ${priceStr}`;
   const modules = f.modules || [];
 
+  // Paiement SasPay interne (/pay/:code). Ancien lien externe gardé en secours temporaire.
+  const buyHref = f.pay_code ? `/pay/${f.pay_code}` : f.payment_url || "";
+  const isInternal = Boolean(f.pay_code);
+
   const Cta = ({ className = "" }) =>
-    f.payment_url ? (
+    buyHref ? (
       <a
         className={`fp-cta ${className}`}
-        href={f.payment_url}
-        target="_blank"
-        rel="noopener noreferrer"
+        href={buyHref}
+        {...(isInternal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
         onClick={() => track("click")}
       >
         {cta}
@@ -128,8 +131,8 @@ export default function FormationPublic() {
         <div className="fp-pricebox">
           <div className="fp-price">{priceStr}</div>
           <Cta />
-          {!f.payment_url && (
-            <div className="fp-muted fp-small">Le lien de paiement n'est pas encore disponible.</div>
+          {!buyHref && (
+            <div className="fp-muted fp-small">Le paiement n'est pas encore disponible.</div>
           )}
         </div>
 
@@ -247,4 +250,4 @@ function FpStyle() {
       .fp-foot strong { color: #D4AF37; font-weight: 600; }
     `}</style>
   );
-      }
+        }
