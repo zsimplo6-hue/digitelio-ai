@@ -18,6 +18,33 @@ const CURRENCIES = [
 const MAX_PRICE = 100000000;
 const MIN_PRICE_XOF = 200; // minimum accepté par SasPay
 
+/* Taux approximatifs vers le XOF (1 unité de la monnaie = X XOF).
+   À CORRIGER PÉRIODIQUEMENT à la main. XOF et XAF sont fixes par nature (parité CFA / EUR). */
+const RATES_TO_XOF = {
+  XOF: 1,
+  XAF: 1,
+  EUR: 655.957,
+  USD: 605,
+  GBP: 765,
+  CAD: 440,
+  CHF: 690,
+  MAD: 60,
+  DZD: 4.5,
+  TND: 195,
+  NGN: 0.39,
+  GHS: 40,
+  KES: 4.7,
+  ZAR: 34,
+  GNF: 0.07,
+  CDF: 0.22,
+};
+
+function toXof(amount, currency) {
+  const rate = RATES_TO_XOF[currency];
+  if (!rate) return null;
+  return Math.round(amount * rate);
+}
+
 function parseResources(raw) {
   if (!raw) return [];
   try {
@@ -44,9 +71,21 @@ function newPayCode() {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/* Crée ou met à jour le lien de paiement SasPay (/pay/:code) d'une formation. Ne lève jamais d'erreur. */
+/* Crée ou met à jour le lien de paiement SasPay (/pay/:code), avec le prix converti en XOF.
+   Ne lève jamais d'erreur : retourne { pay_code, error } */
 async function syncPayLink(env, userId, formationId, price, currency) {
-  if (currency !== "XOF") return null;
+  const priceXof = toXof(price, currency);
+  if (priceXof === null) {
+    console.error("Monnaie sans taux de conversion", formationId, currency);
+    return { pay_code: null, error: "Monnaie non prise en charge pour le paiement." };
+  }
+  if (priceXof < MIN_PRICE_XOF) {
+    return {
+      pay_code: null,
+      error: `Le prix doit valoir au moins l'équivalent de ${MIN_PRICE_XOF} FCFA.`,
+    };
+  }
+
   try {
     const existing = await env.DB.prepare(
       "SELECT id, pay_code FROM product_links WHERE product_type = 'formation' AND product_id = ? LIMIT 1"
@@ -56,9 +95,9 @@ async function syncPayLink(env, userId, formationId, price, currency) {
 
     if (existing) {
       await env.DB.prepare("UPDATE product_links SET price_xof = ?, active = 1 WHERE id = ?")
-        .bind(price, existing.id)
+        .bind(priceXof, existing.id)
         .run();
-      return existing.pay_code;
+      return { pay_code: existing.pay_code, error: null };
     }
 
     const payCode = newPayCode();
@@ -66,12 +105,12 @@ async function syncPayLink(env, userId, formationId, price, currency) {
       `INSERT INTO product_links (id, user_id, product_type, product_id, price_xof, pay_code, active)
        VALUES (?, ?, 'formation', ?, ?, ?, 1)`
     )
-      .bind(crypto.randomUUID(), userId, formationId, price, payCode)
+      .bind(crypto.randomUUID(), userId, formationId, priceXof, payCode)
       .run();
-    return payCode;
+    return { pay_code: payCode, error: null };
   } catch (err) {
     console.error("Création du lien de paiement impossible", formationId, err.message);
-    return null;
+    return { pay_code: null, error: "Impossible de créer le lien de paiement." };
   }
 }
 
@@ -156,7 +195,7 @@ export async function handleUpdateSettings(request, env, formationId) {
   if (!payload) return unauthorized();
 
   const owned = await env.DB.prepare(
-    "SELECT id, currency, status FROM formations WHERE id = ? AND user_id = ?"
+    "SELECT id, currency, price, status FROM formations WHERE id = ? AND user_id = ?"
   )
     .bind(formationId, payload.sub)
     .first();
@@ -188,14 +227,6 @@ export async function handleUpdateSettings(request, env, formationId) {
     }
   }
 
-  const finalCurrency = currency || owned.currency || "EUR";
-  if (price !== null && finalCurrency === "XOF" && price < MIN_PRICE_XOF) {
-    return Response.json(
-      { error: `Le prix minimum est de ${MIN_PRICE_XOF} FCFA.` },
-      { status: 400 }
-    );
-  }
-
   let cover = null;
   if (body.cover_url) {
     if (!isValidCover(body.cover_url)) {
@@ -217,10 +248,16 @@ export async function handleUpdateSettings(request, env, formationId) {
     .bind(price, cover, certificate, currency, formationId, payload.sub)
     .run();
 
-  // Formation déjà en vente : garde le prix du lien de paiement à jour
+  const finalCurrency = currency || owned.currency || "EUR";
+  const finalPrice = price !== null ? price : owned.price;
+
+  // Formation déjà en vente : garde le lien de paiement synchronisé
   let payCode = await getPayCode(env, formationId);
-  if (owned.status === "published" && price !== null) {
-    payCode = (await syncPayLink(env, payload.sub, formationId, price, finalCurrency)) || payCode;
+  let payError = null;
+  if (owned.status === "published" && finalPrice !== null && finalPrice !== undefined) {
+    const sync = await syncPayLink(env, payload.sub, formationId, finalPrice, finalCurrency);
+    if (sync.pay_code) payCode = sync.pay_code;
+    payError = sync.error;
   }
 
   return Response.json({
@@ -232,6 +269,7 @@ export async function handleUpdateSettings(request, env, formationId) {
       certificate: !!certificate,
       pay_code: payCode,
     },
+    payment_warning: payError, // informatif seulement : les réglages sont quand même enregistrés
   });
 }
 
@@ -254,12 +292,6 @@ export async function handlePublish(request, env, formationId) {
   }
 
   const currency = formation.currency || "EUR";
-  if (currency === "XOF" && formation.price < MIN_PRICE_XOF) {
-    return Response.json(
-      { error: `Le prix minimum est de ${MIN_PRICE_XOF} FCFA.` },
-      { status: 400 }
-    );
-  }
 
   const { results } = await env.DB.prepare(
     "SELECT content FROM formation_modules WHERE formation_id = ?"
@@ -275,20 +307,21 @@ export async function handlePublish(request, env, formationId) {
     );
   }
 
+  const sync = await syncPayLink(env, payload.sub, formationId, formation.price, currency);
+  if (!sync.pay_code) {
+    return Response.json({ error: sync.error || "Impossible de créer le lien de paiement." }, { status: 400 });
+  }
+
   await env.DB.prepare(
     "UPDATE formations SET status = 'published', published_at = datetime('now') WHERE id = ? AND user_id = ?"
   )
     .bind(formationId, payload.sub)
     .run();
 
-  const payCode = await syncPayLink(env, payload.sub, formationId, formation.price, currency);
-
-  return Response.json({
-    formation: { id: formationId, status: "published", pay_code: payCode || (await getPayCode(env, formationId)) },
-  });
+  return Response.json({ formation: { id: formationId, status: "published", pay_code: sync.pay_code } });
 }
 
-/* Repasser en brouillon */
+/* Repasser en brouillon : coupe le lien de paiement (les ventes déjà payées ne sont pas affectées) */
 export async function handleUnpublish(request, env, formationId) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
@@ -325,7 +358,7 @@ export async function handleUnpublish(request, env, formationId) {
 export async function handleGetPublicFormation(request, env, formationId) {
   const f = await env.DB.prepare(
     `SELECT f.id, f.title, f.description, f.price, f.currency, f.cover_url, f.certificate,
-            f.payment_url, f.language, u.full_name AS instructor,
+            f.language, u.full_name AS instructor,
             (SELECT pl.pay_code FROM product_links pl
               WHERE pl.product_type = 'formation' AND pl.product_id = f.id AND pl.active = 1
               LIMIT 1) AS pay_code
@@ -345,6 +378,13 @@ export async function handleGetPublicFormation(request, env, formationId) {
      FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
   )
     .bind(formationId)
+    .first();
+
+  const modulesRes = await env.DB.prepare(
+    `SELECT position, title, summary
+     FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
+  )
+    .bind(formationId)
     .all();
 
   return Response.json({
@@ -357,9 +397,8 @@ export async function handleGetPublicFormation(request, env, formationId) {
       cover_url: f.cover_url || "",
       certificate: !!f.certificate,
       pay_code: f.pay_code || "",
-      payment_url: f.payment_url || "", // secours temporaire, à retirer une fois tous les pay_code en place
       instructor: f.instructor || "",
-      modules: results,
+      modules: modulesRes.results,
     },
   });
-  }
+      }
