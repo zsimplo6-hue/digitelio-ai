@@ -1,12 +1,12 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 import { PLANS, activatePlan } from "./billing.js";
-import { reconcilePendingSales } from "./shop_payments.js";
+import { reconcilePendingSales, handleSaspayProductWebhook } from "./shop_payments.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
 const TOLERANCE_SECONDS = 300;
-const PENDING_WINDOW_HOURS = 48;
+const PENDING_WINDOW_HOURS = 72;
 const MAX_PENDING_CHECKS = 15;
 const REUSE_MINUTES = 30;
 
@@ -61,25 +61,41 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-async function checkPayment(env, p) {
-  const sRes = await saspay(env, "GET", `/checkout-sessions/${p.session_id}`);
-  const sBody = await sRes.json().catch(() => null);
-  const session = sBody?.data ?? sBody;
-  if (!sRes.ok || !session) return p.status;
+/* knownTxId : id de transaction fourni par le webhook (évite de dépendre de la session) */
+async function checkPayment(env, p, knownTxId = null) {
+  let txId = knownTxId;
 
-  const tx = session.transaction;
-  const txId = typeof tx === "string" ? tx : tx?.id;
-  if (!txId) return "PENDING";
+  if (!txId) {
+    const sRes = await saspay(env, "GET", `/checkout-sessions/${p.session_id}`);
+    const sBody = await sRes.json().catch(() => null);
+    const session = sBody?.data ?? sBody;
+    if (!sRes.ok || !session) {
+      console.error("Session abonnement illisible", p.id, sRes.status, JSON.stringify(sBody));
+      return p.status;
+    }
+    const tx = session.transaction ?? session.transaction_id ?? session.payment ?? session.payment_id;
+    txId = typeof tx === "string" ? tx : tx?.id;
+    if (!txId) {
+      console.log("Session abonnement sans transaction", p.id, "clés:", Object.keys(session).join(","));
+      return "PENDING";
+    }
+  }
 
   const pRes = await saspay(env, "GET", `/payments/${txId}`);
   const pBody = await pRes.json().catch(() => null);
   const pay = pBody?.data ?? pBody;
-  if (!pRes.ok || !pay) return "PENDING";
+  if (!pRes.ok || !pay) {
+    console.error("Paiement abonnement illisible", p.id, txId, pRes.status, JSON.stringify(pBody));
+    return "PENDING";
+  }
   if (pay.status !== "SUCCESS") return "PENDING";
 
-  const paidAmount = Number(pay.requested_amount ?? pay.amount);
-  if (pay.currency !== "XOF" || paidAmount !== Number(p.amount)) {
-    console.error("Paiement SasPay incohérent", p.id, pay.currency, paidAmount, p.amount);
+  const expected = Number(p.amount);
+  const candidates = [pay.requested_amount, pay.amount, pay.net_amount]
+    .filter((v) => v !== undefined && v !== null)
+    .map(Number);
+  if (pay.currency !== "XOF" || !candidates.includes(expected)) {
+    console.error("Paiement SasPay incohérent", p.id, pay.currency, JSON.stringify(candidates), expected);
     await env.DB.prepare("UPDATE payments SET status = 'REVIEW' WHERE id = ? AND status = 'PENDING'")
       .bind(p.id)
       .run();
@@ -96,7 +112,7 @@ async function checkPayment(env, p) {
 
   const claim = await env.DB.prepare(
     `UPDATE payments SET status = 'PAID', transaction_id = ?, paid_at = datetime('now')
-     WHERE id = ? AND status = 'PENDING'`
+     WHERE id = ? AND status IN ('PENDING', 'REVIEW')`
   )
     .bind(txId, p.id)
     .run();
@@ -119,13 +135,18 @@ async function checkPayment(env, p) {
 async function reconcilePending(env) {
   const { results } = await env.DB.prepare(
     `SELECT id, user_id, plan, amount, session_id, status FROM payments
-     WHERE status = 'PENDING' AND session_id IS NOT NULL AND created_at > datetime('now', ?)
+     WHERE status IN ('PENDING', 'REVIEW') AND session_id IS NOT NULL AND created_at > datetime('now', ?)
      ORDER BY created_at DESC LIMIT ?`
   )
     .bind(`-${PENDING_WINDOW_HOURS} hours`, MAX_PENDING_CHECKS)
     .all();
 
   const outcomes = await Promise.allSettled(results.map((p) => checkPayment(env, p)));
+  outcomes.forEach((o, i) => {
+    if (o.status === "rejected") {
+      console.error("Réconciliation abonnement en échec", results[i].id, o.reason?.message || o.reason);
+    }
+  });
   if (outcomes.some((o) => o.status === "rejected")) {
     throw new Error("Vérification de paiement incomplète.");
   }
@@ -213,13 +234,16 @@ export async function handleVerifyPayment(request, env) {
   if (!p) return json({ error: "Paiement introuvable." }, 404);
 
   let status = p.status;
-  if (status === "PENDING" && p.session_id) status = await checkPayment(env, p);
+  if ((status === "PENDING" || status === "REVIEW") && p.session_id) {
+    status = await checkPayment(env, p);
+  }
 
   return json({ status, paid: status === "ACTIVATED", plan: p.plan });
 }
 
 export async function handleSaspayWebhook(request, env) {
   if (!env.SASPAY_WEBHOOK_SECRET || !env.SASPAY_API_KEY) {
+    console.error("Webhook: secrets manquants");
     return json({ error: "Webhook non configuré." }, 500);
   }
 
@@ -230,25 +254,51 @@ export async function handleSaspayWebhook(request, env) {
   let ts = Number(timestamp);
   if (ts > 1e12) ts = ts / 1000;
   if (!Number.isFinite(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > TOLERANCE_SECONDS) {
+    console.error("Webhook: horodatage invalide", timestamp);
     return json({ error: "Horodatage invalide." }, 400);
   }
 
   const expected = await hmacHex(env.SASPAY_WEBHOOK_SECRET, `${timestamp}.${rawBody}`);
   if (!safeEqual(signature, expected)) {
+    console.error("Webhook: signature invalide");
     return json({ error: "Signature invalide." }, 401);
   }
 
-  let event = "";
+  let payload;
   try {
-    event = JSON.parse(rawBody).event || "";
+    payload = JSON.parse(rawBody);
   } catch {
     return json({ error: "Corps invalide." }, 400);
   }
 
-  if (typeof event === "string" && event.startsWith("transaction.")) {
-    // Réconcilie à la fois les abonnements ET les ventes de produits
-    await Promise.all([reconcilePending(env), reconcilePendingSales(env)]);
+  const event = typeof payload?.event === "string" ? payload.event : "";
+  const data = payload?.data ?? payload;
+  console.log("Webhook reçu", event, "sale_id:", data?.metadata?.sale_id, "payment_id:", data?.metadata?.payment_id, "tx:", data?.id);
+
+  if (!event.startsWith("transaction.")) return json({ received: true });
+
+  try {
+    // 1) Traitement direct via les métadonnées du webhook
+    if (data?.metadata?.sale_id) {
+      await handleSaspayProductWebhook(env, payload);
+    } else if (data?.metadata?.payment_id) {
+      const p = await env.DB.prepare(
+        "SELECT id, user_id, plan, amount, session_id, status FROM payments WHERE id = ?"
+      )
+        .bind(data.metadata.payment_id)
+        .first();
+      if (p && (p.status === "PENDING" || p.status === "REVIEW")) {
+        await checkPayment(env, p, data.id || null);
+      }
+    }
+
+    // 2) Filet de sécurité : réconcilie aussi les autres paiements en attente
+    await Promise.allSettled([reconcilePending(env), reconcilePendingSales(env)]);
+  } catch (err) {
+    console.error("Webhook: échec du traitement", err?.message || err);
+    // 500 : SasPay pourra retenter au lieu de croire que tout est traité
+    return json({ error: "Traitement échoué." }, 500);
   }
 
   return json({ received: true });
-    }
+}
