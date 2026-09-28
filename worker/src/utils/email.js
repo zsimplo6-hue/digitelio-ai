@@ -73,4 +73,32 @@ export function purchaseDeliveryEmailHtml({ buyerName, productTitle, sellerName,
       Conservez cet email — ce lien est personnel et permet d'accéder à votre contenu à tout moment.
     </p>
   </div>`;
-      }
+}
+
+/* ===== Gabarit : certificat de réussite disponible ===== */
+export function certificateReadyEmailHtml({ learnerName, formationTitle, instructorName, learnUrl }) {
+  return `
+  <div style="font-family: -apple-system, Inter, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #F7F7FB;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="font-weight: 700; font-size: 18px; color: #0F0F1E;">DIGITELIO <span style="color: #7C3AED;">AI</span></span>
+    </div>
+    <div style="background: #fff; border-radius: 20px; padding: 32px 28px; box-shadow: 0 8px 24px rgba(16,16,40,0.06);">
+      <h1 style="font-size: 20px; color: #0F0F1E; margin: 0 0 12px;">🎉 Félicitations${learnerName ? `, ${learnerName}` : ""} !</h1>
+      <p style="font-size: 14px; color: #6B6B85; line-height: 1.6; margin: 0 0 20px;">
+        Vous avez terminé avec succès <strong>${formationTitle}</strong>${instructorName ? ` par ${instructorName}` : ""}.
+        Votre certificat de réussite est prêt.
+      </p>
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${learnUrl}" style="display: inline-block; background: linear-gradient(135deg,#6D3BF5,#C13BF5); color: #fff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
+          Télécharger mon certificat
+        </a>
+      </div>
+      <p style="font-size: 12px; color: #9C9CB4; text-align: center; word-break: break-all;">
+        Ou copiez ce lien : ${learnUrl}
+      </p>
+    </div>
+    <p style="text-align: center; font-size: 12px; color: #9C9CB4; margin-top: 20px;">
+      Sur cette page, le bouton « Télécharger mon certificat » ouvre l'impression PDF.
+    </p>
+  </div>`;
+}
