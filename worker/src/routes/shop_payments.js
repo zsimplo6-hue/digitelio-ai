@@ -4,6 +4,7 @@ import { sendEmail, purchaseDeliveryEmailHtml } from "../utils/email.js";
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
 const PENDING_WINDOW_HOURS = 72;
+const UNDELIVERED_WINDOW_HOURS = 168;
 const MAX_PENDING_CHECKS = 15;
 
 const json = (obj, status = 200) => Response.json(obj, { status });
@@ -149,7 +150,7 @@ export async function handleCreateProductCheckout(request, env, code) {
   return json({ checkout_url: data.checkout_url, sale_id: saleId });
 }
 
-/* ===== Livraison automatique après paiement confirmé ===== */
+/* ===== Livraison d'un produit : lève une erreur si l'email n'est pas parti ===== */
 async function deliverProduct(env, sale, link) {
   if (link.product_type !== "formation") {
     console.log("Livraison ignorée (pas une formation)", sale.id, link.product_type);
@@ -159,10 +160,7 @@ async function deliverProduct(env, sale, link) {
   const formation = await env.DB.prepare("SELECT id, title FROM formations WHERE id = ?")
     .bind(link.product_id)
     .first();
-  if (!formation) {
-    console.error("Livraison: formation introuvable", sale.id, link.product_id);
-    return;
-  }
+  if (!formation) throw new Error("Formation introuvable " + link.product_id);
 
   const seller = await env.DB.prepare("SELECT full_name FROM users WHERE id = ?")
     .bind(sale.seller_id)
@@ -180,7 +178,7 @@ async function deliverProduct(env, sale, link) {
   const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
   const learnUrl = `${appUrl}/learn/${token}`;
 
-  await sendEmail(env, {
+  const result = await sendEmail(env, {
     to: sale.buyer_email,
     toName: sale.buyer_name || sale.buyer_email,
     subject: `Votre accès à "${formation.title}" est prêt`,
@@ -191,12 +189,49 @@ async function deliverProduct(env, sale, link) {
       learnUrl,
     }),
   });
+
+  if (!result?.ok) {
+    // Nettoie l'inscription créée pour éviter les doublons au prochain essai
+    await env.DB.prepare("DELETE FROM enrollments WHERE id = ?").bind(enrollmentId).run();
+    throw new Error("Email non envoyé: " + (result?.error || "erreur inconnue"));
+  }
   console.log("Livraison: email envoyé", sale.id, sale.buyer_email);
 }
 
-/* ===== Vérification d'une vente + crédit du wallet + livraison =====
-   knownTxId / webhookPay : données signées du webhook SasPay (évite l'appel /payments qui renvoie 404) */
+/* ===== Livre l'accès UNE seule fois (delivered_at sert de verrou) ===== */
+async function ensureDelivered(env, s) {
+  const claim = await env.DB.prepare(
+    "UPDATE sales SET delivered_at = datetime('now') WHERE id = ? AND delivered_at IS NULL"
+  )
+    .bind(s.id)
+    .run();
+  if (!claim.meta?.changes) return false; // déjà livré ou en cours
+
+  try {
+    const link = await env.DB.prepare(
+      "SELECT product_type, product_id FROM product_links WHERE id = ?"
+    )
+      .bind(s.product_link_id)
+      .first();
+    if (!link) throw new Error("Lien produit introuvable " + s.product_link_id);
+    await deliverProduct(env, s, link);
+    return true;
+  } catch (err) {
+    console.error("Échec de la livraison automatique", s.id, err.message);
+    // Libère le verrou : la livraison sera retentée au prochain webhook
+    await env.DB.prepare("UPDATE sales SET delivered_at = NULL WHERE id = ?").bind(s.id).run();
+    return false;
+  }
+}
+
+/* ===== Vérification d'une vente + crédit du wallet + livraison ===== */
 async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
+  // Vente déjà payée : on ne fait que rattraper la livraison si besoin
+  if (s.status === "PAID") {
+    if (!s.delivered_at) await ensureDelivered(env, s);
+    return "PAID";
+  }
+
   let txId = knownTxId;
   let pay = webhookPay;
 
@@ -280,19 +315,7 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
     .run();
   console.log("Wallet crédité", s.seller_id, s.net_xof);
 
-  // Livraison automatique : ne doit jamais faire échouer la confirmation du paiement
-  try {
-    const link = await env.DB.prepare(
-      "SELECT product_type, product_id FROM product_links WHERE id = ?"
-    )
-      .bind(s.product_link_id)
-      .first();
-    if (link) await deliverProduct(env, s, link);
-    else console.error("Livraison: lien produit introuvable", s.id, s.product_link_id);
-  } catch (err) {
-    console.error("Échec de la livraison automatique", s.id, err.message);
-  }
-
+  await ensureDelivered(env, s);
   return "PAID";
 }
 
@@ -305,6 +328,8 @@ export async function handleVerifyProductPayment(request, env) {
   let status = sale.status;
   if ((status === "PENDING" || status === "REVIEW") && sale.session_id) {
     status = await checkSalePayment(env, sale);
+  } else if (status === "PAID" && !sale.delivered_at) {
+    await ensureDelivered(env, sale);
   }
 
   return json({ status, paid: status === "PAID" });
@@ -317,7 +342,7 @@ export async function handleSaspayProductWebhook(env, payload) {
   const txId = data?.id;
   if (!saleId) {
     console.log("Webhook produit ignoré: pas de sale_id");
-    return false; // pas une vente boutique (ex. abonnement)
+    return false;
   }
 
   const sale = await env.DB.prepare("SELECT * FROM sales WHERE id = ?").bind(saleId).first();
@@ -325,26 +350,24 @@ export async function handleSaspayProductWebhook(env, payload) {
     console.error("Webhook: vente introuvable", saleId);
     return false;
   }
-  console.log("Webhook: statut actuel de la vente", saleId, sale.status, "webhook status:", data?.status);
-
-  if (sale.status === "PAID") {
-    console.log("Webhook: vente déjà PAID, rien à faire", saleId);
-    return true; // déjà traité (idempotent)
-  }
+  console.log("Webhook: statut actuel de la vente", saleId, sale.status, "livrée:", sale.delivered_at);
 
   const status = await checkSalePayment(env, sale, txId || null, data);
   console.log("Webhook: résultat", saleId, status);
   return status === "PAID";
 }
 
-/* ===== Réconcilie les ventes en attente (ou en revue) ===== */
+/* ===== Réconcilie les ventes en attente/revue + rattrape les livraisons manquantes ===== */
 export async function reconcilePendingSales(env) {
   const { results } = await env.DB.prepare(
     `SELECT * FROM sales
-     WHERE status IN ('PENDING', 'REVIEW') AND session_id IS NOT NULL AND created_at > datetime('now', ?)
+     WHERE session_id IS NOT NULL AND (
+       (status IN ('PENDING', 'REVIEW') AND created_at > datetime('now', ?))
+       OR (status = 'PAID' AND delivered_at IS NULL AND created_at > datetime('now', ?))
+     )
      ORDER BY created_at DESC LIMIT ?`
   )
-    .bind(`-${PENDING_WINDOW_HOURS} hours`, MAX_PENDING_CHECKS)
+    .bind(`-${PENDING_WINDOW_HOURS} hours`, `-${UNDELIVERED_WINDOW_HOURS} hours`, MAX_PENDING_CHECKS)
     .all();
 
   console.log("Réconciliation: ventes à vérifier", results.length);
@@ -355,4 +378,4 @@ export async function reconcilePendingSales(env) {
       console.error("Réconciliation en échec", results[i].id, o.reason?.message || o.reason);
     }
   });
-      }
+    }
