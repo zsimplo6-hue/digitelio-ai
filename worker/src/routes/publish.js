@@ -16,6 +16,7 @@ const CURRENCIES = [
   "DZD", "TND", "NGN", "GHS", "KES", "ZAR", "GNF", "CDF",
 ];
 const MAX_PRICE = 100000000;
+const MIN_PRICE_XOF = 200; // minimum accepté par SasPay
 
 function parseResources(raw) {
   if (!raw) return [];
@@ -37,7 +38,55 @@ function isValidCover(s) {
   return /^https:\/\/\S+$/i.test(s) && s.length <= 500;
 }
 
-const isHttpsUrl = (s) => /^https:\/\/\S+$/i.test(s) && s.length <= 500;
+function newPayCode() {
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* Crée ou met à jour le lien de paiement SasPay (/pay/:code) d'une formation. Ne lève jamais d'erreur. */
+async function syncPayLink(env, userId, formationId, price, currency) {
+  if (currency !== "XOF") return null;
+  try {
+    const existing = await env.DB.prepare(
+      "SELECT id, pay_code FROM product_links WHERE product_type = 'formation' AND product_id = ? LIMIT 1"
+    )
+      .bind(formationId)
+      .first();
+
+    if (existing) {
+      await env.DB.prepare("UPDATE product_links SET price_xof = ?, active = 1 WHERE id = ?")
+        .bind(price, existing.id)
+        .run();
+      return existing.pay_code;
+    }
+
+    const payCode = newPayCode();
+    await env.DB.prepare(
+      `INSERT INTO product_links (id, user_id, product_type, product_id, price_xof, pay_code, active)
+       VALUES (?, ?, 'formation', ?, ?, ?, 1)`
+    )
+      .bind(crypto.randomUUID(), userId, formationId, price, payCode)
+      .run();
+    return payCode;
+  } catch (err) {
+    console.error("Création du lien de paiement impossible", formationId, err.message);
+    return null;
+  }
+}
+
+async function getPayCode(env, formationId) {
+  try {
+    const row = await env.DB.prepare(
+      "SELECT pay_code FROM product_links WHERE product_type = 'formation' AND product_id = ? AND active = 1 LIMIT 1"
+    )
+      .bind(formationId)
+      .first();
+    return row?.pay_code || "";
+  } catch {
+    return "";
+  }
+}
 
 /* Liste (avec le prix et la monnaie) */
 export async function handleListFormations(request, env) {
@@ -64,7 +113,7 @@ export async function handleGetFormation(request, env, formationId) {
 
   const formation = await env.DB.prepare(
     `SELECT id, title, description, topic, language, status, price, currency, cover_url,
-            certificate, payment_url, published_at, created_at
+            certificate, published_at, created_at
      FROM formations WHERE id = ? AND user_id = ?`
   )
     .bind(formationId, payload.sub)
@@ -88,23 +137,26 @@ export async function handleGetFormation(request, env, formationId) {
     resources: parseResources(m.resources),
   }));
 
+  const payCode = await getPayCode(env, formationId);
+
   return Response.json({
     formation: {
       ...formation,
       currency: formation.currency || "EUR",
       certificate: !!formation.certificate,
+      pay_code: payCode,
       modules,
     },
   });
 }
 
-/* Réglages : prix, monnaie, couverture, certificat, lien de paiement */
+/* Réglages : prix, monnaie, couverture, certificat */
 export async function handleUpdateSettings(request, env, formationId) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
   const owned = await env.DB.prepare(
-    "SELECT id, currency FROM formations WHERE id = ? AND user_id = ?"
+    "SELECT id, currency, status FROM formations WHERE id = ? AND user_id = ?"
   )
     .bind(formationId, payload.sub)
     .first();
@@ -136,6 +188,14 @@ export async function handleUpdateSettings(request, env, formationId) {
     }
   }
 
+  const finalCurrency = currency || owned.currency || "EUR";
+  if (price !== null && finalCurrency === "XOF" && price < MIN_PRICE_XOF) {
+    return Response.json(
+      { error: `Le prix minimum est de ${MIN_PRICE_XOF} FCFA.` },
+      { status: 400 }
+    );
+  }
+
   let cover = null;
   if (body.cover_url) {
     if (!isValidCover(body.cover_url)) {
@@ -147,36 +207,30 @@ export async function handleUpdateSettings(request, env, formationId) {
     cover = body.cover_url;
   }
 
-  let paymentUrl = null;
-  const rawPay = String(body.payment_url || "").trim();
-  if (rawPay) {
-    if (!isHttpsUrl(rawPay)) {
-      return Response.json(
-        { error: "Le lien de paiement doit commencer par https://" },
-        { status: 400 }
-      );
-    }
-    paymentUrl = rawPay;
-  }
-
   const certificate = body.certificate ? 1 : 0;
 
   await env.DB.prepare(
     `UPDATE formations
-     SET price = ?, cover_url = ?, certificate = ?, payment_url = ?, currency = COALESCE(?, currency)
+     SET price = ?, cover_url = ?, certificate = ?, currency = COALESCE(?, currency)
      WHERE id = ? AND user_id = ?`
   )
-    .bind(price, cover, certificate, paymentUrl, currency, formationId, payload.sub)
+    .bind(price, cover, certificate, currency, formationId, payload.sub)
     .run();
+
+  // Formation déjà en vente : garde le prix du lien de paiement à jour
+  let payCode = await getPayCode(env, formationId);
+  if (owned.status === "published" && price !== null) {
+    payCode = (await syncPayLink(env, payload.sub, formationId, price, finalCurrency)) || payCode;
+  }
 
   return Response.json({
     formation: {
       id: formationId,
       price,
-      currency: currency || owned.currency || "EUR",
+      currency: finalCurrency,
       cover_url: cover,
       certificate: !!certificate,
-      payment_url: paymentUrl,
+      pay_code: payCode,
     },
   });
 }
@@ -187,7 +241,7 @@ export async function handlePublish(request, env, formationId) {
   if (!payload) return unauthorized();
 
   const formation = await env.DB.prepare(
-    "SELECT id, price FROM formations WHERE id = ? AND user_id = ?"
+    "SELECT id, price, currency FROM formations WHERE id = ? AND user_id = ?"
   )
     .bind(formationId, payload.sub)
     .first();
@@ -197,6 +251,14 @@ export async function handlePublish(request, env, formationId) {
 
   if (formation.price === null || formation.price === undefined) {
     return Response.json({ error: "Définissez un prix avant de publier." }, { status: 400 });
+  }
+
+  const currency = formation.currency || "EUR";
+  if (currency === "XOF" && formation.price < MIN_PRICE_XOF) {
+    return Response.json(
+      { error: `Le prix minimum est de ${MIN_PRICE_XOF} FCFA.` },
+      { status: 400 }
+    );
   }
 
   const { results } = await env.DB.prepare(
@@ -219,7 +281,11 @@ export async function handlePublish(request, env, formationId) {
     .bind(formationId, payload.sub)
     .run();
 
-  return Response.json({ formation: { id: formationId, status: "published" } });
+  const payCode = await syncPayLink(env, payload.sub, formationId, formation.price, currency);
+
+  return Response.json({
+    formation: { id: formationId, status: "published", pay_code: payCode || (await getPayCode(env, formationId)) },
+  });
 }
 
 /* Repasser en brouillon */
@@ -242,6 +308,16 @@ export async function handleUnpublish(request, env, formationId) {
     .bind(formationId, payload.sub)
     .run();
 
+  try {
+    await env.DB.prepare(
+      "UPDATE product_links SET active = 0 WHERE product_type = 'formation' AND product_id = ?"
+    )
+      .bind(formationId)
+      .run();
+  } catch (err) {
+    console.error("Désactivation du lien de paiement impossible", formationId, err.message);
+  }
+
   return Response.json({ formation: { id: formationId, status: "draft" } });
 }
 
@@ -249,7 +325,10 @@ export async function handleUnpublish(request, env, formationId) {
 export async function handleGetPublicFormation(request, env, formationId) {
   const f = await env.DB.prepare(
     `SELECT f.id, f.title, f.description, f.price, f.currency, f.cover_url, f.certificate,
-            f.payment_url, f.language, u.full_name AS instructor
+            f.payment_url, f.language, u.full_name AS instructor,
+            (SELECT pl.pay_code FROM product_links pl
+              WHERE pl.product_type = 'formation' AND pl.product_id = f.id AND pl.active = 1
+              LIMIT 1) AS pay_code
      FROM formations f
      LEFT JOIN users u ON u.id = f.user_id
      WHERE f.id = ? AND f.status = 'published'`
@@ -277,9 +356,10 @@ export async function handleGetPublicFormation(request, env, formationId) {
       currency: f.currency || "EUR",
       cover_url: f.cover_url || "",
       certificate: !!f.certificate,
-      payment_url: f.payment_url || "",
+      pay_code: f.pay_code || "",
+      payment_url: f.payment_url || "", // secours temporaire, à retirer une fois tous les pay_code en place
       instructor: f.instructor || "",
       modules: results,
     },
   });
-}
+  }
