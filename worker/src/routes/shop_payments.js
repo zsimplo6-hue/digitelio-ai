@@ -5,7 +5,6 @@ const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
 const PENDING_WINDOW_HOURS = 72;
 const MAX_PENDING_CHECKS = 15;
-const REUSE_MINUTES = 30;
 
 const json = (obj, status = 200) => Response.json(obj, { status });
 
@@ -103,7 +102,6 @@ export async function handleCreateProductCheckout(request, env, code) {
   }
 
   // Test réel à petit prix : SEUL l'email TEST_EMAIL peut payer le montant TEST_AMOUNT_XOF.
-  // Tous les autres acheteurs paient toujours le vrai prix. Supprimez ces 2 variables après le test.
   let chargeAmount = link.price_xof;
   if (
     env.TEST_EMAIL &&
@@ -193,48 +191,61 @@ async function deliverProduct(env, sale, link) {
   console.log("Livraison: email envoyé", sale.id, sale.buyer_email);
 }
 
-/* ===== Vérification d'une vente auprès de SasPay + crédit du wallet + livraison =====
-   knownTxId : id de transaction fourni par le webhook (évite de dépendre de la session) */
-async function checkSalePayment(env, s, knownTxId = null) {
+/* ===== Vérification d'une vente + crédit du wallet + livraison =====
+   knownTxId / webhookPay : données signées du webhook SasPay (évite l'appel /payments qui renvoie 404) */
+async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
   let txId = knownTxId;
+  let pay = webhookPay;
 
-  if (!txId) {
-    const sRes = await saspay(env, "GET", `/checkout-sessions/${s.session_id}`);
-    const sBody = await sRes.json().catch(() => null);
-    const session = sBody?.data ?? sBody;
-    if (!sRes.ok || !session) {
-      console.error("Session SasPay illisible", s.id, sRes.status, JSON.stringify(sBody));
-      return s.status;
-    }
-
-    const tx = session.transaction ?? session.transaction_id ?? session.payment ?? session.payment_id;
-    txId = typeof tx === "string" ? tx : tx?.id;
+  if (!pay) {
     if (!txId) {
-      console.log("Session sans transaction", s.id, "status:", session.status, "clés:", Object.keys(session).join(","));
-      return "PENDING";
+      const sRes = await saspay(env, "GET", `/checkout-sessions/${s.session_id}`);
+      const sBody = await sRes.json().catch(() => null);
+      const session = sBody?.data ?? sBody;
+      if (!sRes.ok || !session) {
+        console.error("Session SasPay illisible", s.id, sRes.status);
+        return s.status;
+      }
+      if (session.status === "EXPIRED") {
+        try {
+          await env.DB.prepare("UPDATE sales SET status = 'EXPIRED' WHERE id = ? AND status = 'PENDING'")
+            .bind(s.id)
+            .run();
+        } catch (e) {
+          console.error("Marquage EXPIRED impossible", s.id, e.message);
+        }
+        return "EXPIRED";
+      }
+      const tx = session.transaction ?? session.transaction_id ?? session.payment ?? session.payment_id;
+      txId = typeof tx === "string" ? tx : tx?.id;
+      if (!txId) return "PENDING";
     }
+
+    for (const path of [`/payments/${txId}`, `/transactions/${txId}`]) {
+      const pRes = await saspay(env, "GET", path);
+      const pBody = await pRes.json().catch(() => null);
+      if (pRes.ok && (pBody?.data ?? pBody)) {
+        pay = pBody?.data ?? pBody;
+        break;
+      }
+      console.error("Paiement SasPay illisible", s.id, path, pRes.status);
+    }
+    if (!pay) return "PENDING";
   }
 
-  const pRes = await saspay(env, "GET", `/payments/${txId}`);
-  const pBody = await pRes.json().catch(() => null);
-  const pay = pBody?.data ?? pBody;
-  if (!pRes.ok || !pay) {
-    console.error("Paiement SasPay illisible", s.id, txId, pRes.status, JSON.stringify(pBody));
-    return "PENDING";
-  }
+  txId = txId || pay.id;
   if (pay.status !== "SUCCESS") {
     console.log("Paiement pas encore SUCCESS", s.id, pay.status);
     return "PENDING";
   }
 
-  // Accepte le montant demandé (500) ou le net (500) ; le montant débité (520) inclut les frais ADD_ON
+  // Le montant débité (520) inclut les frais ADD_ON ; on compare au montant demandé / net (500)
   const expected = Number(s.amount_xof);
   const candidates = [pay.requested_amount, pay.amount, pay.net_amount]
     .filter((v) => v !== undefined && v !== null)
     .map(Number);
-  const amountOk = candidates.includes(expected);
 
-  if (pay.currency !== "XOF" || !amountOk) {
+  if (pay.currency !== "XOF" || !candidates.includes(expected)) {
     console.error("Vente SasPay incohérente", s.id, pay.currency, JSON.stringify(candidates), expected);
     await env.DB.prepare("UPDATE sales SET status = 'REVIEW' WHERE id = ? AND status = 'PENDING'")
       .bind(s.id)
@@ -293,8 +304,7 @@ export async function handleVerifyProductPayment(request, env) {
   return json({ status, paid: status === "PAID" });
 }
 
-/* ===== Traitement direct d'un webhook SasPay (transaction.success) =====
-   Utilise metadata.sale_id et data.id envoyés par SasPay. */
+/* ===== Webhook SasPay (transaction.success) : utilise metadata.sale_id et les données signées ===== */
 export async function handleSaspayProductWebhook(env, payload) {
   const data = payload?.data ?? payload;
   const saleId = data?.metadata?.sale_id;
@@ -308,7 +318,7 @@ export async function handleSaspayProductWebhook(env, payload) {
   }
   if (sale.status === "PAID") return true; // déjà traité (idempotent)
 
-  const status = await checkSalePayment(env, sale, txId || null);
+  const status = await checkSalePayment(env, sale, txId || null, data);
   return status === "PAID";
 }
 
@@ -330,7 +340,4 @@ export async function reconcilePendingSales(env) {
       console.error("Réconciliation en échec", results[i].id, o.reason?.message || o.reason);
     }
   });
-  if (outcomes.some((o) => o.status === "rejected")) {
-    throw new Error("Vérification de vente incomplète.");
-  }
-}
+                                                  }
