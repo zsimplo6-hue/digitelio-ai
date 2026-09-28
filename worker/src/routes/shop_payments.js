@@ -170,9 +170,9 @@ async function deliverProduct(env, sale, link) {
   const token = newLearnToken();
 
   await env.DB.prepare(
-    "INSERT INTO enrollments (id, formation_id, learner_name, token, completed) VALUES (?, ?, ?, ?, '[]')"
+    "INSERT INTO enrollments (id, formation_id, learner_name, learner_email, token, completed) VALUES (?, ?, ?, ?, ?, '[]')"
   )
-    .bind(enrollmentId, link.product_id, sale.buyer_name || sale.buyer_email, token)
+    .bind(enrollmentId, link.product_id, sale.buyer_name || sale.buyer_email, sale.buyer_email, token)
     .run();
 
   const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
@@ -378,4 +378,4 @@ export async function reconcilePendingSales(env) {
       console.error("Réconciliation en échec", results[i].id, o.reason?.message || o.reason);
     }
   });
-    }
+  }
