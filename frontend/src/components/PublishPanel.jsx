@@ -14,6 +14,19 @@ import {
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+/* Doit rester identique à worker/src/routes/publish.js (RATES_TO_XOF) */
+const MIN_PRICE_XOF = 200;
+const RATES_TO_XOF = {
+  XOF: 1, XAF: 1, EUR: 655.957, USD: 605, GBP: 765, CAD: 440, CHF: 690,
+  MAD: 60, DZD: 4.5, TND: 195, NGN: 0.39, GHS: 40, KES: 4.7, ZAR: 34,
+  GNF: 0.07, CDF: 0.22,
+};
+function minPriceFor(currency) {
+  const rate = RATES_TO_XOF[currency];
+  if (!rate) return null;
+  return Math.ceil(MIN_PRICE_XOF / rate);
+}
+
 async function api(path, options = {}) {
   const res = await fetch(`${API}/api${path}`, {
     credentials: "include",
@@ -62,11 +75,12 @@ export default function PublishPanel({ formation, onChange }) {
   );
   const [cover, setCover] = useState(formation.cover_url || "");
   const [certificate, setCertificate] = useState(!!formation.certificate);
-  const [payment, setPayment] = useState(formation.payment_url || "");
+  const [payCode, setPayCode] = useState(formation.pay_code || "");
   const [learner, setLearner] = useState("");
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [payWarning, setPayWarning] = useState("");
 
   const cur = currencyOf(currency);
   const isPublished = formation.status === "published";
@@ -74,11 +88,15 @@ export default function PublishPanel({ formation, onChange }) {
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
   const priceNum = price === "" ? null : Number(price);
+  const minPrice = minPriceFor(currency);
   const priceOk =
-    priceNum !== null && Number.isInteger(priceNum) && priceNum >= 0 && priceNum <= MAX_PRICE;
-  const payTrim = payment.trim();
-  const payOk = /^https:\/\/\S+$/i.test(payTrim);
+    priceNum !== null &&
+    Number.isInteger(priceNum) &&
+    priceNum >= 0 &&
+    priceNum <= MAX_PRICE &&
+    (minPrice === null || priceNum >= minPrice);
   const shareLink = `${window.location.origin}/formation/${formation.id}`;
+  const payLink = payCode ? `${window.location.origin}/pay/${payCode}` : "";
 
   function pickPreset(p) {
     setCustom(false);
@@ -117,9 +135,6 @@ export default function PublishPanel({ formation, onChange }) {
   }
 
   async function saveSettings() {
-    if (payTrim && !payOk) {
-      throw new Error("Le lien de paiement doit commencer par https://");
-    }
     const data = await api(`/formations/${formation.id}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -127,16 +142,17 @@ export default function PublishPanel({ formation, onChange }) {
         currency,
         cover_url: cover || null,
         certificate,
-        payment_url: payTrim || null,
       }),
     });
     saveDefaultCurrency(currency);
+    if (data.formation.pay_code) setPayCode(data.formation.pay_code);
+    setPayWarning(data.payment_warning || "");
     onChange({
       price: data.formation.price,
       currency: data.formation.currency,
       cover_url: data.formation.cover_url,
       certificate: data.formation.certificate,
-      payment_url: data.formation.payment_url,
+      pay_code: data.formation.pay_code,
     });
   }
 
@@ -158,7 +174,11 @@ export default function PublishPanel({ formation, onChange }) {
     setErr("");
     setMsg("");
     if (!priceOk) {
-      setErr("Choisissez un prix avant de publier.");
+      setErr(
+        minPrice !== null
+          ? `Choisissez un prix d'au moins ${formatPrice(minPrice, currency)} avant de publier.`
+          : "Choisissez un prix avant de publier."
+      );
       return;
     }
     if (!allWritten) {
@@ -168,8 +188,9 @@ export default function PublishPanel({ formation, onChange }) {
     setBusy("publish");
     try {
       await saveSettings();
-      await api(`/formations/${formation.id}/publish`, { method: "POST" });
-      onChange({ status: "published" });
+      const data = await api(`/formations/${formation.id}/publish`, { method: "POST" });
+      if (data.formation?.pay_code) setPayCode(data.formation.pay_code);
+      onChange({ status: "published", pay_code: data.formation?.pay_code });
       setMsg("Formation publiée ✓ Votre page de vente est en ligne.");
     } catch (e) {
       setErr(e.message);
@@ -204,6 +225,16 @@ export default function PublishPanel({ formation, onChange }) {
     }
   }
 
+  async function copyPayLink() {
+    setErr("");
+    try {
+      await navigator.clipboard.writeText(payLink);
+      setMsg("Lien de paiement copié ✓");
+    } catch {
+      window.prompt("Copiez ce lien :", payLink);
+    }
+  }
+
   return (
     <>
       <div className="fm-screen no-print">
@@ -221,10 +252,13 @@ export default function PublishPanel({ formation, onChange }) {
               {allWritten ? "✓" : "○"} Leçons rédigées : {written}/{modules.length}
             </li>
             <li className={priceOk ? "ok" : ""}>
-              {priceOk ? `✓ Prix : ${formatPrice(priceNum, currency)}` : "○ Prix défini"}
+              {priceOk
+                ? `✓ Prix : ${formatPrice(priceNum, currency)}`
+                : minPrice !== null
+                ? `○ Prix défini (minimum ${formatPrice(minPrice, currency)})`
+                : "○ Prix défini"}
             </li>
             <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Image de couverture (recommandée)</li>
-            <li className={payOk ? "ok" : ""}>{payOk ? "✓" : "○"} Lien de paiement (pour vendre)</li>
           </ul>
 
           {/* Monnaie */}
@@ -275,24 +309,15 @@ export default function PublishPanel({ formation, onChange }) {
               step="1"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder={`Montant en ${cur.symbol} (0 = gratuit)`}
+              placeholder={`Montant en ${cur.symbol}${minPrice !== null ? ` (minimum ${minPrice})` : ""}`}
               style={{ marginTop: "0.6rem" }}
             />
           )}
-
-          {/* Lien de paiement */}
-          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Lien de paiement</div>
-          <input
-            className="fm-input"
-            value={payment}
-            onChange={(e) => setPayment(e.target.value)}
-            placeholder="https://... (Stripe, PayPal, Wave, Mobile Money...)"
-            inputMode="url"
-          />
-          <div className="fm-muted fm-small">
-            Le bouton « Acheter » de votre page de vente renverra vers ce lien. Créez-le chez votre
-            prestataire de paiement (lien de paiement Stripe, PayPal.me, Wave, etc.).
-          </div>
+          {minPrice !== null && priceNum !== null && priceNum > 0 && priceNum < minPrice && (
+            <div className="fm-warn" style={{ marginTop: "0.5rem" }}>
+              Le prix minimum pour {cur.label} est {formatPrice(minPrice, currency)}.
+            </div>
+          )}
 
           {/* Couverture */}
           <div className="fm-label" style={{ marginTop: "1.2rem" }}>Image de couverture</div>
@@ -383,18 +408,40 @@ export default function PublishPanel({ formation, onChange }) {
                   👁 Voir la page
                 </a>
               </div>
-              {!payOk && (
-                <div className="fm-warn">
-                  Ajoutez un lien de paiement puis enregistrez les réglages, sinon le bouton d'achat
-                  restera inactif.
-                </div>
-              )}
             </div>
           ) : (
             <div className="fm-muted fm-small">
               Publiez la formation pour obtenir le lien de votre page de vente à partager.
             </div>
           )}
+
+          {/* Lien de paiement (généré automatiquement) */}
+          {isPublished && (
+            <>
+              <div className="fm-label" style={{ marginTop: "1.4rem" }}>Lien de paiement</div>
+              {payLink ? (
+                <div className="pb-share">
+                  <input className="fm-input" value={payLink} readOnly onFocus={(e) => e.target.select()} />
+                  <div className="pb-share-actions">
+                    <button type="button" className="fm-chip" onClick={copyPayLink}>
+                      📋 Copier le lien
+                    </button>
+                    <a className="fm-chip" href={payLink} target="_blank" rel="noopener noreferrer">
+                      👁 Voir la page
+                    </a>
+                  </div>
+                  <div className="fm-muted fm-small">
+                    C'est le lien vers lequel renvoie le bouton « Acheter » de votre page de vente.
+                  </div>
+                </div>
+              ) : (
+                <div className="fm-warn">
+                  Le lien de paiement n'a pas pu être créé. Enregistrez de nouveau les réglages.
+                </div>
+              )}
+            </>
+          )}
+          {payWarning && <div className="fm-warn">{payWarning}</div>}
 
           {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
           {msg && <div className="fm-ok">{msg}</div>}
@@ -463,4 +510,4 @@ export default function PublishPanel({ formation, onChange }) {
       <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
-      }
+          }
