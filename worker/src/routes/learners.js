@@ -1,5 +1,8 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
+import { sendEmail, certificateReadyEmailHtml } from "../utils/email.js";
+
+const DEFAULT_APP_URL = "https://app.digitelio.com";
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -59,6 +62,12 @@ export async function handleCreateEnrollment(request, env, formationId) {
     return Response.json({ error: "Saisissez le nom de l'apprenant." }, { status: 400 });
   }
 
+  let email = String(body?.email || "").trim().toLowerCase();
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    return Response.json({ error: "Adresse email invalide." }, { status: 400 });
+  }
+  email = email || null;
+
   const count = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM enrollments WHERE formation_id = ?"
   )
@@ -75,13 +84,13 @@ export async function handleCreateEnrollment(request, env, formationId) {
   const token = newToken();
 
   await env.DB.prepare(
-    "INSERT INTO enrollments (id, formation_id, learner_name, token, completed) VALUES (?, ?, ?, ?, '[]')"
+    "INSERT INTO enrollments (id, formation_id, learner_name, learner_email, token, completed) VALUES (?, ?, ?, ?, ?, '[]')"
   )
-    .bind(id, formationId, name, token)
+    .bind(id, formationId, name, email, token)
     .run();
 
   return Response.json({
-    enrollment: { id, learner_name: name, token, completed_count: 0, completed_at: null },
+    enrollment: { id, learner_name: name, learner_email: email, token, completed_count: 0, completed_at: null },
   });
 }
 
@@ -95,7 +104,7 @@ export async function handleListEnrollments(request, env, formationId) {
   }
 
   const { results } = await env.DB.prepare(
-    `SELECT id, learner_name, token, completed, completed_at, created_at
+    `SELECT id, learner_name, learner_email, token, completed, completed_at, created_at
      FROM enrollments WHERE formation_id = ? ORDER BY created_at DESC`
   )
     .bind(formationId)
@@ -114,6 +123,7 @@ export async function handleListEnrollments(request, env, formationId) {
     enrollments: results.map((e) => ({
       id: e.id,
       learner_name: e.learner_name,
+      learner_email: e.learner_email || "",
       token: e.token,
       completed_count: Math.min(parseIds(e.completed).length, total),
       completed_at: e.completed_at,
@@ -202,13 +212,20 @@ export async function handleCompleteModule(request, env, token, moduleId) {
   }
 
   const e = await env.DB.prepare(
-    "SELECT id, formation_id, completed, completed_at FROM enrollments WHERE token = ?"
+    `SELECT e.id, e.formation_id, e.completed, e.completed_at, e.learner_name, e.learner_email,
+            f.title AS formation_title, f.certificate, u.full_name AS instructor
+     FROM enrollments e
+     JOIN formations f ON f.id = e.formation_id
+     LEFT JOIN users u ON u.id = f.user_id
+     WHERE e.token = ?`
   )
     .bind(token)
     .first();
   if (!e) {
     return Response.json({ error: "Lien d'accès invalide ou expiré." }, { status: 404 });
   }
+
+  const wasFinishedBefore = !!e.completed_at;
 
   const { results } = await env.DB.prepare(
     `SELECT id FROM formation_modules
@@ -242,6 +259,28 @@ export async function handleCompleteModule(request, env, token, moduleId) {
   const after = await env.DB.prepare("SELECT completed_at FROM enrollments WHERE id = ?")
     .bind(e.id)
     .first();
+
+  // Première fois que la formation est terminée : email automatique avec le lien du certificat
+  if (finished && !wasFinishedBefore && e.certificate && e.learner_email) {
+    try {
+      const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
+      const learnUrl = `${appUrl}/learn/${token}`;
+      const result = await sendEmail(env, {
+        to: e.learner_email,
+        toName: e.learner_name || e.learner_email,
+        subject: `🎓 Votre certificat pour "${e.formation_title}" est prêt`,
+        html: certificateReadyEmailHtml({
+          learnerName: e.learner_name,
+          formationTitle: e.formation_title,
+          instructorName: e.instructor || "",
+          learnUrl,
+        }),
+      });
+      if (!result?.ok) console.error("Email de certificat non envoyé", e.id, result?.error);
+    } catch (err) {
+      console.error("Échec de l'envoi de l'email de certificat", e.id, err.message);
+    }
+  }
 
   return Response.json({
     completed: list,
