@@ -18,6 +18,8 @@ import ShopPublic from "./pages/ShopPublic.jsx";
 import Pay from "./pages/Pay.jsx";
 import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
+import EbookPublic from "./pages/EbookPublic.jsx";
+import EbookRead from "./pages/EbookRead.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
@@ -37,6 +39,8 @@ export default function App() {
       {/* Pages publiques (sans connexion) */}
       <Route path="/formation/:id" element={<FormationPublic />} />
       <Route path="/learn/:token" element={<Learn />} />
+      <Route path="/ebook/:id" element={<EbookPublic />} />
+      <Route path="/read/:token" element={<EbookRead />} />
       <Route path="/shop/:slug" element={<ShopPublic />} />
       <Route path="/pay/:code" element={<Pay />} />
 
