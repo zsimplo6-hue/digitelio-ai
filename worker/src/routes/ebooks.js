@@ -174,12 +174,25 @@ export async function handleListEbooks(request, env) {
   }
 
   const { results } = await env.DB.prepare(
-    "SELECT id, title, description, language, status, created_at FROM ebooks WHERE user_id = ? ORDER BY created_at DESC"
+    "SELECT id, title, description, language, status, price, currency, created_at FROM ebooks WHERE user_id = ? ORDER BY created_at DESC"
   )
     .bind(payload.sub)
     .all();
 
   return Response.json({ ebooks: results });
+}
+
+async function getPayCodeForEbook(env, ebookId) {
+  try {
+    const row = await env.DB.prepare(
+      "SELECT pay_code FROM product_links WHERE product_type = 'ebook' AND product_id = ? AND active = 1 LIMIT 1"
+    )
+      .bind(ebookId)
+      .first();
+    return row?.pay_code || "";
+  } catch {
+    return "";
+  }
 }
 
 export async function handleGetEbook(request, env, ebookId) {
@@ -189,7 +202,9 @@ export async function handleGetEbook(request, env, ebookId) {
   }
 
   const ebook = await env.DB.prepare(
-    "SELECT id, title, description, language, content, sections_json, status, created_at FROM ebooks WHERE id = ? AND user_id = ?"
+    `SELECT id, title, description, language, content, sections_json, status,
+            price, currency, cover_url, published_at, created_at
+     FROM ebooks WHERE id = ? AND user_id = ?`
   )
     .bind(ebookId, payload.sub)
     .first();
@@ -208,6 +223,10 @@ export async function handleGetEbook(request, env, ebookId) {
   }
   if (!sections) sections = parseContentToSections(ebook.content);
 
+  const payCode = await getPayCodeForEbook(env, ebookId);
+
   const { sections_json, ...rest } = ebook;
-  return Response.json({ ebook: { ...rest, sections } });
+  return Response.json({
+    ebook: { ...rest, currency: rest.currency || "EUR", pay_code: payCode, sections },
+  });
       }
