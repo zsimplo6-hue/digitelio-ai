@@ -9,6 +9,13 @@ import {
 } from "./routes/auth.js";
 import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
 import {
+  handleUpdateEbookSettings,
+  handlePublishEbook,
+  handleUnpublishEbook,
+  handleGetPublicEbook,
+} from "./routes/ebook_publish.js";
+import { handleGetEbookReader } from "./routes/ebook_read.js";
+import {
   handleGetMyShop,
   handleUpdateShop,
   handleGetPublicShop,
@@ -138,14 +145,30 @@ export default {
       if (url.pathname.startsWith("/api/ebooks/")) {
         const parts = url.pathname.split("/").filter(Boolean);
         const ebookId = parts[2];
-        if (parts.length === 3 && request.method === "GET") {
-          return withCors(await handleGetEbook(request, env, ebookId), request);
+
+        if (parts.length === 3) {
+          if (request.method === "GET") {
+            return withCors(await handleGetEbook(request, env, ebookId), request);
+          }
+          if (request.method === "PUT") {
+            return withCors(await handleUpdateEbookSettings(request, env, ebookId), request);
+          }
         }
+
         if (parts.length === 5 && parts[3] === "sections" && request.method === "PUT") {
           return withCors(
             await handleUpdateEbookSection(request, env, ebookId, parts[4]),
             request
           );
+        }
+
+        if (parts.length === 4 && request.method === "POST") {
+          if (parts[3] === "publish") {
+            return withCors(await handlePublishEbook(request, env, ebookId), request);
+          }
+          if (parts[3] === "unpublish") {
+            return withCors(await handleUnpublishEbook(request, env, ebookId), request);
+          }
         }
       }
 
@@ -185,6 +208,14 @@ export default {
         }
       }
 
+      // ===== PAGE PUBLIQUE D'UN EBOOK (sans connexion) =====
+      if (url.pathname.startsWith("/api/public/ebooks/")) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        if (parts.length === 4 && request.method === "GET") {
+          return withCors(await handleGetPublicEbook(request, env, parts[3]), request);
+        }
+      }
+
       if (url.pathname.startsWith("/api/learn/")) {
         const parts = url.pathname.split("/").filter(Boolean);
         const token = parts[2];
@@ -193,6 +224,15 @@ export default {
         }
         if (parts.length === 5 && parts[3] === "modules" && request.method === "POST") {
           return withCors(await handleCompleteModule(request, env, token, parts[4]), request);
+        }
+      }
+
+      // ===== LECTURE D'UN EBOOK ACHETÉ (sans connexion) =====
+      if (url.pathname.startsWith("/api/read/")) {
+        const parts = url.pathname.split("/").filter(Boolean);
+        const token = parts[2];
+        if (parts.length === 3 && request.method === "GET") {
+          return withCors(await handleGetEbookReader(request, env, token), request);
         }
       }
 
