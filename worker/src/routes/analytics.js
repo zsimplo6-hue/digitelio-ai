@@ -13,7 +13,7 @@ const unauthorized = () => Response.json({ error: "Non authentifié." }, { statu
 const BOT_RE = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|headless/i;
 const dayStr = (d) => d.toISOString().slice(0, 10);
 
-/* ===== PUBLIC : enregistre une visite ou un clic sur la page de vente ===== */
+/* ===== PUBLIC : enregistre une visite ou un clic sur la page de vente d'une formation ===== */
 export async function handleTrack(request, env, formationId) {
   const body = await request.json().catch(() => null);
   const type = body?.type;
@@ -55,7 +55,49 @@ export async function handleTrack(request, env, formationId) {
   return Response.json({ ok: true });
 }
 
-/* ===== FORMATEUR : statistiques de ses pages de vente ===== */
+/* ===== PUBLIC : enregistre une visite ou un clic sur la page de vente d'un eBook ===== */
+export async function handleTrackEbook(request, env, ebookId) {
+  const body = await request.json().catch(() => null);
+  const type = body?.type;
+  if (type !== "view" && type !== "click") {
+    return Response.json({ error: "Type invalide." }, { status: 400 });
+  }
+
+  const ua = request.headers.get("User-Agent") || "";
+  if (BOT_RE.test(ua)) return Response.json({ ok: true, skipped: "bot" });
+
+  const b = await env.DB.prepare(
+    "SELECT id, user_id FROM ebooks WHERE id = ? AND status = 'published'"
+  )
+    .bind(ebookId)
+    .first();
+  if (!b) return Response.json({ error: "eBook introuvable." }, { status: 404 });
+
+  // Les visites du propriétaire connecté ne sont pas comptées
+  const me = await getAuthenticatedUser(request, env);
+  if (me && me.sub === b.user_id) {
+    return Response.json({ ok: true, skipped: "owner" });
+  }
+
+  const views = type === "view" ? 1 : 0;
+  const uniques = type === "view" && body.unique === true ? 1 : 0;
+  const clicks = type === "click" ? 1 : 0;
+
+  await env.DB.prepare(
+    `INSERT INTO ebook_analytics_daily (ebook_id, day, views, unique_views, clicks)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(ebook_id, day) DO UPDATE SET
+       views = views + excluded.views,
+       unique_views = unique_views + excluded.unique_views,
+       clicks = clicks + excluded.clicks`
+  )
+    .bind(b.id, dayStr(new Date()), views, uniques, clicks)
+    .run();
+
+  return Response.json({ ok: true });
+}
+
+/* ===== FORMATEUR : statistiques de ses pages de vente (formations) ===== */
 export async function handleAnalytics(request, env) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
