@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import EbookPublishPanel from "../components/EbookPublishPanel.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -199,6 +200,10 @@ export default function EbookPreview() {
     setSections((list) => list.map((s) => (s.id === patch.id ? { ...s, ...patch } : s)));
   }
 
+  function patchEbook(patch) {
+    setEbook((e) => ({ ...e, ...patch }));
+  }
+
   function scrollToSection(sectionId) {
     const el = document.getElementById(`sec-${sectionId}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -247,6 +252,8 @@ export default function EbookPreview() {
             onChange={patchSection}
           />
         )}
+
+        <EbookPublishPanel ebook={ebook} onChange={patchEbook} />
       </div>
 
       <div id="ebook-print-area" className="ebook-doc">
