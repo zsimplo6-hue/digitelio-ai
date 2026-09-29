@@ -48,6 +48,18 @@ function newPayCode() {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function slugify(title) {
+  const base = String(title || "produit")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "produit";
+  const suffix = crypto.randomUUID().slice(0, 6);
+  return `${base}-${suffix}`;
+}
+
 /* Crée ou met à jour le lien de paiement SasPay (/pay/:code), prix converti en XOF.
    Ne lève jamais d'erreur : retourne { pay_code, error } */
 async function syncPayLink(env, userId, ebookId, price, currency) {
@@ -77,12 +89,17 @@ async function syncPayLink(env, userId, ebookId, price, currency) {
       return { pay_code: existing.pay_code, error: null };
     }
 
+    const ebookRow = await env.DB.prepare("SELECT title FROM ebooks WHERE id = ?")
+      .bind(ebookId)
+      .first();
+    const slug = slugify(ebookRow?.title);
     const payCode = newPayCode();
+
     await env.DB.prepare(
-      `INSERT INTO product_links (id, user_id, product_type, product_id, price_xof, pay_code, active)
-       VALUES (?, ?, 'ebook', ?, ?, ?, 1)`
+      `INSERT INTO product_links (id, user_id, product_type, product_id, product_slug, price_xof, pay_code, active)
+       VALUES (?, ?, 'ebook', ?, ?, ?, ?, 1)`
     )
-      .bind(crypto.randomUUID(), userId, ebookId, priceXof, payCode)
+      .bind(crypto.randomUUID(), userId, ebookId, slug, priceXof, payCode)
       .run();
     return { pay_code: payCode, error: null };
   } catch (err) {
@@ -283,4 +300,4 @@ export async function handleGetPublicEbook(request, env, ebookId) {
       author: b.author || "",
     },
   });
-    }
+            }
