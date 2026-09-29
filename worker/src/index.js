@@ -52,7 +52,7 @@ import {
 import { handleSalesOverview, handleGetCover } from "./routes/stats.js";
 import { handleGenerateMarketing } from "./routes/marketing.js";
 import { handleOverview } from "./routes/overview.js";
-import { handleTrack, handleAnalytics } from "./routes/analytics.js";
+import { handleTrack, handleTrackEbook, handleAnalytics } from "./routes/analytics.js";
 import {
   handleGetSettings,
   handleUpdateSettings as handleUpdateAccountSettings,
@@ -213,6 +213,9 @@ export default {
         const parts = url.pathname.split("/").filter(Boolean);
         if (parts.length === 4 && request.method === "GET") {
           return withCors(await handleGetPublicEbook(request, env, parts[3]), request);
+        }
+        if (parts.length === 5 && parts[4] === "track" && request.method === "POST") {
+          return withCors(await handleTrackEbook(request, env, parts[3]), request);
         }
       }
 
