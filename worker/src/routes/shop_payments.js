@@ -1,5 +1,5 @@
 import { getActiveCommission } from "./billing.js";
-import { sendEmail, purchaseDeliveryEmailHtml } from "../utils/email.js";
+import { sendEmail, purchaseDeliveryEmailHtml, ebookDeliveryEmailHtml } from "../utils/email.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
 const DEFAULT_APP_URL = "https://app.digitelio.com";
@@ -27,7 +27,7 @@ async function saspay(env, method, path, body) {
   return res;
 }
 
-function newLearnToken() {
+function newAccessToken() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -62,11 +62,12 @@ export async function handleGetPayInfo(request, env, code) {
     description = f?.description || "";
     coverUrl = f?.cover_url || "";
   } else {
-    const b = await env.DB.prepare("SELECT title, description FROM ebooks WHERE id = ?")
+    const b = await env.DB.prepare("SELECT title, description, cover_url FROM ebooks WHERE id = ?")
       .bind(link.product_id)
       .first();
     title = b?.title || title;
     description = b?.description || "";
+    coverUrl = b?.cover_url || "";
   }
 
   return json({
@@ -150,13 +151,8 @@ export async function handleCreateProductCheckout(request, env, code) {
   return json({ checkout_url: data.checkout_url, sale_id: saleId });
 }
 
-/* ===== Livraison d'un produit : lève une erreur si l'email n'est pas parti ===== */
-async function deliverProduct(env, sale, link) {
-  if (link.product_type !== "formation") {
-    console.log("Livraison ignorée (pas une formation)", sale.id, link.product_type);
-    return;
-  }
-
+/* ===== Livraison d'une formation : lève une erreur si l'email n'est pas parti ===== */
+async function deliverFormation(env, sale, link) {
   const formation = await env.DB.prepare("SELECT id, title FROM formations WHERE id = ?")
     .bind(link.product_id)
     .first();
@@ -167,7 +163,7 @@ async function deliverProduct(env, sale, link) {
     .first();
 
   const enrollmentId = crypto.randomUUID();
-  const token = newLearnToken();
+  const token = newAccessToken();
 
   await env.DB.prepare(
     "INSERT INTO enrollments (id, formation_id, learner_name, learner_email, token, completed) VALUES (?, ?, ?, ?, ?, '[]')"
@@ -191,11 +187,65 @@ async function deliverProduct(env, sale, link) {
   });
 
   if (!result?.ok) {
-    // Nettoie l'inscription créée pour éviter les doublons au prochain essai
     await env.DB.prepare("DELETE FROM enrollments WHERE id = ?").bind(enrollmentId).run();
     throw new Error("Email non envoyé: " + (result?.error || "erreur inconnue"));
   }
-  console.log("Livraison: email envoyé", sale.id, sale.buyer_email);
+  console.log("Livraison: email envoyé (formation)", sale.id, sale.buyer_email);
+}
+
+/* ===== Livraison d'un eBook : lève une erreur si l'email n'est pas parti ===== */
+async function deliverEbook(env, sale, link) {
+  const ebook = await env.DB.prepare("SELECT id, title FROM ebooks WHERE id = ?")
+    .bind(link.product_id)
+    .first();
+  if (!ebook) throw new Error("eBook introuvable " + link.product_id);
+
+  const seller = await env.DB.prepare("SELECT full_name FROM users WHERE id = ?")
+    .bind(sale.seller_id)
+    .first();
+
+  const accessId = crypto.randomUUID();
+  const token = newAccessToken();
+
+  await env.DB.prepare(
+    "INSERT INTO ebook_access (id, ebook_id, buyer_name, buyer_email, token) VALUES (?, ?, ?, ?, ?)"
+  )
+    .bind(accessId, link.product_id, sale.buyer_name || sale.buyer_email, sale.buyer_email, token)
+    .run();
+
+  const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
+  const readUrl = `${appUrl}/read/${token}`;
+
+  const result = await sendEmail(env, {
+    to: sale.buyer_email,
+    toName: sale.buyer_name || sale.buyer_email,
+    subject: `Votre eBook "${ebook.title}" est prêt`,
+    html: ebookDeliveryEmailHtml({
+      buyerName: sale.buyer_name,
+      productTitle: ebook.title,
+      sellerName: seller?.full_name || "",
+      readUrl,
+    }),
+  });
+
+  if (!result?.ok) {
+    await env.DB.prepare("DELETE FROM ebook_access WHERE id = ?").bind(accessId).run();
+    throw new Error("Email non envoyé: " + (result?.error || "erreur inconnue"));
+  }
+  console.log("Livraison: email envoyé (ebook)", sale.id, sale.buyer_email);
+}
+
+/* ===== Livraison d'un produit : lève une erreur si l'email n'est pas parti ===== */
+async function deliverProduct(env, sale, link) {
+  if (link.product_type === "formation") {
+    await deliverFormation(env, sale, link);
+    return;
+  }
+  if (link.product_type === "ebook") {
+    await deliverEbook(env, sale, link);
+    return;
+  }
+  console.log("Livraison ignorée (type inconnu)", sale.id, link.product_type);
 }
 
 /* ===== Livre l'accès UNE seule fois (delivered_at sert de verrou) ===== */
@@ -277,7 +327,7 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
     return "PENDING";
   }
 
-  // Le montant débité (520) inclut les frais ADD_ON ; on compare au montant demandé / net (500)
+  // Le montant débité inclut les frais ADD_ON ; on compare au montant demandé / net
   const expected = Number(s.amount_xof);
   const candidates = [pay.requested_amount, pay.amount, pay.net_amount]
     .filter((v) => v !== undefined && v !== null)
@@ -378,4 +428,4 @@ export async function reconcilePendingSales(env) {
       console.error("Réconciliation en échec", results[i].id, o.reason?.message || o.reason);
     }
   });
-  }
+    }
