@@ -7,7 +7,12 @@ import {
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
-import { handleGenerateEbook, handleListEbooks, handleGetEbook } from "./routes/ebooks.js";
+import {
+  handleGenerateEbook,
+  handleGenerateEbookSection,
+  handleListEbooks,
+  handleGetEbook,
+} from "./routes/ebooks.js";
 import {
   handleUpdateEbookSettings,
   handlePublishEbook,
@@ -158,6 +163,18 @@ export default {
         if (parts.length === 5 && parts[3] === "sections" && request.method === "PUT") {
           return withCors(
             await handleUpdateEbookSection(request, env, ebookId, parts[4]),
+            request
+          );
+        }
+
+        if (
+          parts.length === 6 &&
+          parts[3] === "sections" &&
+          parts[5] === "generate" &&
+          request.method === "POST"
+        ) {
+          return withCors(
+            await handleGenerateEbookSection(request, env, ebookId, parts[4]),
             request
           );
         }
