@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
-import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -37,11 +36,6 @@ function embedUrl(url) {
   const vm = url.match(/vimeo\.com\/(\d+)/);
   if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
   return null;
-}
-
-function priceLabel(price, currency) {
-  if (price === null || price === undefined) return "";
-  return ` · ${formatPrice(price, currency)}`;
 }
 
 /* ---------- Éditeur d'une leçon ---------- */
@@ -560,8 +554,7 @@ export default function Formations() {
                   <button className="fm-item-main" onClick={() => openFormation(f.id)}>
                     <span className="fm-module-title">{f.title}</span>
                     <span className="fm-muted fm-small">
-                      {f.modules_count ?? 0} modules · {f.status === "published" ? "Publiée" : "Brouillon"}
-                      {priceLabel(f.price, f.currency)}
+                      {f.modules_count ?? 0} modules
                     </span>
                   </button>
                   <button className="fm-del" onClick={() => removeFormation(f.id)} aria-label="Supprimer">
@@ -585,10 +578,6 @@ export default function Formations() {
         .fm-card {
           margin-top: 1.5rem; padding: 1.2rem; border-radius: 14px;
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
-        }
-        .fm-input {
-          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
-          background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.25);
         }
         .fm-input {
           width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
@@ -718,4 +707,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-          }
+}
