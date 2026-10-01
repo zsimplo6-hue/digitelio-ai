@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
@@ -23,11 +23,18 @@ import EbookRead from "./pages/EbookRead.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
+// Passer à true pour réactiver la vente en ligne (pages de vente, boutique, wallet, paiement)
+const SALES_ENABLED = false;
+
 const guard = (page) => (
   <ProtectedRoute>
     <SubscriptionGate>{page}</SubscriptionGate>
   </ProtectedRoute>
 );
+
+// Page réservée à la vente : visible seulement si SALES_ENABLED, sinon retour au tableau de bord
+const salesGuard = (page) =>
+  SALES_ENABLED ? guard(page) : guard(<Navigate to="/dashboard" replace />);
 
 export default function App() {
   return (
@@ -41,19 +48,25 @@ export default function App() {
       <Route path="/learn/:token" element={<Learn />} />
       <Route path="/ebook/:id" element={<EbookPublic />} />
       <Route path="/read/:token" element={<EbookRead />} />
-      <Route path="/shop/:slug" element={<ShopPublic />} />
-      <Route path="/pay/:code" element={<Pay />} />
+      <Route
+        path="/shop/:slug"
+        element={SALES_ENABLED ? <ShopPublic /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/pay/:code"
+        element={SALES_ENABLED ? <Pay /> : <Navigate to="/" replace />}
+      />
 
       <Route path="/dashboard" element={guard(<Dashboard />)} />
       <Route path="/dashboard/ebooks" element={guard(<EbooksList />)} />
       <Route path="/dashboard/ebooks/create" element={guard(<CreateEbook />)} />
       <Route path="/dashboard/ebooks/:id" element={guard(<EbookPreview />)} />
       <Route path="/dashboard/formations" element={guard(<Formations />)} />
-      <Route path="/dashboard/pages-vente" element={guard(<PagesVente />)} />
+      <Route path="/dashboard/pages-vente" element={salesGuard(<PagesVente />)} />
       <Route path="/dashboard/marketing" element={guard(<Marketing />)} />
-      <Route path="/dashboard/analytics" element={guard(<Analytics />)} />
-      <Route path="/dashboard/boutique" element={guard(<Boutique />)} />
-      <Route path="/dashboard/wallet" element={guard(<Wallet />)} />
+      <Route path="/dashboard/analytics" element={salesGuard(<Analytics />)} />
+      <Route path="/dashboard/boutique" element={salesGuard(<Boutique />)} />
+      <Route path="/dashboard/wallet" element={salesGuard(<Wallet />)} />
       <Route path="/dashboard/parametres" element={guard(<Settings />)} />
 
       {/* Toujours accessible, même expiré : c'est ici qu'on renouvelle */}
@@ -67,4 +80,4 @@ export default function App() {
       />
     </Routes>
   );
-}
+      }
