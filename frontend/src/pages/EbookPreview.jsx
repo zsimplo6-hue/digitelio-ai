@@ -396,7 +396,7 @@ export default function EbookPreview() {
         .ebook-cover {
           position: relative;
           overflow: hidden;
-          height: 296mm;
+          height: 286mm;
           background: #0B0B0B;
           color: #F5F0E1;
           display: flex;
