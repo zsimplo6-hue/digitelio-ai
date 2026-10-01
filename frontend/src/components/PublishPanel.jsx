@@ -2,30 +2,9 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
 import CertificateDoc, { printCertificate } from "./CertificateExport.jsx";
-import LearnersPanel from "./LearnersPanel.jsx";
-import {
-  CURRENCIES,
-  MAX_PRICE,
-  currencyOf,
-  formatPrice,
-  getDefaultCurrency,
-  saveDefaultCurrency,
-} from "../utils/currency.js";
+import { getDefaultCurrency } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
-
-/* Doit rester identique à worker/src/routes/publish.js (RATES_TO_XOF) */
-const MIN_PRICE_XOF = 200;
-const RATES_TO_XOF = {
-  XOF: 1, XAF: 1, EUR: 655.957, USD: 605, GBP: 765, CAD: 440, CHF: 690,
-  MAD: 60, DZD: 4.5, TND: 195, NGN: 0.39, GHS: 40, KES: 4.7, ZAR: 34,
-  GNF: 0.07, CDF: 0.22,
-};
-function minPriceFor(currency) {
-  const rate = RATES_TO_XOF[currency];
-  if (!rate) return null;
-  return Math.ceil(MIN_PRICE_XOF / rate);
-}
 
 async function api(path, options = {}) {
   const res = await fetch(`${API}/api${path}`, {
@@ -64,52 +43,16 @@ function compressImage(file, maxW = 1000, quality = 0.82) {
 
 export default function PublishPanel({ formation, onChange }) {
   const { user } = useAuth();
-  const startPrice = formation.price;
-  const startCurrency =
-    startPrice == null ? getDefaultCurrency() : formation.currency || "EUR";
-
-  const [currency, setCurrency] = useState(startCurrency);
-  const [price, setPrice] = useState(startPrice == null ? "" : String(startPrice));
-  const [custom, setCustom] = useState(
-    startPrice != null && !currencyOf(startCurrency).presets.includes(startPrice)
-  );
   const [cover, setCover] = useState(formation.cover_url || "");
   const [certificate, setCertificate] = useState(!!formation.certificate);
-  const [payCode, setPayCode] = useState(formation.pay_code || "");
   const [learner, setLearner] = useState("");
-  const [busy, setBusy] = useState("");
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [payWarning, setPayWarning] = useState("");
 
-  const cur = currencyOf(currency);
-  const isPublished = formation.status === "published";
   const modules = formation.modules || [];
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
-  const priceNum = price === "" ? null : Number(price);
-  const minPrice = minPriceFor(currency);
-  const priceOk =
-    priceNum !== null &&
-    Number.isInteger(priceNum) &&
-    priceNum >= 0 &&
-    priceNum <= MAX_PRICE &&
-    (minPrice === null || priceNum >= minPrice);
-  const shareLink = `${window.location.origin}/formation/${formation.id}`;
-  const payLink = payCode ? `${window.location.origin}/pay/${payCode}` : "";
-
-  function pickPreset(p) {
-    setCustom(false);
-    setPrice(String(p));
-  }
-
-  function changeCurrency(code) {
-    setCurrency(code);
-    // Si le prix saisi n'est pas un des prix suggérés de la nouvelle monnaie, on l'affiche dans le champ libre
-    if (price !== "" && !currencyOf(code).presets.includes(Number(price))) {
-      setCustom(true);
-    }
-  }
 
   async function onCoverFile(e) {
     const file = e.target.files?.[0];
@@ -134,104 +77,29 @@ export default function PublishPanel({ formation, onChange }) {
     }
   }
 
-  async function saveSettings() {
-    const data = await api(`/formations/${formation.id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        price: priceOk ? priceNum : null,
-        currency,
-        cover_url: cover || null,
-        certificate,
-      }),
-    });
-    saveDefaultCurrency(currency);
-    if (data.formation.pay_code) setPayCode(data.formation.pay_code);
-    setPayWarning(data.payment_warning || "");
-    onChange({
-      price: data.formation.price,
-      currency: data.formation.currency,
-      cover_url: data.formation.cover_url,
-      certificate: data.formation.certificate,
-      pay_code: data.formation.pay_code,
-    });
-  }
-
   async function handleSave() {
-    setBusy("save");
+    setBusy(true);
     setErr("");
     setMsg("");
     try {
-      await saveSettings();
+      const data = await api(`/formations/${formation.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          price: formation.price ?? null,
+          currency: formation.currency || getDefaultCurrency(),
+          cover_url: cover || null,
+          certificate,
+        }),
+      });
+      onChange({
+        cover_url: data.formation.cover_url,
+        certificate: data.formation.certificate,
+      });
       setMsg("Réglages enregistrés ✓");
     } catch (e) {
       setErr(e.message);
     } finally {
-      setBusy("");
-    }
-  }
-
-  async function handlePublish() {
-    setErr("");
-    setMsg("");
-    if (!priceOk) {
-      setErr(
-        minPrice !== null
-          ? `Choisissez un prix d'au moins ${formatPrice(minPrice, currency)} avant de publier.`
-          : "Choisissez un prix avant de publier."
-      );
-      return;
-    }
-    if (!allWritten) {
-      setErr("Rédigez d'abord toutes les leçons (bouton « Générer toute la formation »).");
-      return;
-    }
-    setBusy("publish");
-    try {
-      await saveSettings();
-      const data = await api(`/formations/${formation.id}/publish`, { method: "POST" });
-      if (data.formation?.pay_code) setPayCode(data.formation.pay_code);
-      onChange({ status: "published", pay_code: data.formation?.pay_code });
-      setMsg("Formation publiée ✓ Votre page de vente est en ligne.");
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function handleUnpublish() {
-    if (!window.confirm("Repasser cette formation en brouillon ? Sa page de vente ne sera plus accessible.")) return;
-    setBusy("unpublish");
-    setErr("");
-    setMsg("");
-    try {
-      await api(`/formations/${formation.id}/unpublish`, { method: "POST" });
-      onChange({ status: "draft" });
-      setMsg("Formation repassée en brouillon.");
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function copyLink() {
-    setErr("");
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setMsg("Lien copié ✓");
-    } catch {
-      window.prompt("Copiez ce lien :", shareLink);
-    }
-  }
-
-  async function copyPayLink() {
-    setErr("");
-    try {
-      await navigator.clipboard.writeText(payLink);
-      setMsg("Lien de paiement copié ✓");
-    } catch {
-      window.prompt("Copiez ce lien :", payLink);
+      setBusy(false);
     }
   }
 
@@ -239,85 +107,16 @@ export default function PublishPanel({ formation, onChange }) {
     <>
       <div className="fm-screen no-print">
         <div className="fm-card">
-          <div className="pb-head">
-            <div className="fm-label" style={{ marginBottom: 0 }}>Publication</div>
-            <span className={isPublished ? "pb-badge on" : "pb-badge"}>
-              {isPublished ? "✓ Publiée" : "Brouillon"}
-            </span>
-          </div>
+          <div className="fm-label">Finalisation</div>
 
-          {/* Vérifications */}
           <ul className="pb-checks">
             <li className={allWritten ? "ok" : ""}>
               {allWritten ? "✓" : "○"} Leçons rédigées : {written}/{modules.length}
             </li>
-            <li className={priceOk ? "ok" : ""}>
-              {priceOk
-                ? `✓ Prix : ${formatPrice(priceNum, currency)}`
-                : minPrice !== null
-                ? `○ Prix défini (minimum ${formatPrice(minPrice, currency)})`
-                : "○ Prix défini"}
+            <li className={cover ? "ok" : ""}>
+              {cover ? "✓" : "○"} Image de couverture (recommandée)
             </li>
-            <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Image de couverture (recommandée)</li>
           </ul>
-
-          {/* Monnaie */}
-          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Monnaie</div>
-          <select
-            className="fm-input"
-            value={currency}
-            onChange={(e) => changeCurrency(e.target.value)}
-          >
-            {CURRENCIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <div className="fm-muted fm-small">
-            Choisissez la monnaie de vos clients. Elle s'affiche sur votre page de vente.
-          </div>
-
-          {/* Prix */}
-          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Prix</div>
-          <div className="pb-prices">
-            {cur.presets.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={!custom && price === String(p) ? "pb-price on" : "pb-price"}
-                onClick={() => pickPreset(p)}
-              >
-                {formatPrice(p, currency)}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={custom ? "pb-price on" : "pb-price"}
-              onClick={() => setCustom(true)}
-            >
-              Autre
-            </button>
-          </div>
-          {custom && (
-            <input
-              className="fm-input"
-              type="number"
-              inputMode="numeric"
-              min="0"
-              max={MAX_PRICE}
-              step="1"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder={`Montant en ${cur.symbol}${minPrice !== null ? ` (minimum ${minPrice})` : ""}`}
-              style={{ marginTop: "0.6rem" }}
-            />
-          )}
-          {minPrice !== null && priceNum !== null && priceNum > 0 && priceNum < minPrice && (
-            <div className="fm-warn" style={{ marginTop: "0.5rem" }}>
-              Le prix minimum pour {cur.label} est {formatPrice(minPrice, currency)}.
-            </div>
-          )}
 
           {/* Couverture */}
           <div className="fm-label" style={{ marginTop: "1.2rem" }}>Image de couverture</div>
@@ -348,7 +147,7 @@ export default function PublishPanel({ formation, onChange }) {
               onChange={(e) => setCertificate(e.target.checked)}
             />
             <span>
-              Délivrer un certificat de réussite
+              Inclure un certificat de réussite
               <small>Enregistrez les réglages pour conserver ce choix.</small>
             </span>
           </label>
@@ -373,8 +172,7 @@ export default function PublishPanel({ formation, onChange }) {
                 🎓 Télécharger le certificat (PDF)
               </button>
               <div className="fm-muted fm-small">
-                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}. Vos apprenants
-                peuvent aussi le télécharger eux-mêmes à la fin de leur formation.
+                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}.
               </div>
             </div>
           )}
@@ -395,88 +193,19 @@ export default function PublishPanel({ formation, onChange }) {
             {written === 0 && " Rédigez au moins une leçon pour activer l'export."}
           </div>
 
-          {/* Page de vente */}
-          <div className="fm-label" style={{ marginTop: "1.4rem" }}>Page de vente</div>
-          {isPublished ? (
-            <div className="pb-share">
-              <input className="fm-input" value={shareLink} readOnly onFocus={(e) => e.target.select()} />
-              <div className="pb-share-actions">
-                <button type="button" className="fm-chip" onClick={copyLink}>
-                  📋 Copier le lien
-                </button>
-                <a className="fm-chip" href={shareLink} target="_blank" rel="noopener noreferrer">
-                  👁 Voir la page
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="fm-muted fm-small">
-              Publiez la formation pour obtenir le lien de votre page de vente à partager.
-            </div>
-          )}
-
-          {/* Lien de paiement (généré automatiquement) */}
-          {isPublished && (
-            <>
-              <div className="fm-label" style={{ marginTop: "1.4rem" }}>Lien de paiement</div>
-              {payLink ? (
-                <div className="pb-share">
-                  <input className="fm-input" value={payLink} readOnly onFocus={(e) => e.target.select()} />
-                  <div className="pb-share-actions">
-                    <button type="button" className="fm-chip" onClick={copyPayLink}>
-                      📋 Copier le lien
-                    </button>
-                    <a className="fm-chip" href={payLink} target="_blank" rel="noopener noreferrer">
-                      👁 Voir la page
-                    </a>
-                  </div>
-                  <div className="fm-muted fm-small">
-                    C'est le lien vers lequel renvoie le bouton « Acheter » de votre page de vente.
-                  </div>
-                </div>
-              ) : (
-                <div className="fm-warn">
-                  Le lien de paiement n'a pas pu être créé. Enregistrez de nouveau les réglages.
-                </div>
-              )}
-            </>
-          )}
-          {payWarning && <div className="fm-warn">{payWarning}</div>}
-
           {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
           {msg && <div className="fm-ok">{msg}</div>}
 
           <div className="fm-actions">
-            {!isPublished ? (
-              <button className="fm-btn fm-btn-gold" style={{ marginBottom: 0 }} onClick={handlePublish} disabled={!!busy}>
-                {busy === "publish" ? "Publication..." : "🚀 Publier la formation"}
-              </button>
-            ) : (
-              <button className="fm-btn fm-btn-outline" onClick={handleUnpublish} disabled={!!busy}>
-                {busy === "unpublish" ? "..." : "Repasser en brouillon"}
-              </button>
-            )}
-            <button className="btn-primary fm-btn" onClick={handleSave} disabled={!!busy}>
-              {busy === "save" ? "Enregistrement..." : "💾 Enregistrer les réglages"}
+            <button className="btn-primary fm-btn" onClick={handleSave} disabled={busy}>
+              {busy ? "Enregistrement..." : "💾 Enregistrer les réglages"}
             </button>
           </div>
         </div>
 
         <style>{`
-          .pb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
-          .pb-badge {
-            font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 999px;
-            border: 1px solid rgba(128,128,128,0.4);
-          }
-          .pb-badge.on { background: #16a34a; color: #fff; border-color: #16a34a; }
           .pb-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.88rem; opacity: 0.85; }
           .pb-checks li.ok { color: #16a34a; opacity: 1; font-weight: 600; }
-          .pb-prices { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-          .pb-price {
-            flex: 1; min-width: 5.5rem; padding: 0.7rem 0.4rem; border-radius: 10px; font-weight: 700;
-            font-size: 0.9rem; border: 1px solid rgba(128,128,128,0.4); background: transparent; color: inherit;
-          }
-          .pb-price.on { background: #D4AF37; color: #0B0B0B; border-color: #D4AF37; }
           .pb-cover {
             width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
             border: 1px solid rgba(128,128,128,0.3);
@@ -496,18 +225,12 @@ export default function PublishPanel({ formation, onChange }) {
             margin-top: 0.9rem; padding: 0.9rem; border-radius: 12px;
             border: 1px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
           }
-          .pb-share { display: grid; gap: 0.6rem; }
-          .pb-share-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-          .pb-share-actions a { text-decoration: none; }
         `}</style>
       </div>
-
-      {/* Apprenants */}
-      <LearnersPanel formation={formation} />
 
       {/* Documents imprimés (invisibles à l'écran) */}
       <FormationDoc formation={formation} />
       <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
     </>
   );
-          }
+                     }
