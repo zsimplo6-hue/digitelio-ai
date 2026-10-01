@@ -8,6 +8,27 @@ import { Button } from "../components/ui/Button.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+/* Nettoie la description pour la couverture : pas de symboles, pas de consignes de style, longueur limitée */
+function cleanForCover(text, title = "", max = 240) {
+  let t = String(text || "");
+  t = t.split(/style\s+souhait[ée]/i)[0];
+  t = t.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "");
+  t = t.replace(/[#*_`>]+/g, " ");
+  t = t.replace(/(^|\s)[-•]\s+/g, " ");
+  t = t.replace(/\s+/g, " ").trim();
+  const ti = String(title || "").trim();
+  if (ti && t.toLowerCase().startsWith(ti.toLowerCase())) {
+    t = t.slice(ti.length).replace(/^[\s:,.\-–]+/, "");
+  }
+  if (t.length > max) {
+    t = t.slice(0, max);
+    const cut = t.lastIndexOf(" ");
+    if (cut > 120) t = t.slice(0, cut);
+    t = t.replace(/[\s,;:.\-–]+$/, "") + "…";
+  }
+  return t;
+}
+
 function compressImage(file, maxW = 1200, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -213,15 +234,19 @@ export default function EbookPreview() {
   const conclusionSection = sections.find((s) => s.type === "conclusion");
   const bodySections = sections.filter((s) => s.type !== "conclusion");
   const activeSection = sections.find((s) => s.id === activeId);
+  const coverDesc = cleanForCover(ebook.description, ebook.title);
 
   return (
     <DashboardLayout>
-      <div className="no-print" style={{ marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="no-print" style={{ marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <h1 className="text-2xl font-bold">{ebook.title}</h1>
         <div className="dg-export-group">
           <Button variant="primary" onClick={() => window.print()}>📄 Télécharger en PDF</Button>
         </div>
       </div>
+      <p className="dg-helper-text no-print" style={{ marginBottom: 24 }}>
+        Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ». Enregistrez vos modifications avant.
+      </p>
 
       <div className="no-print" style={{ display: "grid", gap: 16 }}>
         <Card title="Plan de l'eBook">
@@ -289,11 +314,11 @@ export default function EbookPreview() {
               <span />
             </div>
 
-            {ebook.description && <p className="cv-desc">{ebook.description}</p>}
+            {coverDesc && <p className="cv-desc">{coverDesc}</p>}
           </div>
         </section>
 
-        {/* SOMMAIRE — désormais cliquable, avec numérotation */}
+        {/* SOMMAIRE */}
         {chapterSections.length > 0 && (
           <section className="ebook-toc">
             <div className="ebook-section-label">Sommaire</div>
@@ -371,7 +396,7 @@ export default function EbookPreview() {
         .ebook-cover {
           position: relative;
           overflow: hidden;
-          height: 297mm;
+          height: 296mm;
           background: #0B0B0B;
           color: #F5F0E1;
           display: flex;
@@ -513,6 +538,7 @@ export default function EbookPreview() {
           font-size: 1.7rem;
           margin: 0 0 1.5rem;
           color: var(--digi-ink);
+          break-after: avoid;
         }
         .ebook-body h3 {
           font-family: 'Manrope', sans-serif;
@@ -520,6 +546,7 @@ export default function EbookPreview() {
           font-size: 1.1rem;
           margin-top: 1.8rem;
           color: var(--digi-ink);
+          break-after: avoid;
         }
         .ebook-body p {
           font-family: 'Inter', sans-serif;
@@ -528,6 +555,8 @@ export default function EbookPreview() {
           margin: 1.1rem 0;
           text-align: justify;
           color: #222;
+          orphans: 3;
+          widows: 3;
         }
         .ebook-body ul {
           margin: 1rem 0;
@@ -545,11 +574,10 @@ export default function EbookPreview() {
         .ebook-cta {
           display: flex;
           flex-direction: column;
-          min-height: 297mm;
+          min-height: 296mm;
           padding: 3rem 3rem 2rem;
           page-break-before: always;
           break-before: page;
-          page-break-inside: avoid;
           box-sizing: border-box;
         }
         .ebook-cta-center {
@@ -597,9 +625,9 @@ export default function EbookPreview() {
             print-color-adjust: exact;
           }
           .ebook-illustration { break-inside: avoid; margin: 8mm 0; }
-          .ebook-illustration img { max-height: 130mm; object-fit: cover; }
+          .ebook-illustration img { max-height: 120mm; object-fit: contain; }
         }
       `}</style>
     </DashboardLayout>
   );
-}
+      }
