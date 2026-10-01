@@ -300,15 +300,24 @@ export async function handleGenerateEbookSection(request, env, ebookId, sectionI
   const outline = chapters.map((c, i) => `${i + 1}. ${stripChapterPrefix(c.title)}`).join("\n");
   const subject = cleanDescription(ebook.description) || ebook.title;
 
+  // Sous-titres déjà utilisés dans les autres parties, pour éviter les répétitions
+  const usedSubtitles = sections
+    .filter((s) => s.id !== section.id && (s.content || "").trim())
+    .flatMap((s) => [...s.content.matchAll(/^###\s+(.+)$/gm)].map((m) => m[1].trim()))
+    .filter((t) => t && t !== lbl.takeaway && t !== lbl.practice && t !== lbl.learn && t !== lbl.next)
+    .slice(0, 40);
+
   const bookInfo = `Livre : "${ebook.title}"
 Sujet et public visé : ${subject}
 Langue de rédaction : ${lbl.lang}.
 Plan complet du livre (pour éviter les répétitions) :
 ${outline}`;
 
-  const commonRules = `- N'invente ni statistiques précises, ni études, ni citations de personnes réelles.
+  const commonRules = `- Vouvoie le lecteur dans tout le texte.
+- N'invente ni statistiques, ni pourcentages, ni durées chiffrées, ni études, ni citations de personnes réelles. Les tableaux ne contiennent que des informations qualitatives (types, étapes, outils, critères, exemples).
 - Aucun emoji, aucun commentaire sur ta réponse, aucun titre de niveau "#" ou "##".
-- Paragraphes courts de 2 à 4 phrases, séparés par une ligne vide.`;
+- Paragraphes courts de 2 à 4 phrases, séparés par une ligne vide.
+- Va droit au but : pas de phrases vagues du type "il est essentiel de" ; donne des exemples concrets, des phrases-modèles ou des mini-cas.`;
 
   let prompt;
   let maxTokens;
@@ -343,6 +352,8 @@ Objectif du chapitre : ${section.summary || "traiter ce sujet de façon concrèt
 Contenu :
 - 700 à 900 mots, concret, avec des exemples réalistes et des conseils applicables immédiatement.
 - Ne répète pas ce que disent les autres chapitres, ne te présente pas, ne conclus pas le livre.
+- Inclus au moins un exemple concret ou un mini-cas réaliste, sans chiffres inventés.
+- Ces sous-titres sont déjà utilisés dans d'autres chapitres : n'en reprends aucun et choisis des angles différents : ${usedSubtitles.length ? usedSubtitles.join(" ; ") : "(aucun pour le moment)"}.
 
 Mise en forme (Markdown simple, obligatoire) :
 - Commence directement par un court paragraphe d'accroche, sans titre.
@@ -446,4 +457,4 @@ export async function handleGetEbook(request, env, ebookId) {
   return Response.json({
     ebook: { ...rest, currency: rest.currency || "EUR", pay_code: payCode, sections },
   });
-     }
+}
