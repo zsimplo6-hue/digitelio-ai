@@ -57,10 +57,10 @@ export default function Dashboard() {
         cta: "Créer un eBook",
       });
     }
-    if (t.drafts > 0) {
+    if (SALES_ENABLED && t.drafts > 0) {
       tips.push({
         icon: "📝",
-        text: `${t.drafts} formation${t.drafts > 1 ? "s" : ""} en brouillon : terminez-la${t.drafts > 1 ? "s" : ""} pour pouvoir l'exporter.`,
+        text: `${t.drafts} formation${t.drafts > 1 ? "s" : ""} en brouillon : terminez-la${t.drafts > 1 ? "s" : ""} et publiez-la${t.drafts > 1 ? "s" : ""}.`,
         to: "/dashboard/formations",
         cta: "Ouvrir mes formations",
       });
@@ -214,9 +214,11 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="dg-row__side">
-                      <span className={`dg-pill ${f.status === "published" ? "dg-pill--ok" : ""}`}>
-                        {f.status === "published" ? "Prête" : "Brouillon"}
-                      </span>
+                      {SALES_ENABLED && (
+                        <span className={`dg-pill ${f.status === "published" ? "dg-pill--ok" : ""}`}>
+                          {f.status === "published" ? "Publiée" : "Brouillon"}
+                        </span>
+                      )}
                       <span className="dg-row__date">{fmtDate(f.created_at)}</span>
                     </div>
                   </Link>
@@ -233,9 +235,11 @@ export default function Dashboard() {
                       <div className="dg-row__title">{b.title}</div>
                     </div>
                     <div className="dg-row__side">
-                      <span className={`dg-pill ${b.status === "published" ? "dg-pill--ok" : ""}`}>
-                        {b.status === "published" ? "Prêt" : "Brouillon"}
-                      </span>
+                      {SALES_ENABLED && (
+                        <span className={`dg-pill ${b.status === "published" ? "dg-pill--ok" : ""}`}>
+                          {b.status === "published" ? "Publié" : "Brouillon"}
+                        </span>
+                      )}
                       <span className="dg-row__date">{fmtDate(b.created_at)}</span>
                     </div>
                   </Link>
