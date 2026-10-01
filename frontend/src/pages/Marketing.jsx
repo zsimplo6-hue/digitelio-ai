@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
-import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -18,9 +17,9 @@ async function api(path, options = {}) {
 
 const TYPES = [
   { id: "post", icon: "📱", label: "Post réseaux sociaux", hint: "Facebook, Instagram, LinkedIn" },
-  { id: "tiktok", icon: "🎬", label: "Script TikTok / Reels", hint: "Vidéo de 30 à 45 secondes" },
+  { id: "tiktok", icon: "🎬", label: "Script TikTok / Reels", hint: "Vidéo de 30 à 40 secondes" },
   { id: "whatsapp", icon: "💬", label: "Message WhatsApp", hint: "Message ou statut" },
-  { id: "email", icon: "✉️", label: "Email de vente", hint: "Objet et texte complet" },
+  { id: "email", icon: "✉️", label: "Email de vente", hint: "Objet et texte court" },
   { id: "hooks", icon: "🔥", label: "10 accroches", hint: "À tester sur vos contenus" },
 ];
 
@@ -32,11 +31,13 @@ const TONES = [
 ];
 
 export default function Marketing() {
-  const [formations, setFormations] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [formationId, setFormationId] = useState("");
+  const [choice, setChoice] = useState("");
   const [type, setType] = useState("post");
   const [tone, setTone] = useState("professionnel");
+  const [link, setLink] = useState("");
+  const [price, setPrice] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -44,13 +45,25 @@ export default function Marketing() {
 
   useEffect(() => {
     let alive = true;
-    api("/formations")
-      .then((d) => {
+    Promise.all([api("/formations"), api("/ebooks")])
+      .then(([f, e]) => {
         if (!alive) return;
-        const list = d.formations || [];
-        setFormations(list);
-        const first = list.find((f) => f.status === "published") || list[0];
-        if (first) setFormationId(first.id);
+        const list = [
+          ...(e.ebooks || []).map((x) => ({
+            value: `ebook:${x.id}`,
+            kind: "ebook",
+            id: x.id,
+            label: `📘 ${x.title}`,
+          })),
+          ...(f.formations || []).map((x) => ({
+            value: `formation:${x.id}`,
+            kind: "formation",
+            id: x.id,
+            label: `🎓 ${x.title}`,
+          })),
+        ];
+        setItems(list);
+        if (list[0]) setChoice(list[0].value);
       })
       .catch((e) => alive && setErr(e.message))
       .finally(() => alive && setLoading(false));
@@ -59,12 +72,15 @@ export default function Marketing() {
     };
   }, []);
 
-  const selected = formations.find((f) => f.id === formationId);
-  const isPublished = selected?.status === "published";
-  const link = selected ? `${window.location.origin}/formation/${selected.id}` : "";
+  const selected = items.find((i) => i.value === choice);
 
   async function generate() {
-    if (!formationId || busy) return;
+    if (!selected || busy) return;
+    const cleanLink = link.trim();
+    if (cleanLink && !/^https?:\/\/\S+$/i.test(cleanLink)) {
+      setErr("Le lien doit commencer par http:// ou https://");
+      return;
+    }
     if (text.trim() && !window.confirm("Remplacer le texte actuel par un nouveau contenu ?")) return;
     setBusy(true);
     setErr("");
@@ -73,10 +89,12 @@ export default function Marketing() {
       const data = await api("/marketing/generate", {
         method: "POST",
         body: JSON.stringify({
-          formation_id: formationId,
+          product_type: selected.kind,
+          product_id: selected.id,
           type,
           tone,
-          link: isPublished ? link : "",
+          link: cleanLink,
+          price: price.trim(),
         }),
       });
       setText(data.text);
@@ -104,45 +122,55 @@ export default function Marketing() {
       <div className="mk-page">
         <h1 className="text-2xl font-bold">Marketing digital</h1>
         <p className="mk-muted">
-          Générez en quelques secondes vos textes de vente, à partir de votre vraie formation.
+          Générez en quelques secondes vos textes de lancement, à partir de votre eBook ou de votre formation, pour les
+          publier avec votre lien Chariow, Maketou ou autre.
         </p>
 
         {loading ? (
           <p className="mk-muted" style={{ marginTop: "1.5rem" }}>Chargement...</p>
-        ) : formations.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="mk-empty">
-            <div className="mk-empty-icon">🎓</div>
-            <p>Créez d'abord une formation pour générer vos contenus marketing.</p>
-            <Link className="mk-gold" to="/dashboard/formations">Créer une formation</Link>
+            <div className="mk-empty-icon">🚀</div>
+            <p>Créez d'abord un eBook ou une formation pour générer vos contenus marketing.</p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <Link className="mk-gold" to="/dashboard/ebooks/create">Créer un eBook</Link>
+              <Link className="mk-gold" to="/dashboard/formations">Créer une formation</Link>
+            </div>
           </div>
         ) : (
           <>
             <div className="mk-card">
-              <div className="mk-label">1. Formation à promouvoir</div>
-              <select
-                className="mk-input"
-                value={formationId}
-                onChange={(e) => setFormationId(e.target.value)}
-              >
-                {formations.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.title}
-                    {f.price !== null && f.price !== undefined ? ` · ${formatPrice(f.price, f.currency)}` : ""}
-                    {f.status === "published" ? "" : " (brouillon)"}
+              <div className="mk-label">1. Produit à promouvoir</div>
+              <select className="mk-input" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                {items.map((i) => (
+                  <option key={i.value} value={i.value}>
+                    {i.label}
                   </option>
                 ))}
               </select>
-              {selected && !isPublished && (
-                <div className="mk-note">
-                  Cette formation n'est pas encore publiée : le texte sera écrit sans lien de page de
-                  vente. Publiez-la pour l'inclure automatiquement.
-                </div>
-              )}
-              {selected && isPublished && (
-                <div className="mk-note mk-note-ok">✓ Le lien de votre page de vente sera inclus.</div>
-              )}
 
-              <div className="mk-label" style={{ marginTop: "1.3rem" }}>2. Format</div>
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>2. Votre lien de vente (facultatif)</div>
+              <input
+                className="mk-input"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="https://... (lien Chariow, Maketou, etc.)"
+                inputMode="url"
+                maxLength={200}
+              />
+              <input
+                className="mk-input"
+                style={{ marginTop: "0.6rem" }}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="Prix à afficher (facultatif) : ex. 5 000 FCFA"
+                maxLength={40}
+              />
+              <div className="mk-note mk-note-ok">
+                Le lien et le prix seront ajoutés au texte. Laissez vides pour un texte sans lien.
+              </div>
+
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>3. Format</div>
               <div className="mk-types">
                 {TYPES.map((t) => (
                   <button
@@ -160,7 +188,7 @@ export default function Marketing() {
                 ))}
               </div>
 
-              <div className="mk-label" style={{ marginTop: "1.3rem" }}>3. Ton</div>
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>4. Ton</div>
               <div className="mk-tones">
                 {TONES.map((t) => (
                   <button
@@ -174,7 +202,7 @@ export default function Marketing() {
                 ))}
               </div>
 
-              <button className="mk-gen" onClick={generate} disabled={busy || !formationId}>
+              <button className="mk-gen" onClick={generate} disabled={busy || !selected}>
                 {busy ? "Rédaction en cours..." : text ? "🔁 Régénérer" : "✨ Générer le contenu"}
               </button>
             </div>
@@ -274,4 +302,4 @@ export default function Marketing() {
       `}</style>
     </DashboardLayout>
   );
-   }
+  }
