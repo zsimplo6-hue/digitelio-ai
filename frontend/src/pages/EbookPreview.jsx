@@ -234,7 +234,10 @@ export default function EbookPreview() {
   const conclusionSection = sections.find((s) => s.type === "conclusion");
   const bodySections = sections.filter((s) => s.type !== "conclusion");
   const activeSection = sections.find((s) => s.id === activeId);
-  const coverDesc = cleanForCover(ebook.description, ebook.title);
+  // Accroche générée par l'IA si elle existe, sinon l'ancienne description nettoyée
+  const coverDesc = ebook.tagline
+    ? ebook.tagline
+    : cleanForCover(ebook.description, ebook.title);
 
   return (
     <DashboardLayout>
@@ -581,7 +584,7 @@ export default function EbookPreview() {
           box-sizing: border-box;
         }
         .ebook-cta-center {
-          flex: 1;
+        flex: 1;
           display: flex;
           align-items: center;
           justify-content: center;
