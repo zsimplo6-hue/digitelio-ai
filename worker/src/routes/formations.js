@@ -25,6 +25,26 @@ async function askAI(env, prompt, maxTokens) {
   return response.response || "";
 }
 
+/* Nettoie une accroche renvoyée par l'IA : une seule ligne, sans symboles ni émojis, 220 caractères maximum */
+function cleanHook(raw, max = 220) {
+  let t = String(raw || "").replace(/\r/g, " ").replace(/\n+/g, " ");
+  t = t.replace(/^(accroche|description|tagline|hook)\s*:\s*/i, "");
+  t = t.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "");
+  t = t.replace(/[#*_`>"«»]+/g, "");
+  t = t.replace(/\s+/g, " ").trim();
+  if (t.length > max) {
+    const cut = t.slice(0, max);
+    const lastEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+    if (lastEnd > 80) {
+      t = cut.slice(0, lastEnd + 1);
+    } else {
+      const sp = cut.lastIndexOf(" ");
+      t = (sp > 80 ? cut.slice(0, sp) : cut).replace(/[\s,;:.\-–]+$/, "") + "…";
+    }
+  }
+  return t.length >= 20 ? t : "";
+}
+
 function defaultModules(topic) {
   return [
     { title: "Introduction", summary: `Présentation de l'objectif et du parcours : ${topic}.` },
@@ -59,6 +79,8 @@ export async function handleCreateFormation(request, env) {
   }
 
   const langLabel = language === "en" ? "English" : "français";
+  const youRule =
+    language === "en" ? "Address the reader directly with \"you\"." : "Vouvoie le lecteur.";
 
   try {
     const prompt = `Tu conçois une formation en ligne sur le sujet : "${topic}". Réponds uniquement en ${langLabel}.
@@ -76,7 +98,7 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après :
 ##TITRE##
 (titre accrocheur de la formation, sur une ligne)
 ##DESCRIPTION##
-(2 phrases qui présentent la promesse de la formation)
+(une accroche courte et percutante de 1 à 2 phrases, 200 caractères maximum, qui promet un bénéfice concret au lecteur et donne envie de suivre la formation. ${youRule} Ne répète pas le titre. N'invente ni chiffre, ni délai, ni résultat garanti. Aucun emoji.)
 ##MODULES##
 1. Titre du module | résumé en une phrase
 2. Titre du module | résumé en une phrase
@@ -91,7 +113,7 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après :
     const modulesMatch = text.match(/##MODULES##([\s\S]*)$/);
 
     const title = (titleMatch ? titleMatch[1].trim() : "") || topic;
-    const description = descMatch ? descMatch[1].trim() : "";
+    const description = descMatch ? cleanHook(descMatch[1]) : "";
 
     let modules = [];
     if (modulesMatch) {
@@ -335,4 +357,4 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
       { status: 502 }
     );
   }
-}
+    }
