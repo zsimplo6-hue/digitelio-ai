@@ -94,6 +94,54 @@ function cleanAiText(raw) {
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/* ===== Accroche courte pour la couverture ===== */
+
+function cleanTagline(raw, max = 220) {
+  let t = String(raw || "").replace(/\r/g, "").trim();
+  t = t.split("\n").find((l) => l.trim()) || "";
+  t = t.replace(/^(accroche|tagline|description|hook)\s*:\s*/i, "");
+  t = t.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "");
+  t = t.replace(/[#*_`>"«»]+/g, "");
+  t = t.replace(/\s+/g, " ").trim();
+  if (t.length > max) {
+    const cut = t.slice(0, max);
+    const lastEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+    if (lastEnd > 80) {
+      t = cut.slice(0, lastEnd + 1);
+    } else {
+      const sp = cut.lastIndexOf(" ");
+      t = (sp > 80 ? cut.slice(0, sp) : cut).replace(/[\s,;:.\-–]+$/, "") + "…";
+    }
+  }
+  return t.length >= 20 ? t : "";
+}
+
+async function makeTagline(env, title, subject, lbl, language) {
+  try {
+    const youRule =
+      language === "en"
+        ? "Address the reader directly with \"you\"."
+        : "Vouvoie le lecteur.";
+    const prompt = `Tu es un copywriter expert. Transforme la description ci-dessous en une accroche courte et virale pour la couverture d'un eBook.
+
+Titre : "${title}"
+Description fournie : ${subject}
+Langue : ${lbl.lang}.
+
+Règles :
+- 1 ou 2 phrases, 140 caractères idéalement, 200 maximum.
+- Commence par un bénéfice concret ou une promesse claire pour le lecteur, et donne envie de lire.
+- ${youRule}
+- Ne répète pas le titre. N'invente aucun chiffre, délai, résultat garanti ou témoignage qui ne figure pas dans la description.
+- Aucun emoji, aucun hashtag, aucun guillemet, aucune mise en forme.
+- Réponds uniquement avec l'accroche, sans introduction.`;
+    const raw = await askAI(env, prompt, 150);
+    return cleanTagline(raw);
+  } catch {
+    return "";
+  }
+}
+
 /* ===== Structure en parties modifiables (intro, chapitres, conclusion) ===== */
 
 export function buildSections(introduction, chapters, conclusion) {
@@ -246,15 +294,27 @@ Réponds STRICTEMENT dans ce format, sans aucun texte avant ou après :
       );
     }
 
+    // Accroche courte pour la couverture (n'empêche jamais la création en cas d'échec)
+    const tagline = await makeTagline(env, cleanTitle, subject, lbl, language);
+
     const sections = buildPlanSections(items, lbl);
     const fullContent = sectionsToContent(cleanTitle, sections);
     const ebookId = generateId();
 
     await env.DB.prepare(
-      `INSERT INTO ebooks (id, user_id, title, description, language, content, sections_json, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')`
+      `INSERT INTO ebooks (id, user_id, title, description, language, content, sections_json, tagline, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')`
     )
-      .bind(ebookId, payload.sub, cleanTitle, description, language || "fr", fullContent, JSON.stringify(sections))
+      .bind(
+        ebookId,
+        payload.sub,
+        cleanTitle,
+        description,
+        language || "fr",
+        fullContent,
+        JSON.stringify(sections),
+        tagline || null
+      )
       .run();
 
     return Response.json({
@@ -262,6 +322,7 @@ Réponds STRICTEMENT dans ce format, sans aucun texte avant ou après :
         id: ebookId,
         title: cleanTitle,
         description,
+        tagline,
         language,
         content: fullContent,
         sections,
@@ -439,7 +500,7 @@ export async function handleGetEbook(request, env, ebookId) {
   }
 
   const ebook = await env.DB.prepare(
-    `SELECT id, title, description, language, content, sections_json, status,
+    `SELECT id, title, description, tagline, language, content, sections_json, status,
             price, currency, cover_url, published_at, created_at
      FROM ebooks WHERE id = ? AND user_id = ?`
   )
@@ -457,4 +518,4 @@ export async function handleGetEbook(request, env, ebookId) {
   return Response.json({
     ebook: { ...rest, currency: rest.currency || "EUR", pay_code: payCode, sections },
   });
-}
+    }
