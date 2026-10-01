@@ -11,18 +11,23 @@ import {
   IconSettings,
 } from "./ui/Icons.jsx";
 
-const links = [
+// Passer à true pour réafficher les menus liés à la vente en ligne
+const SALES_ENABLED = false;
+
+const allLinks = [
   { to: "/dashboard", label: "Tableau de bord", Icon: IconGrid, end: true },
   { to: "/dashboard/ebooks", label: "eBooks", Icon: IconBook },
   { to: "/dashboard/formations", label: "Formations", Icon: IconGraduationCap },
-  { to: "/dashboard/pages-vente", label: "Pages de vente", Icon: IconCart },
+  { to: "/dashboard/pages-vente", label: "Pages de vente", Icon: IconCart, sales: true },
   { to: "/dashboard/marketing", label: "Marketing digital", Icon: IconMegaphone },
-  { to: "/dashboard/analytics", label: "Analytics", Icon: IconTrendingUp },
-  { to: "/dashboard/boutique", label: "Ma boutique", Icon: IconShop },
-  { to: "/dashboard/wallet", label: "Wallet", Icon: IconCreditCard },
+  { to: "/dashboard/analytics", label: "Analytics", Icon: IconTrendingUp, sales: true },
+  { to: "/dashboard/boutique", label: "Ma boutique", Icon: IconShop, sales: true },
+  { to: "/dashboard/wallet", label: "Wallet", Icon: IconCreditCard, sales: true },
   { to: "/dashboard/abonnements", label: "Abonnements", Icon: IconCreditCard },
   { to: "/dashboard/parametres", label: "Paramètres", Icon: IconSettings },
 ];
+
+const links = allLinks.filter((l) => SALES_ENABLED || !l.sales);
 
 export default function Sidebar() {
   return (
@@ -48,4 +53,4 @@ export default function Sidebar() {
       </nav>
     </aside>
   );
-}
+        }
