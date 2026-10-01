@@ -7,6 +7,9 @@ import { Card } from "../components/ui/Card.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+// Passer à true pour réafficher revenus, apprenants et pages de vente
+const SALES_ENABLED = false;
+
 function fmtDate(s) {
   if (!s) return "";
   const d = new Date(String(s).replace(" ", "T") + "Z");
@@ -50,19 +53,19 @@ export default function Dashboard() {
       tips.push({
         icon: "🚀",
         text: "Créez votre premier produit : un eBook ou une formation générée par l'IA.",
-        to: "/dashboard/formations",
-        cta: "Créer une formation",
+        to: "/dashboard/ebooks/create",
+        cta: "Créer un eBook",
       });
     }
     if (t.drafts > 0) {
       tips.push({
         icon: "📝",
-        text: `${t.drafts} formation${t.drafts > 1 ? "s" : ""} en brouillon : terminez-la${t.drafts > 1 ? "s" : ""} et publiez-la${t.drafts > 1 ? "s" : ""}.`,
+        text: `${t.drafts} formation${t.drafts > 1 ? "s" : ""} en brouillon : terminez-la${t.drafts > 1 ? "s" : ""} pour pouvoir l'exporter.`,
         to: "/dashboard/formations",
         cta: "Ouvrir mes formations",
       });
     }
-    if (t.no_payment > 0) {
+    if (SALES_ENABLED && t.no_payment > 0) {
       tips.push({
         icon: "💳",
         text: `${t.no_payment} page${t.no_payment > 1 ? "s" : ""} de vente sans lien de paiement : le bouton d'achat est inactif.`,
@@ -70,15 +73,19 @@ export default function Dashboard() {
         cta: "Ajouter un lien",
       });
     }
-    if (t.published > 0 && t.learners === 0) {
+    if (t.ebooks + t.formations > 0) {
       tips.push({
         icon: "📣",
-        text: "Votre page de vente est en ligne : générez des textes pour la promouvoir.",
+        text: "Votre produit est prêt : générez vos textes de lancement pour le vendre sur Chariow, Maketou ou ailleurs.",
         to: "/dashboard/marketing",
         cta: "Générer du marketing",
       });
     }
   }
+
+  const hasLearners = SALES_ENABLED && (recent?.learners?.length ?? 0) > 0;
+  const hasActivity =
+    recent && (recent.ebooks.length > 0 || recent.formations.length > 0 || hasLearners);
 
   return (
     <DashboardLayout>
@@ -98,31 +105,35 @@ export default function Dashboard() {
           </Link>
           <Link to="/dashboard/formations" className="dg-stat-mini">
             <div className="dg-stat-mini__n">{loading ? "…" : t?.formations ?? 0}</div>
-            <div className="dg-stat-mini__l">
-              🎓 Formations{t && t.published > 0 ? ` (${t.published} publiée${t.published > 1 ? "s" : ""})` : ""}
-            </div>
+            <div className="dg-stat-mini__l">🎓 Formations</div>
           </Link>
-          <Link to="/dashboard/pages-vente" className="dg-stat-mini">
-            <div className="dg-stat-mini__n">{loading ? "…" : t?.learners ?? 0}</div>
-            <div className="dg-stat-mini__l">👥 Apprenants</div>
-          </Link>
-          <Link to="/dashboard/pages-vente" className="dg-stat-mini">
-            <div className="dg-stat-mini__n">{loading ? "…" : t?.finished ?? 0}</div>
-            <div className="dg-stat-mini__l">✅ Terminées</div>
-          </Link>
+          {SALES_ENABLED && (
+            <>
+              <Link to="/dashboard/pages-vente" className="dg-stat-mini">
+                <div className="dg-stat-mini__n">{loading ? "…" : t?.learners ?? 0}</div>
+                <div className="dg-stat-mini__l">👥 Apprenants</div>
+              </Link>
+              <Link to="/dashboard/pages-vente" className="dg-stat-mini">
+                <div className="dg-stat-mini__n">{loading ? "…" : t?.finished ?? 0}</div>
+                <div className="dg-stat-mini__l">✅ Terminées</div>
+              </Link>
+            </>
+          )}
         </div>
 
-        <div className="dg-revenue-card">
-          <div className="dg-revenue-card__label">💰 Revenu estimé</div>
-          <div className="dg-revenue-card__value">
-            {loading
-              ? "…"
-              : revenue.length === 0
-              ? "0"
-              : revenue.map((r) => <div key={r.currency}>{formatPrice(r.amount, r.currency)}</div>)}
+        {SALES_ENABLED && (
+          <div className="dg-revenue-card">
+            <div className="dg-revenue-card__label">💰 Revenu estimé</div>
+            <div className="dg-revenue-card__value">
+              {loading
+                ? "…"
+                : revenue.length === 0
+                ? "0"
+                : revenue.map((r) => <div key={r.currency}>{formatPrice(r.amount, r.currency)}</div>)}
+            </div>
+            <div className="dg-revenue-card__hint">Prix × apprenants inscrits, par monnaie.</div>
           </div>
-          <div className="dg-revenue-card__hint">Prix × apprenants inscrits, par monnaie.</div>
-        </div>
+        )}
 
         {/* Raccourcis */}
         <div className="dg-section-label">Actions rapides</div>
@@ -136,9 +147,11 @@ export default function Dashboard() {
           <Link to="/dashboard/marketing" className="dg-action-btn dg-action-btn--outline">
             📣 Générer du marketing
           </Link>
-          <Link to="/dashboard/pages-vente" className="dg-action-btn dg-action-btn--outline">
-            🛒 Mes pages de vente
-          </Link>
+          {SALES_ENABLED && (
+            <Link to="/dashboard/pages-vente" className="dg-action-btn dg-action-btn--outline">
+              🛒 Mes pages de vente
+            </Link>
+          )}
         </div>
 
         {/* Prochaines étapes */}
@@ -162,11 +175,11 @@ export default function Dashboard() {
         )}
 
         {/* Activité récente */}
-        {recent && (recent.ebooks.length > 0 || recent.formations.length > 0 || recent.learners.length > 0) && (
+        {hasActivity && (
           <>
             <div className="dg-section-label">Activité récente</div>
 
-            {recent.learners.length > 0 && (
+            {hasLearners && (
               <div className="dg-row-block">
                 <div className="dg-row-block__title">Derniers apprenants</div>
                 {recent.learners.map((l, i) => (
@@ -195,12 +208,14 @@ export default function Dashboard() {
                       <div className="dg-row__title">{f.title}</div>
                       <div className="dg-row__sub">
                         {f.modules_count} modules
-                        {f.price !== null && f.price !== undefined ? ` · ${formatPrice(f.price, f.currency)}` : ""}
+                        {SALES_ENABLED && f.price !== null && f.price !== undefined
+                          ? ` · ${formatPrice(f.price, f.currency)}`
+                          : ""}
                       </div>
                     </div>
                     <div className="dg-row__side">
                       <span className={`dg-pill ${f.status === "published" ? "dg-pill--ok" : ""}`}>
-                        {f.status === "published" ? "Publiée" : "Brouillon"}
+                        {f.status === "published" ? "Prête" : "Brouillon"}
                       </span>
                       <span className="dg-row__date">{fmtDate(f.created_at)}</span>
                     </div>
@@ -219,7 +234,7 @@ export default function Dashboard() {
                     </div>
                     <div className="dg-row__side">
                       <span className={`dg-pill ${b.status === "published" ? "dg-pill--ok" : ""}`}>
-                        {b.status === "published" ? "Publié" : "Brouillon"}
+                        {b.status === "published" ? "Prêt" : "Brouillon"}
                       </span>
                       <span className="dg-row__date">{fmtDate(b.created_at)}</span>
                     </div>
