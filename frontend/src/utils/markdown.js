@@ -37,10 +37,10 @@ export function renderMarkdown(text) {
     closeList();
     html +=
       kind === "ol"
-        ? "<ol>"
+        ? `<ol style="list-style:decimal;padding-left:1.5rem;margin:1rem 0">`
         : kind === "check"
         ? `<ul style="list-style:none;padding-left:0.2rem;margin:1rem 0">`
-        : "<ul>";
+        : `<ul style="list-style:disc;padding-left:1.5rem;margin:1rem 0">`;
     listKind = kind;
   };
 
@@ -128,4 +128,4 @@ export function renderMarkdown(text) {
 export function extractChapterTitles(content) {
   const matches = [...content.matchAll(/^## (Chapitre.+)$/gm)];
   return matches.map((m) => m[1]);
-        }
+      }
