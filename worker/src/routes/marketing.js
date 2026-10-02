@@ -16,6 +16,16 @@ const SYMBOLS = {
   GNF: "GNF", CDF: "FC",
 };
 
+const LANG_NAMES = {
+  fr: "français",
+  en: "English",
+  es: "español",
+  pt: "português",
+  de: "Deutsch",
+  it: "italiano",
+  ar: "العربية (arabe standard moderne)",
+};
+
 function priceText(price, currency) {
   if (price === null || price === undefined || price === "") return "";
   if (Number(price) === 0) return "gratuit";
@@ -28,12 +38,12 @@ const STRUCTURE = `Structure obligatoire, dans cet ordre :
 3. PROMESSE : ce que la personne va apprendre, créer ou obtenir, de façon concrète.
 4. TRANSFORMATION : le passage du "avant" au "après" (de "..." à "...").
 5. PRODUIT : nom, format, pour qui il est conçu.
-6. CONTENU : "À l'intérieur, tu vas découvrir :" puis 4 éléments tirés du programme, chacun formulé comme un bénéfice (ce que ça permet de faire), pas comme un simple titre.
-7. BÉNÉFICES : "Ce produit est fait pour toi si tu veux :" puis 3 lignes commençant par ✅.
+6. CONTENU : une phrase d'introduction du type "À l'intérieur, tu vas découvrir :" (traduite dans la langue du texte) puis 4 éléments tirés du programme, chacun formulé comme un bénéfice (ce que ça permet de faire), pas comme un simple titre.
+7. BÉNÉFICES : une phrase du type "Ce produit est fait pour toi si tu veux :" (traduite dans la langue du texte) puis 3 lignes commençant par ✅.
 8. BONUS : seulement s'ils sont fournis. Sinon, saute cette partie.
 9. PREUVE : seulement si elle est fournie (expérience, résultat, témoignage). Sinon, saute cette partie.
 10. OFFRE : le prix et ce que l'acheteur reçoit (format, accès) ; offre de lancement seulement si fournie.
-11. CTA : UNE seule action, avec le lien s'il existe, sous la forme "👉 Accède maintenant : lien".
+11. CTA : UNE seule action, avec le lien s'il existe, sous la forme "👉 Accède maintenant : lien" (traduite dans la langue du texte).
 Le texte doit répondre clairement à : Qu'est-ce que c'est ? Pour qui ? Quel problème ça résout ? Quel résultat concret ? Pourquoi agir maintenant ?`;
 
 const TYPES = {
@@ -45,7 +55,7 @@ Paragraphes courts, une ligne vide entre les blocs, émojis dosés (🔥 📚 �
   },
   tiktok: {
     tokens: 900,
-    instruction: `Rédige le script d'une vidéo TikTok / Reels de 30 à 40 secondes, dans ce format :
+    instruction: `Rédige le script d'une vidéo TikTok / Reels de 30 à 40 secondes, dans ce format (les intitulés sont traduits dans la langue du texte) :
 ACCROCHE (0-3 s) : la phrase parlée qui arrête le défilement ;
 PROBLÈME (3-10 s) : la difficulté du public, en 1 ou 2 phrases ;
 SOLUTION (10-28 s) : le produit, la transformation et 3 bénéfices concrets, phrases faciles à dire à voix haute ;
@@ -64,7 +74,7 @@ Ton conversationnel, lignes courtes, 3 à 5 émojis.`,
   },
   email: {
     tokens: 1400,
-    instruction: `Rédige un email de vente premium :
+    instruction: `Rédige un email de vente premium (les intitulés OBJET, PRÉ-TITRE, CORPS et SIGNATURE sont traduits dans la langue du texte) :
 OBJET : moins de 60 caractères, accrocheur ;
 PRÉ-TITRE : une phrase d'aperçu ;
 CORPS : suis la structure ci-dessous, en phrases fluides avec une liste pour le contenu et les bénéfices ;
@@ -87,7 +97,9 @@ const TONES = {
 };
 
 function stripChapterPrefix(title) {
-  return String(title || "").replace(/^Chapitre\s*\d+\s*:\s*/i, "").trim();
+  return String(title || "")
+    .replace(/^(chapitre|chapter|capítulo|kapitel|capitolo|الفصل)\s*\d+\s*[:：\-–]\s*/i, "")
+    .trim();
 }
 
 function clip(v, n) {
@@ -101,10 +113,10 @@ function isKeywordLine(line) {
   if (/#/.test(raw) || /https?:\/\//.test(raw)) return false;
   const plain = raw.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "").trim();
   if (!plain) return true; // ligne composée uniquement d'émojis
-  if (/[.!?:»)]$/.test(plain)) return false;
+  if (/[.!?:»)؟]$/.test(plain)) return false;
   const words = plain.split(/\s+/);
   if (words.length === 1) return true;
-  return plain.includes(",") && words.length <= 8;
+  return /[,،]/.test(plain) && words.length <= 8;
 }
 
 /* Nettoie la sortie : pas de Markdown, pas de bloc de code, pas de mots-clés isolés à la fin */
@@ -211,7 +223,7 @@ export async function handleGenerateMarketing(request, env) {
   const customPrice = clip(body.price_text, 40);
   const price = customPrice || priceText(p.price, p.currency);
 
-  const langLabel = p.language === "en" ? "English" : "français";
+  const langLabel = LANG_NAMES[p.language] || "français";
   const program = p.program
     .map((m, i) => `${i + 1}. ${m.title}${m.summary ? " : " + m.summary : ""}`)
     .join("\n");
@@ -241,13 +253,14 @@ Lien : ${link || "aucun lien à insérer"}`;
   const prompt = `Tu écris un texte de lancement premium en ${langLabel} pour vendre le produit digital décrit ci-dessous.
 Un texte premium vend la TRANSFORMATION, pas seulement le produit.
 Ton à adopter : ${TONES[tone]}.
-Tutoie le lecteur (tu / ton / ta), sauf si la langue est l'anglais.
+Adresse-toi au lecteur de façon naturelle dans cette langue (tutoiement en français, « tú » en espagnol, etc.).
 
 ${facts}
 
 ${TYPES[type].instruction}
 
 RÈGLES STRICTES :
+- Écris TOUT le texte (intitulés, appel à l'action, accroches) en ${langLabel}, même si les consignes ci-dessus sont en français.
 - Base-toi uniquement sur les informations ci-dessus. N'invente ni chiffres, ni résultats, ni témoignages, ni statistiques, ni bonus, ni offre limitée.
 - Ne promets jamais de revenus garantis ni de résultats certains ; parle de méthode, de compétences et de passage à l'action.
 - Transforme les titres de chapitres en bénéfices concrets.
@@ -261,7 +274,7 @@ RÈGLES STRICTES :
         {
           role: "system",
           content:
-            "Tu es un copywriter expert en lancement de produits digitaux (eBooks, formations) vendus via Chariow, Maketou et d'autres plateformes. Tu écris des textes premium, concrets, orientés transformation, honnêtes et prêts à publier.",
+            "Tu es un copywriter expert en lancement de produits digitaux (eBooks, formations) vendus via Chariow, Maketou et d'autres plateformes. Tu écris des textes premium, concrets, orientés transformation, honnêtes et prêts à publier, dans la langue demandée.",
         },
         { role: "user", content: prompt },
       ],
@@ -279,4 +292,4 @@ RÈGLES STRICTES :
       { status: 502 }
     );
   }
-      }
+  }
