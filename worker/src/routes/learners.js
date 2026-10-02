@@ -3,6 +3,18 @@ import { verifyJWT } from "../utils/jwt.js";
 import { sendEmail, certificateReadyEmailHtml } from "../utils/email.js";
 
 const DEFAULT_APP_URL = "https://app.digitelio.com";
+const LANG_CODES = ["fr", "en", "es", "pt", "de", "it", "ar"];
+
+/* Objet de l'email de certificat, selon la langue de la formation */
+const CERT_SUBJECT = {
+  fr: (t) => `🎓 Votre certificat pour "${t}" est prêt`,
+  en: (t) => `🎓 Your certificate for "${t}" is ready`,
+  es: (t) => `🎓 Tu certificado de "${t}" está listo`,
+  pt: (t) => `🎓 O seu certificado de "${t}" está pronto`,
+  de: (t) => `🎓 Ihr Zertifikat für „${t}“ ist fertig`,
+  it: (t) => `🎓 Il tuo certificato per "${t}" è pronto`,
+  ar: (t) => `🎓 شهادتك الخاصة بدورة "${t}" جاهزة`,
+};
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -157,7 +169,7 @@ export async function handleGetLearnerCourse(request, env, token) {
 
   const e = await env.DB.prepare(
     `SELECT e.id, e.learner_name, e.completed, e.completed_at,
-            f.id AS formation_id, f.title, f.description, f.certificate,
+            f.id AS formation_id, f.title, f.description, f.certificate, f.language,
             u.full_name AS instructor
      FROM enrollments e
      JOIN formations f ON f.id = e.formation_id
@@ -199,6 +211,7 @@ export async function handleGetLearnerCourse(request, env, token) {
     formation: {
       title: e.title,
       description: e.description || "",
+      language: LANG_CODES.includes(e.language) ? e.language : "fr",
       certificate: !!e.certificate,
       instructor: e.instructor || "",
     },
@@ -213,7 +226,7 @@ export async function handleCompleteModule(request, env, token, moduleId) {
 
   const e = await env.DB.prepare(
     `SELECT e.id, e.formation_id, e.completed, e.completed_at, e.learner_name, e.learner_email,
-            f.title AS formation_title, f.certificate, u.full_name AS instructor
+            f.title AS formation_title, f.certificate, f.language, u.full_name AS instructor
      FROM enrollments e
      JOIN formations f ON f.id = e.formation_id
      LEFT JOIN users u ON u.id = f.user_id
@@ -265,10 +278,11 @@ export async function handleCompleteModule(request, env, token, moduleId) {
     try {
       const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
       const learnUrl = `${appUrl}/learn/${token}`;
+      const subjectFn = CERT_SUBJECT[e.language] || CERT_SUBJECT.fr;
       const result = await sendEmail(env, {
         to: e.learner_email,
         toName: e.learner_name || e.learner_email,
-        subject: `🎓 Votre certificat pour "${e.formation_title}" est prêt`,
+        subject: subjectFn(e.formation_title),
         html: certificateReadyEmailHtml({
           learnerName: e.learner_name,
           formationTitle: e.formation_title,
@@ -287,4 +301,4 @@ export async function handleCompleteModule(request, env, token, moduleId) {
     completed_at: after?.completed_at || null,
     finished,
   });
-      }
+}
