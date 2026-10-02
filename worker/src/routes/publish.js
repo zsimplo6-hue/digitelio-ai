@@ -10,6 +10,8 @@ async function getAuthenticatedUser(request, env) {
 
 const unauthorized = () => Response.json({ error: "Non authentifié." }, { status: 401 });
 
+const LANG_CODES = ["fr", "en", "es", "pt", "de", "it", "ar"];
+
 /* Doit rester identique à la liste du frontend (utils/currency.js) */
 const CURRENCIES = [
   "EUR", "USD", "XOF", "XAF", "GBP", "CAD", "CHF", "MAD",
@@ -133,7 +135,7 @@ export async function handleListFormations(request, env) {
   if (!payload) return unauthorized();
 
   const { results } = await env.DB.prepare(
-    `SELECT f.id, f.title, f.description, f.status, f.price, f.currency, f.created_at,
+    `SELECT f.id, f.title, f.description, f.language, f.status, f.price, f.currency, f.created_at,
             (SELECT COUNT(*) FROM formation_modules m WHERE m.formation_id = f.id) AS modules_count
      FROM formations f
      WHERE f.user_id = ?
@@ -181,6 +183,7 @@ export async function handleGetFormation(request, env, formationId) {
   return Response.json({
     formation: {
       ...formation,
+      language: LANG_CODES.includes(formation.language) ? formation.language : "fr",
       currency: formation.currency || "EUR",
       certificate: !!formation.certificate,
       pay_code: payCode,
@@ -373,13 +376,6 @@ export async function handleGetPublicFormation(request, env, formationId) {
     return Response.json({ error: "Formation introuvable ou non publiée." }, { status: 404 });
   }
 
-  const { results } = await env.DB.prepare(
-    `SELECT position, title, summary
-     FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
-  )
-    .bind(formationId)
-    .first();
-
   const modulesRes = await env.DB.prepare(
     `SELECT position, title, summary
      FROM formation_modules WHERE formation_id = ? ORDER BY position ASC`
@@ -392,6 +388,7 @@ export async function handleGetPublicFormation(request, env, formationId) {
       id: f.id,
       title: f.title,
       description: f.description || "",
+      language: LANG_CODES.includes(f.language) ? f.language : "fr",
       price: f.price,
       currency: f.currency || "EUR",
       cover_url: f.cover_url || "",
@@ -401,4 +398,4 @@ export async function handleGetPublicFormation(request, env, formationId) {
       modules: modulesRes.results,
     },
   });
-      }
+}
