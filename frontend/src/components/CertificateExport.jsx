@@ -1,3 +1,13 @@
+const CERT_TXT = {
+  fr: { editions: "ÉDITIONS", title: "CERTIFICAT", sub: "DE RÉUSSITE", lead1: "Ce certificat est décerné à", lead2: "pour avoir suivi avec succès la formation", date: "Date de délivrance", teacher: "Formateur", no: "Certificat n°", name: "Nom de l'apprenant", locale: "fr-FR" },
+  en: { editions: "EDITIONS", title: "CERTIFICATE", sub: "OF COMPLETION", lead1: "This certificate is awarded to", lead2: "for successfully completing the course", date: "Date of issue", teacher: "Instructor", no: "Certificate no.", name: "Learner name", locale: "en-GB" },
+  es: { editions: "EDICIONES", title: "CERTIFICADO", sub: "DE FINALIZACIÓN", lead1: "Este certificado se otorga a", lead2: "por haber completado con éxito el curso", date: "Fecha de emisión", teacher: "Formador", no: "Certificado n.º", name: "Nombre del alumno", locale: "es-ES" },
+  pt: { editions: "EDIÇÕES", title: "CERTIFICADO", sub: "DE CONCLUSÃO", lead1: "Este certificado é concedido a", lead2: "por ter concluído com sucesso o curso", date: "Data de emissão", teacher: "Formador", no: "Certificado n.º", name: "Nome do aluno", locale: "pt-PT" },
+  de: { editions: "AUSGABEN", title: "ZERTIFIKAT", sub: "ÜBER DEN ABSCHLUSS", lead1: "Dieses Zertifikat wird verliehen an", lead2: "für den erfolgreichen Abschluss des Kurses", date: "Ausstellungsdatum", teacher: "Dozent", no: "Zertifikat Nr.", name: "Name des Teilnehmers", locale: "de-DE" },
+  it: { editions: "EDIZIONI", title: "CERTIFICATO", sub: "DI COMPLETAMENTO", lead1: "Questo certificato è conferito a", lead2: "per aver completato con successo il corso", date: "Data di rilascio", teacher: "Formatore", no: "Certificato n.", name: "Nome dello studente", locale: "it-IT" },
+  ar: { editions: "إصدارات", title: "شهادة", sub: "إتمام الدورة", lead1: "تُمنح هذه الشهادة إلى", lead2: "لإتمامه بنجاح دورة", date: "تاريخ الإصدار", teacher: "المدرّب", no: "شهادة رقم", name: "اسم المتعلّم", locale: "ar-u-nu-latn" },
+};
+
 /* Charge les polices AVANT l'impression (le document est caché à l'écran) */
 async function ensureFonts() {
   if (!document.fonts || !document.fonts.load) return;
@@ -9,6 +19,8 @@ async function ensureFonts() {
     "600 1em Manrope",
     "400 1em Inter",
   ].map((f) => document.fonts.load(f, sample));
+  loads.push(document.fonts.load("700 1em 'Noto Naskh Arabic'", "شهادة"));
+  loads.push(document.fonts.load("400 1em 'Noto Naskh Arabic'", "شهادة"));
   await Promise.race([
     Promise.allSettled(loads),
     new Promise((resolve) => setTimeout(resolve, 4000)),
@@ -36,9 +48,12 @@ export async function printCertificate() {
   setTimeout(() => window.print(), 300);
 }
 
-export default function CertificateDoc({ formation, name, instructor }) {
+export default function CertificateDoc({ formation, name, instructor, language = "fr" }) {
+  const T = CERT_TXT[language] || CERT_TXT.fr;
+  const rtl = language === "ar";
+
   const now = new Date();
-  const dateLabel = now.toLocaleDateString("fr-FR", {
+  const dateLabel = now.toLocaleDateString(T.locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -52,7 +67,7 @@ export default function CertificateDoc({ formation, name, instructor }) {
   const titleSize = title.length > 60 ? "1.1rem" : title.length > 40 ? "1.3rem" : "1.6rem";
 
   return (
-    <div className="cert-doc">
+    <div className={`cert-doc${rtl ? " cert-rtl" : ""}`} dir={rtl ? "rtl" : "ltr"}>
       <div className="cert-page">
         <div className="cert-ribbon cert-tl" />
         <div className="cert-ribbon cert-tl2" />
@@ -65,12 +80,12 @@ export default function CertificateDoc({ formation, name, instructor }) {
           <div className="cert-brand">DIGITELIO AI</div>
           <div className="cert-ed">
             <span />
-            <em>ÉDITIONS</em>
+            <em>{T.editions}</em>
             <span />
           </div>
 
-          <h1 className="cert-title">CERTIFICAT</h1>
-          <div className="cert-sub">DE RÉUSSITE</div>
+          <h1 className="cert-title">{T.title}</h1>
+          <div className="cert-sub">{T.sub}</div>
 
           <div className="cert-divider">
             <span />
@@ -78,11 +93,11 @@ export default function CertificateDoc({ formation, name, instructor }) {
             <span />
           </div>
 
-          <div className="cert-lead">Ce certificat est décerné à</div>
+          <div className="cert-lead">{T.lead1}</div>
           <div className="cert-name" style={{ fontSize: nameSize }}>
-            {cleanName || "Nom de l'apprenant"}
+            {cleanName || T.name}
           </div>
-          <div className="cert-lead">pour avoir suivi avec succès la formation</div>
+          <div className="cert-lead">{T.lead2}</div>
           <div className="cert-course" style={{ fontSize: titleSize }}>
             {title}
           </div>
@@ -91,7 +106,7 @@ export default function CertificateDoc({ formation, name, instructor }) {
             <div className="cert-col">
               <div className="cert-line" />
               <div className="cert-small">{dateLabel}</div>
-              <div className="cert-tiny">Date de délivrance</div>
+              <div className="cert-tiny">{T.date}</div>
             </div>
             <div className="cert-seal">
               <span>◆</span>
@@ -99,16 +114,18 @@ export default function CertificateDoc({ formation, name, instructor }) {
             <div className="cert-col">
               <div className="cert-line" />
               <div className="cert-small">{instructor || "Digitelio AI"}</div>
-              <div className="cert-tiny">Formateur</div>
+              <div className="cert-tiny">{T.teacher}</div>
             </div>
           </div>
 
-          <div className="cert-num">Certificat n° {number}</div>
+          <div className="cert-num">
+            {T.no} {number}
+          </div>
         </div>
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600&family=Inter:wght@400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600&family=Inter:wght@400&family=Noto+Naskh+Arabic:wght@400;700&display=swap');
 
         .cert-doc { display: none; }
 
@@ -289,8 +306,24 @@ export default function CertificateDoc({ formation, name, instructor }) {
             letter-spacing: 0.15em;
             color: #9c9682;
           }
+
+          /* Arabe : police adaptée, pas d'espacement entre les lettres */
+          .cert-rtl .cert-page,
+          .cert-rtl .cert-title,
+          .cert-rtl .cert-sub,
+          .cert-rtl .cert-name,
+          .cert-rtl .cert-course { font-family: 'Noto Naskh Arabic', serif; }
+          .cert-rtl .cert-brand,
+          .cert-rtl .cert-ed,
+          .cert-rtl .cert-title,
+          .cert-rtl .cert-sub,
+          .cert-rtl .cert-tiny,
+          .cert-rtl .cert-num { letter-spacing: 0; }
+          .cert-rtl .cert-ed em,
+          .cert-rtl .cert-sub { margin-right: 0; }
+          .cert-rtl .cert-tiny { text-transform: none; }
         }
       `}</style>
     </div>
   );
-                                   }
+}
