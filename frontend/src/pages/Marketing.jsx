@@ -38,6 +38,11 @@ export default function Marketing() {
   const [tone, setTone] = useState("professionnel");
   const [link, setLink] = useState("");
   const [price, setPrice] = useState("");
+  const [audience, setAudience] = useState("");
+  const [problem, setProblem] = useState("");
+  const [bonus, setBonus] = useState("");
+  const [proof, setProof] = useState("");
+  const [offer, setOffer] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -94,7 +99,12 @@ export default function Marketing() {
           type,
           tone,
           link: cleanLink,
-          price: price.trim(),
+          price_text: price.trim(),
+          audience: audience.trim(),
+          problem: problem.trim(),
+          bonus: bonus.trim(),
+          proof: proof.trim(),
+          offer: offer.trim(),
         }),
       });
       setText(data.text);
@@ -156,7 +166,7 @@ export default function Marketing() {
                 onChange={(e) => setLink(e.target.value)}
                 placeholder="https://... (lien Chariow, Maketou, etc.)"
                 inputMode="url"
-                maxLength={200}
+                maxLength={300}
               />
               <input
                 className="mk-input"
@@ -170,7 +180,53 @@ export default function Marketing() {
                 Le lien et le prix seront ajoutés au texte. Laissez vides pour un texte sans lien.
               </div>
 
-              <div className="mk-label" style={{ marginTop: "1.3rem" }}>3. Format</div>
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>
+                3. Pour un texte plus complet (facultatif)
+              </div>
+              <input
+                className="mk-input"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
+                placeholder="Pour qui ? ex : entrepreneurs débutants"
+                maxLength={200}
+              />
+              <input
+                className="mk-input"
+                style={{ marginTop: "0.6rem" }}
+                value={problem}
+                onChange={(e) => setProblem(e.target.value)}
+                placeholder="Leur problème principal"
+                maxLength={300}
+              />
+              <input
+                className="mk-input"
+                style={{ marginTop: "0.6rem" }}
+                value={bonus}
+                onChange={(e) => setBonus(e.target.value)}
+                placeholder="Bonus offerts (templates, prompts, checklists...)"
+                maxLength={400}
+              />
+              <input
+                className="mk-input"
+                style={{ marginTop: "0.6rem" }}
+                value={proof}
+                onChange={(e) => setProof(e.target.value)}
+                placeholder="Preuve : expérience, résultat, témoignage réel"
+                maxLength={400}
+              />
+              <input
+                className="mk-input"
+                style={{ marginTop: "0.6rem" }}
+                value={offer}
+                onChange={(e) => setOffer(e.target.value)}
+                placeholder="Offre de lancement réelle : ex. -30 % jusqu'à dimanche"
+                maxLength={300}
+              />
+              <div className="mk-note mk-note-ok">
+                Bonus, preuve et offre n'apparaissent dans le texte que si vous les remplissez.
+              </div>
+
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>4. Format</div>
               <div className="mk-types">
                 {TYPES.map((t) => (
                   <button
@@ -188,7 +244,7 @@ export default function Marketing() {
                 ))}
               </div>
 
-              <div className="mk-label" style={{ marginTop: "1.3rem" }}>4. Ton</div>
+              <div className="mk-label" style={{ marginTop: "1.3rem" }}>5. Ton</div>
               <div className="mk-tones">
                 {TONES.map((t) => (
                   <button
@@ -255,7 +311,7 @@ export default function Marketing() {
           color: inherit; outline: none; font-family: inherit;
         }
         .mk-input:focus { border-color: #D4AF37; }
-        .mk-textarea { min-height: 18rem; line-height: 1.65; font-size: 0.95rem; resize: vertical; }
+        .mk-textarea { min-height: 22rem; line-height: 1.65; font-size: 0.95rem; resize: vertical; }
         .mk-note { margin-top: 0.6rem; font-size: 0.82rem; opacity: 0.8; color: #d97706; }
         .mk-note-ok { color: #16a34a; }
         .mk-types { display: grid; gap: 0.5rem; }
@@ -302,4 +358,4 @@ export default function Marketing() {
       `}</style>
     </DashboardLayout>
   );
-  }
+                               }
