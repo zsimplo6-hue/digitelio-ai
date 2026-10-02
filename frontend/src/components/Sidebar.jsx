@@ -18,6 +18,9 @@ const allLinks = [
   { to: "/dashboard", label: "Tableau de bord", Icon: IconGrid, end: true },
   { to: "/dashboard/ebooks", label: "eBooks", Icon: IconBook },
   { to: "/dashboard/formations", label: "Formations", Icon: IconGraduationCap },
+  { to: "/dashboard/templates", label: "Modèles", Icon: IconGrid },
+  { to: "/dashboard/ideas", label: "Idées de produits", Icon: IconTrendingUp },
+  { to: "/dashboard/brand", label: "Mon style", Icon: IconSettings },
   { to: "/dashboard/pages-vente", label: "Pages de vente", Icon: IconCart, sales: true },
   { to: "/dashboard/marketing", label: "Marketing digital", Icon: IconMegaphone },
   { to: "/dashboard/analytics", label: "Analytics", Icon: IconTrendingUp, sales: true },
@@ -53,4 +56,4 @@ export default function Sidebar() {
       </nav>
     </aside>
   );
-        }
+            }
