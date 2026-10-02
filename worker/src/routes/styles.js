@@ -1,0 +1,194 @@
+import { parseCookies } from "../utils/cookies.js";
+import { verifyJWT } from "../utils/jwt.js";
+
+const TEMPLATE_IDS = ["business", "finance", "wellness", "growth", "spirit", "cuisine"];
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const LANG_NAMES = {
+  fr: "français", en: "English", es: "español", pt: "português",
+  de: "Deutsch", it: "italiano", ar: "العربية (arabe standard moderne)",
+};
+
+let ready = false;
+async function ensureTables(env) {
+  if (ready) return;
+  await env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS brand_kits (
+      user_id TEXT PRIMARY KEY, brand_name TEXT, author_name TEXT, tagline TEXT,
+      accent_color TEXT, cover_color TEXT, default_template TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS ebook_styles (
+      ebook_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, template TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`),
+  ]);
+  ready = true;
+}
+
+async function getUser(request, env) {
+  const token = parseCookies(request)["digitelio_session"];
+  if (!token) return null;
+  return await verifyJWT(token, env.JWT_SECRET);
+}
+const unauthorized = () => Response.json({ error: "Non authentifié." }, { status: 401 });
+const clip = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+
+async function readBrand(env, userId) {
+  const row = await env.DB.prepare(
+    "SELECT brand_name, author_name, tagline, accent_color, cover_color, default_template FROM brand_kits WHERE user_id = ?"
+  ).bind(userId).first();
+  return {
+    brand_name: row?.brand_name || "",
+    author_name: row?.author_name || "",
+    tagline: row?.tagline || "",
+    accent_color: HEX.test(row?.accent_color || "") ? row.accent_color : "",
+    cover_color: HEX.test(row?.cover_color || "") ? row.cover_color : "",
+    default_template: TEMPLATE_IDS.includes(row?.default_template) ? row.default_template : "finance",
+  };
+}
+
+/* ===== Kit de marque ===== */
+export async function handleGetBrand(request, env) {
+  const user = await getUser(request, env);
+  if (!user) return unauthorized();
+  await ensureTables(env);
+  return Response.json({ brand: await readBrand(env, user.sub) });
+}
+
+export async function handleSaveBrand(request, env) {
+  const user = await getUser(request, env);
+  if (!user) return unauthorized();
+  const body = await request.json().catch(() => null);
+  if (!body) return Response.json({ error: "Corps de requête invalide." }, { status: 400 });
+  await ensureTables(env);
+
+  const b = await readBrand(env, user.sub);
+  if ("brand_name" in body) b.brand_name = clip(body.brand_name, 40);
+  if ("author_name" in body) b.author_name = clip(body.author_name, 60);
+  if ("tagline" in body) b.tagline = clip(body.tagline, 120);
+  for (const k of ["accent_color", "cover_color"]) {
+    if (k in body) {
+      const v = String(body[k] || "").trim();
+      if (v && !HEX.test(v)) return Response.json({ error: "Couleur invalide." }, { status: 400 });
+      b[k] = v;
+    }
+  }
+  if ("default_template" in body) {
+    if (!TEMPLATE_IDS.includes(body.default_template)) {
+      return Response.json({ error: "Modèle inconnu." }, { status: 400 });
+    }
+    b.default_template = body.default_template;
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO brand_kits (user_id, brand_name, author_name, tagline, accent_color, cover_color, default_template, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(user_id) DO UPDATE SET brand_name = excluded.brand_name, author_name = excluded.author_name,
+       tagline = excluded.tagline, accent_color = excluded.accent_color, cover_color = excluded.cover_color,
+       default_template = excluded.default_template, updated_at = CURRENT_TIMESTAMP`
+  ).bind(user.sub, b.brand_name, b.author_name, b.tagline, b.accent_color, b.cover_color, b.default_template).run();
+
+  return Response.json({ brand: b });
+}
+
+/* ===== Modèle d'un eBook ===== */
+async function ownsEbook(env, ebookId, userId) {
+  return await env.DB.prepare("SELECT id FROM ebooks WHERE id = ? AND user_id = ?").bind(ebookId, userId).first();
+}
+
+export async function handleGetStyle(request, env, ebookId) {
+  const user = await getUser(request, env);
+  if (!user) return unauthorized();
+  await ensureTables(env);
+  if (!(await ownsEbook(env, ebookId, user.sub))) {
+    return Response.json({ error: "eBook introuvable." }, { status: 404 });
+  }
+  const brand = await readBrand(env, user.sub);
+  const row = await env.DB.prepare("SELECT template FROM ebook_styles WHERE ebook_id = ?").bind(ebookId).first();
+  const template = TEMPLATE_IDS.includes(row?.template) ? row.template : brand.default_template;
+  return Response.json({ template, brand });
+}
+
+export async function handleSetTemplate(request, env, ebookId) {
+  const user = await getUser(request, env);
+  if (!user) return unauthorized();
+  const body = await request.json().catch(() => null);
+  if (!body || !TEMPLATE_IDS.includes(body.template)) {
+    return Response.json({ error: "Modèle inconnu." }, { status: 400 });
+  }
+  await ensureTables(env);
+  if (!(await ownsEbook(env, ebookId, user.sub))) {
+    return Response.json({ error: "eBook introuvable." }, { status: 404 });
+  }
+  await env.DB.prepare(
+    `INSERT INTO ebook_styles (ebook_id, user_id, template, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(ebook_id) DO UPDATE SET template = excluded.template, updated_at = CURRENT_TIMESTAMP`
+  ).bind(ebookId, user.sub, body.template).run();
+  return Response.json({ template: body.template });
+}
+
+/* ===== Idées de produits par pays ===== */
+function parseIdeas(text) {
+  const s = String(text || "");
+  const a = s.indexOf("[");
+  const z = s.lastIndexOf("]");
+  if (a === -1 || z <= a) return [];
+  try {
+    const arr = JSON.parse(s.slice(a, z + 1));
+    return arr
+      .map((x) => ({
+        niche: clip(x.niche, 60),
+        why: clip(x.why, 200),
+        title: clip(x.title, 120),
+        description: clip(x.description, 240),
+        type: x.type === "formation" ? "formation" : "ebook",
+      }))
+      .filter((x) => x.title && x.niche)
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+export async function handleIdeas(request, env) {
+  const user = await getUser(request, env);
+  if (!user) return unauthorized();
+  const body = await request.json().catch(() => null);
+  const country = clip(body?.country, 60);
+  if (!country) return Response.json({ error: "Indiquez un pays." }, { status: 400 });
+  const interest = clip(body?.interest, 120);
+  const langName = LANG_NAMES[body?.language] || "français";
+
+  const prompt = `Tu aides des créateurs de produits digitaux à choisir une niche.
+Propose 8 idées de niches pour des eBooks ou formations en ligne, adaptées au public de : ${country}.
+Centre d'intérêt de la personne : ${interest || "aucun, propose des niches variées"}.
+Langue des réponses : ${langName}.
+
+Pour chaque idée :
+- "niche" : le thème en quelques mots ;
+- "why" : une phrase qui explique pourquoi cette niche peut intéresser le public local, SANS chiffres ni statistiques inventés ;
+- "title" : un titre d'eBook accrocheur ;
+- "description" : une phrase qui décrit le sujet et le public visé ;
+- "type" : "ebook" ou "formation".
+
+Réponds UNIQUEMENT par un tableau JSON valide, sans texte autour :
+[{"niche":"","why":"","title":"","description":"","type":"ebook"}]`;
+
+  try {
+    let ideas = [];
+    for (let i = 0; i < 2 && ideas.length < 3; i++) {
+      const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          { role: "system", content: "Tu es un consultant en produits digitaux. Tu réponds uniquement en JSON valide." },
+          { role: "user", content: prompt },
+        ],
+        max_tokens: 1800,
+      });
+      ideas = parseIdeas(r.response);
+    }
+    if (ideas.length < 3) {
+      return Response.json({ error: "Aucune idée générée, réessayez." }, { status: 502 });
+    }
+    return Response.json({ ideas });
+  } catch (err) {
+    return Response.json({ error: "Erreur lors de la génération IA.", details: err.message }, { status: 502 });
+  }
+      }
