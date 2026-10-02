@@ -22,7 +22,7 @@ async function askAI(env, prompt, maxTokens) {
       {
         role: "system",
         content:
-          "Tu es un auteur et éditeur professionnel d'eBooks premium : style clair, concret, structuré, sans remplissage. Tu respectes strictement le format demandé.",
+          "Tu es un auteur et éditeur professionnel d'eBooks premium : style clair, concret, structuré, sans remplissage. Tu respectes strictement le format demandé et tu écris dans la langue demandée.",
       },
       { role: "user", content: prompt },
     ],
@@ -31,30 +31,65 @@ async function askAI(env, prompt, maxTokens) {
   return response.response || "";
 }
 
-/* ===== Libellés selon la langue ===== */
+/* ===== Langues prises en charge ===== */
 
-function labelsFor(language) {
-  if (language === "en") {
-    return {
-      lang: "English",
-      takeaway: "Key takeaway",
-      practice: "Put it into practice",
-      next: "Your next steps",
-      learn: "What you will learn",
-      introSummary: "Present the topic, the promise of the book and how to use it.",
-      conclusionSummary: "Summarize the essentials and give the next steps.",
-    };
-  }
-  return {
-    lang: "français",
-    takeaway: "À retenir",
-    practice: "À mettre en pratique",
-    next: "Vos prochaines étapes",
+const LANGS = {
+  fr: {
+    lang: "français", chapter: "Chapitre", intro: "Introduction", conclusion: "Conclusion",
+    takeaway: "À retenir", practice: "À mettre en pratique", next: "Vos prochaines étapes",
     learn: "Ce que vous allez apprendre",
     introSummary: "Présenter le sujet, la promesse du livre et la façon de l'utiliser.",
     conclusionSummary: "Résumer l'essentiel et donner les prochaines étapes.",
-  };
+  },
+  en: {
+    lang: "English", chapter: "Chapter", intro: "Introduction", conclusion: "Conclusion",
+    takeaway: "Key takeaway", practice: "Put it into practice", next: "Your next steps",
+    learn: "What you will learn",
+    introSummary: "Present the topic, the promise of the book and how to use it.",
+    conclusionSummary: "Summarize the essentials and give the next steps.",
+  },
+  es: {
+    lang: "español", chapter: "Capítulo", intro: "Introducción", conclusion: "Conclusión",
+    takeaway: "Para recordar", practice: "Ponlo en práctica", next: "Tus próximos pasos",
+    learn: "Lo que vas a aprender",
+    introSummary: "Presentar el tema, la promesa del libro y cómo utilizarlo.",
+    conclusionSummary: "Resumir lo esencial y dar los próximos pasos.",
+  },
+  pt: {
+    lang: "português", chapter: "Capítulo", intro: "Introdução", conclusion: "Conclusão",
+    takeaway: "Para lembrar", practice: "Coloque em prática", next: "Os seus próximos passos",
+    learn: "O que vai aprender",
+    introSummary: "Apresentar o tema, a promessa do livro e como utilizá-lo.",
+    conclusionSummary: "Resumir o essencial e indicar os próximos passos.",
+  },
+  de: {
+    lang: "Deutsch", chapter: "Kapitel", intro: "Einleitung", conclusion: "Fazit",
+    takeaway: "Das Wichtigste", practice: "In die Praxis umsetzen", next: "Ihre nächsten Schritte",
+    learn: "Was Sie lernen werden",
+    introSummary: "Das Thema, das Versprechen des Buches und die Nutzung vorstellen.",
+    conclusionSummary: "Das Wesentliche zusammenfassen und die nächsten Schritte nennen.",
+  },
+  it: {
+    lang: "italiano", chapter: "Capitolo", intro: "Introduzione", conclusion: "Conclusione",
+    takeaway: "Da ricordare", practice: "Metti in pratica", next: "I tuoi prossimi passi",
+    learn: "Cosa imparerai",
+    introSummary: "Presentare l'argomento, la promessa del libro e come utilizzarlo.",
+    conclusionSummary: "Riassumere l'essenziale e indicare i prossimi passi.",
+  },
+  ar: {
+    lang: "العربية (arabe standard moderne)", chapter: "الفصل", intro: "المقدمة", conclusion: "الخاتمة",
+    takeaway: "للتذكير", practice: "طبّق ما تعلمته", next: "خطواتك التالية",
+    learn: "ما ستتعلمه",
+    introSummary: "تقديم الموضوع ووعد الكتاب وطريقة استخدامه.",
+    conclusionSummary: "تلخيص الأساسيات وتحديد الخطوات التالية.",
+  },
+};
+
+function labelsFor(language) {
+  return LANGS[language] || LANGS.fr;
 }
+
+const CHAPTER_PREFIX = /^(chapitre|chapter|capítulo|kapitel|capitolo|الفصل)\s*\d+\s*[:：\-–]\s*/i;
 
 /* La description peut contenir des consignes de style ou du Markdown : on garde seulement le sujet */
 function cleanDescription(text) {
@@ -67,7 +102,7 @@ function cleanDescription(text) {
 }
 
 function stripChapterPrefix(title) {
-  return String(title || "").replace(/^Chapitre\s*\d+\s*:\s*/i, "").trim();
+  return String(title || "").replace(CHAPTER_PREFIX, "").trim();
 }
 
 /* Nettoie le texte renvoyé par l'IA : titres uniformisés, pas d'émojis, pas de blocs de code */
@@ -94,83 +129,35 @@ function cleanAiText(raw) {
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/* ===== Accroche courte pour la couverture ===== */
-
-function cleanTagline(raw, max = 220) {
-  let t = String(raw || "").replace(/\r/g, "").trim();
-  t = t.split("\n").find((l) => l.trim()) || "";
-  t = t.replace(/^(accroche|tagline|description|hook)\s*:\s*/i, "");
-  t = t.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "");
-  t = t.replace(/[#*_`>"«»]+/g, "");
-  t = t.replace(/\s+/g, " ").trim();
-  if (t.length > max) {
-    const cut = t.slice(0, max);
-    const lastEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
-    if (lastEnd > 80) {
-      t = cut.slice(0, lastEnd + 1);
-    } else {
-      const sp = cut.lastIndexOf(" ");
-      t = (sp > 80 ? cut.slice(0, sp) : cut).replace(/[\s,;:.\-–]+$/, "") + "…";
-    }
-  }
-  return t.length >= 20 ? t : "";
-}
-
-async function makeTagline(env, title, subject, lbl, language) {
-  try {
-    const youRule =
-      language === "en"
-        ? "Address the reader directly with \"you\"."
-        : "Vouvoie le lecteur.";
-    const prompt = `Tu es un copywriter expert. Transforme la description ci-dessous en une accroche courte et virale pour la couverture d'un eBook.
-
-Titre : "${title}"
-Description fournie : ${subject}
-Langue : ${lbl.lang}.
-
-Règles :
-- 1 ou 2 phrases, 140 caractères idéalement, 200 maximum.
-- Commence par un bénéfice concret ou une promesse claire pour le lecteur, et donne envie de lire.
-- ${youRule}
-- Ne répète pas le titre. N'invente aucun chiffre, délai, résultat garanti ou témoignage qui ne figure pas dans la description.
-- Aucun emoji, aucun hashtag, aucun guillemet, aucune mise en forme.
-- Réponds uniquement avec l'accroche, sans introduction.`;
-    const raw = await askAI(env, prompt, 150);
-    return cleanTagline(raw);
-  } catch {
-    return "";
-  }
-}
-
 /* ===== Structure en parties modifiables (intro, chapitres, conclusion) ===== */
 
-export function buildSections(introduction, chapters, conclusion) {
+export function buildSections(introduction, chapters, conclusion, lbl = LANGS.fr) {
   const sections = [
-    { id: "intro", type: "intro", title: "Introduction", content: (introduction || "").trim(), image: "" },
+    { id: "intro", type: "intro", title: lbl.intro, content: (introduction || "").trim(), image: "" },
   ];
   chapters.forEach((ch, i) => {
     sections.push({
       id: `chapter-${i}`,
       type: "chapter",
-      title: `Chapitre ${i + 1} : ${ch.title}`,
+      title: `${lbl.chapter} ${i + 1} : ${ch.title}`,
       content: (ch.content || "").trim(),
       image: "",
     });
   });
-  sections.push({ id: "conclusion", type: "conclusion", title: "Conclusion", content: (conclusion || "").trim(), image: "" });
+  sections.push({ id: "conclusion", type: "conclusion", title: lbl.conclusion, content: (conclusion || "").trim(), image: "" });
   return sections;
 }
 
 /* Plan vide : les parties sont rédigées ensuite, une par une */
 export function buildPlanSections(chapters, lbl) {
   const sections = [
-    { id: "intro", type: "intro", title: "Introduction", summary: lbl.introSummary, content: "", image: "" },
+    { id: "intro", type: "intro", title: lbl.intro, summary: lbl.introSummary, content: "", image: "" },
   ];
   chapters.forEach((ch, i) => {
     sections.push({
       id: `chapter-${i}`,
       type: "chapter",
-      title: `Chapitre ${i + 1} : ${ch.title}`,
+      title: `${lbl.chapter} ${i + 1} : ${ch.title}`,
       summary: ch.summary || "",
       content: "",
       image: "",
@@ -179,7 +166,7 @@ export function buildPlanSections(chapters, lbl) {
   sections.push({
     id: "conclusion",
     type: "conclusion",
-    title: "Conclusion",
+    title: lbl.conclusion,
     summary: lbl.conclusionSummary,
     content: "",
     image: "",
@@ -202,8 +189,8 @@ export function parseContentToSections(content) {
     const lines = raw.split("\n");
     const title = (lines[0] || "").trim();
     const body = lines.slice(1).join("\n").trim();
-    const isIntro = /^Introduction/i.test(title);
-    const isConclusion = /^Conclusion/i.test(title);
+    const isIntro = /^(Introduction|Introducción|Introdução|Einleitung|Introduzione|المقدمة)/i.test(title);
+    const isConclusion = /^(Conclusion|Conclusión|Conclusão|Fazit|Conclusione|الخاتمة)/i.test(title);
     const type = isIntro ? "intro" : isConclusion ? "conclusion" : "chapter";
     const id = isIntro ? "intro" : isConclusion ? "conclusion" : `chapter-${i - 1}`;
     return { id, type, title, content: body, image: "" };
@@ -232,7 +219,7 @@ function parsePlan(text, max) {
     const [titlePart, ...rest] = m[1].split("|");
     const title = titlePart
       .replace(/\*\*/g, "")
-      .replace(/^chapitre\s*\d+\s*[:\-–]\s*/i, "")
+      .replace(CHAPTER_PREFIX, "")
       .replace(/^["«\s]+|["»\s]+$/g, "")
       .trim();
     const summary = rest.join("|").replace(/\*\*/g, "").trim();
@@ -255,11 +242,12 @@ export async function handleGenerateEbook(request, env) {
     return Response.json({ error: "Corps de requête invalide." }, { status: 400 });
   }
 
-  const { title, description, language } = body;
+  const { title, description } = body;
   if (!title || !description) {
     return Response.json({ error: "Le titre et la description sont requis." }, { status: 400 });
   }
 
+  const language = LANGS[body.language] ? body.language : "fr";
   const lbl = labelsFor(language);
   const count = Math.min(12, Math.max(3, parseInt(body.chapters, 10) || 8));
   const cleanTitle = String(title).trim().slice(0, 150);
@@ -268,7 +256,7 @@ export async function handleGenerateEbook(request, env) {
   try {
     const planPrompt = `Tu conçois le plan d'un eBook premium intitulé "${cleanTitle}".
 Sujet et public visé : ${subject}
-Langue de rédaction : ${lbl.lang}.
+Langue de rédaction : ${lbl.lang}. Les titres et les résumés sont rédigés en ${lbl.lang}.
 
 Crée exactement ${count} chapitres, dans un ordre logique et progressif, sans doublons ni chevauchements. Chaque chapitre a un titre accrocheur de 10 mots maximum et un résumé d'une phrase.
 
@@ -294,27 +282,15 @@ Réponds STRICTEMENT dans ce format, sans aucun texte avant ou après :
       );
     }
 
-    // Accroche courte pour la couverture (n'empêche jamais la création en cas d'échec)
-    const tagline = await makeTagline(env, cleanTitle, subject, lbl, language);
-
     const sections = buildPlanSections(items, lbl);
     const fullContent = sectionsToContent(cleanTitle, sections);
     const ebookId = generateId();
 
     await env.DB.prepare(
-      `INSERT INTO ebooks (id, user_id, title, description, language, content, sections_json, tagline, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')`
+      `INSERT INTO ebooks (id, user_id, title, description, language, content, sections_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')`
     )
-      .bind(
-        ebookId,
-        payload.sub,
-        cleanTitle,
-        description,
-        language || "fr",
-        fullContent,
-        JSON.stringify(sections),
-        tagline || null
-      )
+      .bind(ebookId, payload.sub, cleanTitle, description, language, fullContent, JSON.stringify(sections))
       .run();
 
     return Response.json({
@@ -322,7 +298,6 @@ Réponds STRICTEMENT dans ce format, sans aucun texte avant ou après :
         id: ebookId,
         title: cleanTitle,
         description,
-        tagline,
         language,
         content: fullContent,
         sections,
@@ -361,24 +336,16 @@ export async function handleGenerateEbookSection(request, env, ebookId, sectionI
   const outline = chapters.map((c, i) => `${i + 1}. ${stripChapterPrefix(c.title)}`).join("\n");
   const subject = cleanDescription(ebook.description) || ebook.title;
 
-  // Sous-titres déjà utilisés dans les autres parties, pour éviter les répétitions
-  const usedSubtitles = sections
-    .filter((s) => s.id !== section.id && (s.content || "").trim())
-    .flatMap((s) => [...s.content.matchAll(/^###\s+(.+)$/gm)].map((m) => m[1].trim()))
-    .filter((t) => t && t !== lbl.takeaway && t !== lbl.practice && t !== lbl.learn && t !== lbl.next)
-    .slice(0, 40);
-
   const bookInfo = `Livre : "${ebook.title}"
 Sujet et public visé : ${subject}
 Langue de rédaction : ${lbl.lang}.
 Plan complet du livre (pour éviter les répétitions) :
 ${outline}`;
 
-  const commonRules = `- Vouvoie le lecteur dans tout le texte.
-- N'invente ni statistiques, ni pourcentages, ni durées chiffrées, ni études, ni citations de personnes réelles. Les tableaux ne contiennent que des informations qualitatives (types, étapes, outils, critères, exemples).
+  const commonRules = `- Rédige TOUT le texte, sous-titres compris, en ${lbl.lang}, même si ces consignes sont en français.
+- N'invente ni statistiques précises, ni études, ni citations de personnes réelles.
 - Aucun emoji, aucun commentaire sur ta réponse, aucun titre de niveau "#" ou "##".
-- Paragraphes courts de 2 à 4 phrases, séparés par une ligne vide.
-- Va droit au but : pas de phrases vagues du type "il est essentiel de" ; donne des exemples concrets, des phrases-modèles ou des mini-cas.`;
+- Paragraphes courts de 2 à 4 phrases, séparés par une ligne vide.`;
 
   let prompt;
   let maxTokens;
@@ -413,8 +380,6 @@ Objectif du chapitre : ${section.summary || "traiter ce sujet de façon concrèt
 Contenu :
 - 700 à 900 mots, concret, avec des exemples réalistes et des conseils applicables immédiatement.
 - Ne répète pas ce que disent les autres chapitres, ne te présente pas, ne conclus pas le livre.
-- Inclus au moins un exemple concret ou un mini-cas réaliste, sans chiffres inventés.
-- Ces sous-titres sont déjà utilisés dans d'autres chapitres : n'en reprends aucun et choisis des angles différents : ${usedSubtitles.length ? usedSubtitles.join(" ; ") : "(aucun pour le moment)"}.
 
 Mise en forme (Markdown simple, obligatoire) :
 - Commence directement par un court paragraphe d'accroche, sans titre.
@@ -500,7 +465,7 @@ export async function handleGetEbook(request, env, ebookId) {
   }
 
   const ebook = await env.DB.prepare(
-    `SELECT id, title, description, tagline, language, content, sections_json, status,
+    `SELECT id, title, description, language, content, sections_json, status,
             price, currency, cover_url, published_at, created_at
      FROM ebooks WHERE id = ? AND user_id = ?`
   )
@@ -518,4 +483,4 @@ export async function handleGetEbook(request, env, ebookId) {
   return Response.json({
     ebook: { ...rest, currency: rest.currency || "EUR", pay_code: payCode, sections },
   });
-    }
+        }
