@@ -16,7 +16,7 @@ async function askAI(env, prompt, maxTokens) {
       {
         role: "system",
         content:
-          "Tu es un concepteur pédagogique expert en création de formations en ligne vendables et structurées.",
+          "Tu es un concepteur pédagogique expert en création de formations en ligne vendables et structurées. Tu écris dans la langue demandée.",
       },
       { role: "user", content: prompt },
     ],
@@ -24,6 +24,63 @@ async function askAI(env, prompt, maxTokens) {
   });
   return response.response || "";
 }
+
+/* ===== Langues prises en charge ===== */
+const LANGS = {
+  fr: {
+    name: "français", you: "Vouvoie le lecteur.",
+    modules: ["Introduction", "Les bases", "Mise en pratique", "Stratégies avancées", "Quiz & Conclusion"],
+    intro: (t) => `Présentation de l'objectif et du parcours : ${t}.`,
+    sums: ["Les notions essentielles à maîtriser avant de démarrer.", "Étapes concrètes et exercices guidés.", "Techniques pour aller plus loin et optimiser les résultats.", "Vérification des acquis et plan d'action final."],
+    quiz: "Quiz", answers: "Corrigé", conclusion: "Conclusion", plan: "Plan d'action", exercise: "Exercice pratique", summary: "Résumé",
+  },
+  en: {
+    name: "English", you: 'Address the reader directly with "you".',
+    modules: ["Introduction", "The basics", "Putting it into practice", "Advanced strategies", "Quiz & Conclusion"],
+    intro: (t) => `Presentation of the goal and the course: ${t}.`,
+    sums: ["The essential notions to master before starting.", "Concrete steps and guided exercises.", "Techniques to go further and optimize results.", "Review of what you learned and final action plan."],
+    quiz: "Quiz", answers: "Answers", conclusion: "Conclusion", plan: "Action plan", exercise: "Practical exercise", summary: "Summary",
+  },
+  es: {
+    name: "español", you: "Háblale al lector de tú.",
+    modules: ["Introducción", "Lo básico", "Puesta en práctica", "Estrategias avanzadas", "Quiz y Conclusión"],
+    intro: (t) => `Presentación del objetivo y del recorrido: ${t}.`,
+    sums: ["Las nociones esenciales que hay que dominar antes de empezar.", "Pasos concretos y ejercicios guiados.", "Técnicas para ir más lejos y optimizar los resultados.", "Repaso de lo aprendido y plan de acción final."],
+    quiz: "Quiz", answers: "Respuestas", conclusion: "Conclusión", plan: "Plan de acción", exercise: "Ejercicio práctico", summary: "Resumen",
+  },
+  pt: {
+    name: "português", you: "Trate o leitor por «você».",
+    modules: ["Introdução", "O essencial", "Colocar em prática", "Estratégias avançadas", "Quiz e Conclusão"],
+    intro: (t) => `Apresentação do objetivo e do percurso: ${t}.`,
+    sums: ["As noções essenciais a dominar antes de começar.", "Etapas concretas e exercícios guiados.", "Técnicas para ir mais longe e otimizar os resultados.", "Revisão do que foi aprendido e plano de ação final."],
+    quiz: "Quiz", answers: "Respostas", conclusion: "Conclusão", plan: "Plano de ação", exercise: "Exercício prático", summary: "Resumo",
+  },
+  de: {
+    name: "Deutsch", you: "Sprich den Leser mit «Sie» an.",
+    modules: ["Einführung", "Die Grundlagen", "Praktische Umsetzung", "Fortgeschrittene Strategien", "Quiz & Fazit"],
+    intro: (t) => `Vorstellung des Ziels und des Kursverlaufs: ${t}.`,
+    sums: ["Die wesentlichen Grundlagen vor dem Start.", "Konkrete Schritte und angeleitete Übungen.", "Techniken, um weiterzukommen und Ergebnisse zu optimieren.", "Überprüfung des Gelernten und abschließender Aktionsplan."],
+    quiz: "Quiz", answers: "Lösungen", conclusion: "Fazit", plan: "Aktionsplan", exercise: "Praktische Übung", summary: "Zusammenfassung",
+  },
+  it: {
+    name: "italiano", you: "Dai del «tu» al lettore.",
+    modules: ["Introduzione", "Le basi", "Messa in pratica", "Strategie avanzate", "Quiz e Conclusione"],
+    intro: (t) => `Presentazione dell'obiettivo e del percorso: ${t}.`,
+    sums: ["Le nozioni essenziali da padroneggiare prima di iniziare.", "Passi concreti ed esercizi guidati.", "Tecniche per andare oltre e ottimizzare i risultati.", "Verifica di quanto appreso e piano d'azione finale."],
+    quiz: "Quiz", answers: "Soluzioni", conclusion: "Conclusione", plan: "Piano d'azione", exercise: "Esercizio pratico", summary: "Riepilogo",
+  },
+  ar: {
+    name: "العربية (arabe standard moderne)", you: "خاطب القارئ مباشرة بصيغة المخاطب.",
+    modules: ["المقدمة", "الأساسيات", "التطبيق العملي", "استراتيجيات متقدمة", "اختبار وخاتمة"],
+    intro: (t) => `عرض الهدف ومسار الدورة: ${t}.`,
+    sums: ["المفاهيم الأساسية التي يجب إتقانها قبل البدء.", "خطوات عملية وتمارين موجّهة.", "تقنيات للتقدم أكثر وتحسين النتائج.", "مراجعة ما تم تعلمه وخطة العمل النهائية."],
+    quiz: "اختبار", answers: "الإجابات", conclusion: "الخاتمة", plan: "خطة العمل", exercise: "تمرين عملي", summary: "الملخص",
+  },
+};
+
+const langOf = (code) => LANGS[code] || LANGS.fr;
+
+const QUIZ_RE = /quiz|conclusion|conclusión|conclusão|fazit|conclusione|اختبار|خاتمة/i;
 
 /* Nettoie une accroche renvoyée par l'IA : une seule ligne, sans symboles ni émojis, 220 caractères maximum */
 function cleanHook(raw, max = 220) {
@@ -34,7 +91,7 @@ function cleanHook(raw, max = 220) {
   t = t.replace(/\s+/g, " ").trim();
   if (t.length > max) {
     const cut = t.slice(0, max);
-    const lastEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"));
+    const lastEnd = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("؟"));
     if (lastEnd > 80) {
       t = cut.slice(0, lastEnd + 1);
     } else {
@@ -45,13 +102,13 @@ function cleanHook(raw, max = 220) {
   return t.length >= 20 ? t : "";
 }
 
-function defaultModules(topic) {
+function defaultModules(topic, L) {
   return [
-    { title: "Introduction", summary: `Présentation de l'objectif et du parcours : ${topic}.` },
-    { title: "Les bases", summary: "Les notions essentielles à maîtriser avant de démarrer." },
-    { title: "Mise en pratique", summary: "Étapes concrètes et exercices guidés." },
-    { title: "Stratégies avancées", summary: "Techniques pour aller plus loin et optimiser les résultats." },
-    { title: "Quiz & Conclusion", summary: "Vérification des acquis et plan d'action final." },
+    { title: L.modules[0], summary: L.intro(topic) },
+    { title: L.modules[1], summary: L.sums[0] },
+    { title: L.modules[2], summary: L.sums[1] },
+    { title: L.modules[3], summary: L.sums[2] },
+    { title: L.modules[4], summary: L.sums[3] },
   ];
 }
 
@@ -73,40 +130,39 @@ export async function handleCreateFormation(request, env) {
 
   const body = await request.json().catch(() => null);
   const topic = (body?.topic || "").trim();
-  const language = body?.language === "en" ? "en" : "fr";
+  const language = LANGS[body?.language] ? body.language : "fr";
   if (topic.length < 5) {
     return Response.json({ error: "Le sujet est trop court." }, { status: 400 });
   }
 
-  const langLabel = language === "en" ? "English" : "français";
-  const youRule =
-    language === "en" ? "Address the reader directly with \"you\"." : "Vouvoie le lecteur.";
+  const L = langOf(language);
+  const langLabel = L.name;
 
   try {
-    const prompt = `Tu conçois une formation en ligne sur le sujet : "${topic}". Réponds uniquement en ${langLabel}.
+    const prompt = `Tu conçois une formation en ligne sur le sujet : "${topic}". Rédige TOUT (titre, accroche, titres et résumés des modules) uniquement en ${langLabel}, même si ces consignes sont en français.
 
-Crée exactement 5 modules dans cet ordre logique :
-1. Introduction
-2. Les bases
-3. Mise en pratique
-4. Stratégies avancées
-5. Quiz & Conclusion
+Crée exactement 5 modules dans cet ordre logique (traduis les intitulés en ${langLabel}) :
+1. ${L.modules[0]}
+2. ${L.modules[1]}
+3. ${L.modules[2]}
+4. ${L.modules[3]}
+5. ${L.modules[4]}
 Adapte le contenu de chaque module au sujet.
 
-Réponds STRICTEMENT dans ce format, sans texte avant ou après :
+Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs ##TITRE##, ##DESCRIPTION## et ##MODULES## restent tels quels) :
 
 ##TITRE##
 (titre accrocheur de la formation, sur une ligne)
 ##DESCRIPTION##
-(une accroche courte et percutante de 1 à 2 phrases, 200 caractères maximum, qui promet un bénéfice concret au lecteur et donne envie de suivre la formation. ${youRule} Ne répète pas le titre. N'invente ni chiffre, ni délai, ni résultat garanti. Aucun emoji.)
+(une accroche courte et percutante de 1 à 2 phrases, 200 caractères maximum, qui promet un bénéfice concret au lecteur et donne envie de suivre la formation. ${L.you} Ne répète pas le titre. N'invente ni chiffre, ni délai, ni résultat garanti. Aucun emoji.)
 ##MODULES##
 1. Titre du module | résumé en une phrase
 2. Titre du module | résumé en une phrase
 3. Titre du module | résumé en une phrase
 4. Titre du module | résumé en une phrase
-5. Quiz & Conclusion | résumé en une phrase`;
+5. ${L.modules[4]} | résumé en une phrase`;
 
-    const text = await askAI(env, prompt, 900);
+    const text = await askAI(env, prompt, 1000);
 
     const titleMatch = text.match(/##TITRE##([\s\S]*?)##DESCRIPTION##/);
     const descMatch = text.match(/##DESCRIPTION##([\s\S]*?)##MODULES##/);
@@ -117,15 +173,15 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après :
 
     let modules = [];
     if (modulesMatch) {
-      modules = [...modulesMatch[1].matchAll(/^\s*\d+\.\s*(.+)$/gm)]
+      modules = [...modulesMatch[1].matchAll(/^\s*\d+[.)]\s*(.+)$/gm)]
         .map((m) => {
           const [t, ...rest] = m[1].split("|");
-          return { title: t.trim(), summary: rest.join("|").trim() };
+          return { title: t.replace(/\*\*/g, "").trim(), summary: rest.join("|").replace(/\*\*/g, "").trim() };
         })
         .filter((m) => m.title)
         .slice(0, 8);
     }
-    if (modules.length < 3) modules = defaultModules(topic);
+    if (modules.length < 3) modules = defaultModules(topic, L);
 
     const formationId = crypto.randomUUID();
     const statements = [
@@ -318,27 +374,28 @@ export async function handleGenerateModule(request, env, formationId, moduleId) 
     return Response.json({ error: "Module introuvable." }, { status: 404 });
   }
 
-  const langLabel = mod.language === "en" ? "English" : "français";
-  const isQuiz = /quiz|conclusion/i.test(mod.title);
+  const L = langOf(mod.language);
+  const langLabel = L.name;
+  const isQuiz = QUIZ_RE.test(mod.title);
 
   const prompt = isQuiz
-    ? `Tu rédiges le dernier module d'une formation en ligne en ${langLabel}.
+    ? `Tu rédiges le dernier module d'une formation en ligne. Rédige TOUT le texte, titres compris, en ${langLabel}, même si ces consignes sont en français.
 Formation : "${mod.formation_title}". Sujet : ${mod.topic}. Module : "${mod.title}".
 
 Rédige en Markdown, sans répéter le titre du module :
 - une courte introduction (2 à 3 phrases) ;
-- ### Quiz : 5 questions à choix multiples (A, B, C), puis ### Corrigé avec les bonnes réponses ;
-- ### Conclusion : environ 100 mots qui résument les acquis ;
-- ### Plan d'action : 4 à 5 puces concrètes pour passer à l'action.`
-    : `Tu rédiges la leçon d'un module de formation en ligne en ${langLabel}.
+- ### ${L.quiz} : 5 questions à choix multiples (A, B, C), puis ### ${L.answers} avec les bonnes réponses ;
+- ### ${L.conclusion} : environ 100 mots qui résument les acquis ;
+- ### ${L.plan} : 4 à 5 puces concrètes pour passer à l'action.`
+    : `Tu rédiges la leçon d'un module de formation en ligne. Rédige TOUT le texte, titres compris, en ${langLabel}, même si ces consignes sont en français.
 Formation : "${mod.formation_title}". Sujet : ${mod.topic}.
 Module : "${mod.title}". Objectif du module : ${mod.summary || mod.title}.
 
 Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter le titre du module :
 - une introduction de 2 à 3 phrases ;
 - 2 à 3 sous-parties avec des titres commençant par "### " et des paragraphes clairs, avec des exemples concrets ;
-- ### Exercice pratique : un exercice réalisable par l'apprenant ;
-- ### Résumé : 3 à 4 puces qui reprennent l'essentiel.`;
+- ### ${L.exercise} : un exercice réalisable par l'apprenant ;
+- ### ${L.summary} : 3 à 4 puces qui reprennent l'essentiel.`;
 
   try {
     const content = (await askAI(env, prompt, 1500)).trim();
@@ -357,4 +414,4 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
       { status: 502 }
     );
   }
-    }
+              }
