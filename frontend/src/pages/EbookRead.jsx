@@ -130,7 +130,7 @@ export default function EbookRead() {
 
         {/* SOMMAIRE */}
         {chapterSections.length > 0 && (
-          <section className="ebook-toc no-print-break">
+          <section className="ebook-toc">
             <div className="ebook-section-label">Sommaire</div>
             <ul>
               {chapterSections.map((s, i) => (
@@ -407,6 +407,7 @@ function ErStyle() {
         font-size: 1.5rem;
         margin: 0 0 1.5rem;
         color: var(--digi-ink);
+        break-after: avoid;
       }
       .ebook-body h3 {
         font-family: 'Manrope', sans-serif;
@@ -414,6 +415,7 @@ function ErStyle() {
         font-size: 1.05rem;
         margin-top: 1.8rem;
         color: var(--digi-ink);
+        break-after: avoid;
       }
       .ebook-body p {
         font-family: 'Inter', sans-serif;
@@ -422,6 +424,8 @@ function ErStyle() {
         margin: 1.1rem 0;
         text-align: justify;
         color: #222;
+        orphans: 3;
+        widows: 3;
       }
       .ebook-body ul {
         margin: 1rem 0;
@@ -480,21 +484,67 @@ function ErStyle() {
       }
       .ebook-copyright p { margin: 0; }
 
+      /* ===== IMPRESSION PDF ===== */
+      @page { margin: 14mm 0; }
+      @page cover { margin: 0; }
+
       @media print {
         .no-print, .er-toolbar, header, aside { display: none !important; }
-        body { background: white; }
-        @page { margin: 0; }
-        .er-root, .ebook-doc { background: white; }
-        .ebook-cover {
-          height: 297mm; min-height: 0;
-          page-break-after: always; break-after: page;
-          -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        html, body, #root, main {
+          height: auto !important;
+          overflow: visible !important;
+          background: white;
         }
-        .ebook-toc, .ebook-chapter { page-break-before: always; break-before: page; }
-        .ebook-cta { min-height: 297mm; page-break-before: always; break-before: page; page-break-inside: avoid; }
+        .er-root, .ebook-doc { background: white; min-height: 0; }
+
+        .ebook-cover {
+          page: cover;
+          height: 296mm;
+          min-height: 0;
+          padding: 0;
+          break-after: page;
+          page-break-after: always;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .cv-ribbon {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .ebook-toc,
+        .ebook-chapter,
+        .ebook-cta {
+          max-width: none;
+          margin: 0;
+          padding-left: 3rem;
+          padding-right: 3rem;
+          padding-top: 0;
+          padding-bottom: 0;
+        }
+        .ebook-chapter {
+          break-before: page;
+          page-break-before: always;
+        }
+        .ebook-chapter-number { margin-bottom: 0; }
+
+        .ebook-cta {
+          min-height: 255mm;
+          break-before: page;
+          page-break-before: always;
+        }
+
+        .ebook-body div,
+        .ebook-body table { break-inside: auto !important; }
+        .ebook-body table { width: 100%; border-collapse: collapse; }
+        .ebook-body thead { display: table-header-group; }
+        .ebook-body tr,
+        .ebook-body blockquote,
+        .ebook-body li { break-inside: avoid !important; }
+
         .ebook-illustration { break-inside: avoid; margin: 8mm 0; }
-        .ebook-illustration img { max-height: 130mm; object-fit: cover; }
+        .ebook-illustration img { max-height: 120mm; object-fit: contain; }
       }
     `}</style>
   );
-          }
+}
