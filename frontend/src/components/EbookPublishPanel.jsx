@@ -45,6 +45,7 @@ export default function EbookPublishPanel({ ebook, onChange }) {
   const [err, setErr] = useState("");
 
   const hasContent = !!(ebook.content || "").trim();
+  const changed = cover !== (ebook.cover_url || "");
 
   async function onCoverFile(e) {
     const file = e.target.files?.[0];
@@ -98,10 +99,17 @@ export default function EbookPublishPanel({ ebook, onChange }) {
 
         <ul className="pb-checks">
           <li className={hasContent ? "ok" : ""}>{hasContent ? "✓" : "○"} Contenu généré</li>
-          <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Image de couverture (recommandée)</li>
+          <li className={cover ? "ok" : ""}>{cover ? "✓" : "○"} Couverture de la page de vente</li>
         </ul>
 
-        <div className="dg-field__label" style={{ marginTop: "1.2rem" }}>Image de couverture</div>
+        <div className="dg-field__label" style={{ marginTop: "1.2rem" }}>
+          Couverture de la page de vente
+        </div>
+        <p className="dg-helper-text" style={{ marginTop: 0, marginBottom: 10 }}>
+          Cette image s'affiche sur la page de vente de votre eBook. Pour obtenir une image 3D à publier sur
+          les réseaux, utilisez « Mockup 3D de la couverture » ci-dessus, téléchargez-le, puis ajoutez-le ici
+          avec « Changer l'image ».
+        </p>
         {cover ? (
           <div className="dg-cover-box">
             <img src={cover} alt="Couverture de l'eBook" />
@@ -122,10 +130,10 @@ export default function EbookPublishPanel({ ebook, onChange }) {
         </div>
 
         {err && <div className="dg-alert dg-alert--error">{err}</div>}
-        {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
+        {msg && !changed && <div className="dg-alert dg-alert--success">{msg}</div>}
 
         <div className="fm-actions" style={{ marginTop: "1.2rem" }}>
-          <button className="btn-primary fm-btn" onClick={handleSave} disabled={busy}>
+          <button className="btn-primary fm-btn" onClick={handleSave} disabled={busy || !changed}>
             {busy ? "Enregistrement..." : "💾 Enregistrer la couverture"}
           </button>
         </div>
@@ -141,4 +149,4 @@ export default function EbookPublishPanel({ ebook, onChange }) {
       `}</style>
     </div>
   );
-        }
+  }
