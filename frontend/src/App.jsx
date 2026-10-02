@@ -20,6 +20,9 @@ import FormationPublic from "./pages/FormationPublic.jsx";
 import Learn from "./pages/Learn.jsx";
 import EbookPublic from "./pages/EbookPublic.jsx";
 import EbookRead from "./pages/EbookRead.jsx";
+import Templates from "./pages/Templates.jsx";
+import Ideas from "./pages/Ideas.jsx";
+import BrandKit from "./pages/BrandKit.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
@@ -61,6 +64,9 @@ export default function App() {
       <Route path="/dashboard/ebooks" element={guard(<EbooksList />)} />
       <Route path="/dashboard/ebooks/create" element={guard(<CreateEbook />)} />
       <Route path="/dashboard/ebooks/:id" element={guard(<EbookPreview />)} />
+      <Route path="/dashboard/templates" element={guard(<Templates />)} />
+      <Route path="/dashboard/ideas" element={guard(<Ideas />)} />
+      <Route path="/dashboard/brand" element={guard(<BrandKit />)} />
       <Route path="/dashboard/formations" element={guard(<Formations />)} />
       <Route path="/dashboard/pages-vente" element={salesGuard(<PagesVente />)} />
       <Route path="/dashboard/marketing" element={guard(<Marketing />)} />
@@ -80,4 +86,4 @@ export default function App() {
       />
     </Routes>
   );
-      }
+                                                          }
