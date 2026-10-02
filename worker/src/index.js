@@ -75,6 +75,13 @@ import {
   handleVerifyPayment,
   handleSaspayWebhook,
 } from "./routes/payments.js";
+import {
+  handleGetStyle,
+  handleSetTemplate,
+  handleGetBrand,
+  handleSaveBrand,
+  handleIdeas,
+} from "./routes/styles.js";
 
 const GATED_EXACT = new Set([
   "/api/generate/ebook",
@@ -89,7 +96,8 @@ function needsSubscription(path) {
     GATED_EXACT.has(path) ||
     path.startsWith("/api/ebooks") ||
     path.startsWith("/api/marketing") ||
-    path.startsWith("/api/formations")
+    path.startsWith("/api/formations") ||
+    path.startsWith("/api/ideas")
   );
 }
 
@@ -177,6 +185,15 @@ export default {
             await handleGenerateEbookSection(request, env, ebookId, parts[4]),
             request
           );
+        }
+
+        if (parts.length === 4 && parts[3] === "style") {
+          if (request.method === "GET") {
+            return withCors(await handleGetStyle(request, env, ebookId), request);
+          }
+          if (request.method === "PUT") {
+            return withCors(await handleSetTemplate(request, env, ebookId), request);
+          }
         }
 
         if (parts.length === 4 && request.method === "POST") {
@@ -383,6 +400,17 @@ export default {
             return withCors(res, request);
           }
         }
+      }
+
+      // ===== STYLE, MARQUE ET IDÉES =====
+      if (url.pathname === "/api/brand" && request.method === "GET") {
+        return withCors(await handleGetBrand(request, env), request);
+      }
+      if (url.pathname === "/api/brand" && request.method === "PUT") {
+        return withCors(await handleSaveBrand(request, env), request);
+      }
+      if (url.pathname === "/api/ideas" && request.method === "POST") {
+        return withCors(await handleIdeas(request, env), request);
       }
 
       return withCors(
