@@ -14,12 +14,12 @@ export function renderMarkdown(text) {
     l.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 
   const TH =
-    "text-align:left;padding:0.6rem 0.7rem;font-weight:700;border:1px solid rgba(128,128,128,0.35);background:rgba(212,175,55,0.2);" +
+    "text-align:left;padding:0.6rem 0.7rem;font-weight:700;border:1px solid rgba(128,128,128,0.35);background:var(--accent-soft,rgba(212,175,55,0.2));" +
     PRINT;
   const TD =
     "padding:0.55rem 0.7rem;vertical-align:top;border:1px solid rgba(128,128,128,0.35);";
   const CALLOUT =
-    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid #D4AF37;background:rgba(212,175,55,0.12);border-radius:0 8px 8px 0;line-height:1.7;" +
+    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid var(--accent,#D4AF37);background:var(--accent-soft,rgba(212,175,55,0.12));border-radius:0 8px 8px 0;line-height:1.7;" +
     PRINT;
 
   const lines = String(text).replace(/\r/g, "").split("\n");
@@ -129,6 +129,10 @@ export function renderMarkdown(text) {
 }
 
 export function extractChapterTitles(content) {
-  const matches = [...content.matchAll(/^## (Chapitre.+)$/gm)];
+  const matches = [
+    ...String(content || "").matchAll(
+      /^## ((?:Chapitre|Chapter|Capítulo|Kapitel|Capitolo|الفصل).+)$/gm
+    ),
+  ];
   return matches.map((m) => m[1]);
-    }
+      }
