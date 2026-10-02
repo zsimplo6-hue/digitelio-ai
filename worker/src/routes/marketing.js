@@ -94,24 +94,35 @@ function clip(v, n) {
   return String(v || "").replace(/\s+/g, " ").trim().slice(0, n);
 }
 
-/* Nettoie la sortie : pas de Markdown, pas de crochets, pas de mots-clés isolés à la fin */
+/* Une ligne "mots-clés isolés" : un seul mot, ou une liste séparée par des virgules, sans ponctuation finale */
+function isKeywordLine(line) {
+  const raw = line.trim();
+  if (!raw) return false;
+  if (/#/.test(raw) || /https?:\/\//.test(raw)) return false;
+  const plain = raw.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "").trim();
+  if (!plain) return true; // ligne composée uniquement d'émojis
+  if (/[.!?:»)]$/.test(plain)) return false;
+  const words = plain.split(/\s+/);
+  if (words.length === 1) return true;
+  return plain.includes(",") && words.length <= 8;
+}
+
+/* Nettoie la sortie : pas de Markdown, pas de bloc de code, pas de mots-clés isolés à la fin */
 function cleanOutput(raw, type) {
   let t = String(raw || "").replace(/\r/g, "").trim();
   t = t.replace(/^```[a-z]*\n?/i, "").replace(/```\s*$/, "");
   t = t.replace(/\*\*/g, "").replace(/^#{1,6}\s+/gm, "");
-  const lines = t.split("\n");
-  while (lines.length) {
-    const last = lines[lines.length - 1].trim();
-    const isKeywordLine =
-      last !== "" &&
-      !/#/.test(last) &&
-      !/https?:\/\//.test(last) &&
-      !/[.!?:»)]$/.test(last) &&
-      (last.split(/\s+/).length <= 2 || /^[\p{L}\s,'’-]+(\s*[\p{Extended_Pictographic}\uFE0F\s]*)$/u.test(last) && last.includes(","));
-    if (last === "" || (type !== "hooks" && isKeywordLine)) lines.pop();
-    else break;
+
+  if (type !== "hooks") {
+    const lines = t.split("\n");
+    while (lines.length) {
+      const last = lines[lines.length - 1];
+      if (last.trim() === "" || isKeywordLine(last)) lines.pop();
+      else break;
+    }
+    t = lines.join("\n");
   }
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return t.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export async function handleGenerateMarketing(request, env) {
@@ -196,7 +207,7 @@ export async function handleGenerateMarketing(request, env) {
   const rawLink = String(body.link || "").trim();
   if (/^https?:\/\/\S+$/i.test(rawLink) && rawLink.length <= 300) link = rawLink;
 
-  // Prix : celui saisi par l'utilisateur sinon celui du produit
+  // Prix : celui saisi par l'utilisateur, sinon celui du produit
   const customPrice = clip(body.price_text, 40);
   const price = customPrice || priceText(p.price, p.currency);
 
@@ -268,4 +279,4 @@ RÈGLES STRICTES :
       { status: 502 }
     );
   }
-}
+      }
