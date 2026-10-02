@@ -41,6 +41,11 @@ function compressImage(file, maxW = 1000, quality = 0.82) {
   });
 }
 
+const LANG_LABELS = {
+  fr: "Français", en: "English", es: "Español", pt: "Português",
+  de: "Deutsch", it: "Italiano", ar: "العربية",
+};
+
 export default function PublishPanel({ formation, onChange }) {
   const { user } = useAuth();
   const [cover, setCover] = useState(formation.cover_url || "");
@@ -50,6 +55,7 @@ export default function PublishPanel({ formation, onChange }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  const language = LANG_LABELS[formation.language] ? formation.language : "fr";
   const modules = formation.modules || [];
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
@@ -172,7 +178,8 @@ export default function PublishPanel({ formation, onChange }) {
                 🎓 Télécharger le certificat (PDF)
               </button>
               <div className="fm-muted fm-small">
-                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}.
+                Format paysage A4, signé au nom de {user?.fullName || "Digitelio AI"}. Langue du certificat :{" "}
+                {LANG_LABELS[language]}.
               </div>
             </div>
           )}
@@ -229,8 +236,13 @@ export default function PublishPanel({ formation, onChange }) {
       </div>
 
       {/* Documents imprimés (invisibles à l'écran) */}
-      <FormationDoc formation={formation} />
-      <CertificateDoc formation={formation} name={learner} instructor={user?.fullName} />
+      <FormationDoc formation={formation} language={language} />
+      <CertificateDoc
+        formation={formation}
+        name={learner}
+        instructor={user?.fullName}
+        language={language}
+      />
     </>
   );
-                     }
+    }
