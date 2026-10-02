@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import EbookPublishPanel from "../components/EbookPublishPanel.jsx";
+import CoverMockup from "../components/CoverMockup.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -281,6 +282,8 @@ export default function EbookPreview() {
           />
         )}
 
+        <CoverMockup initialSrc={ebook.cover_url} title={ebook.title} />
+
         <EbookPublishPanel ebook={ebook} onChange={patchEbook} />
       </div>
 
@@ -399,15 +402,13 @@ export default function EbookPreview() {
         .ebook-cover {
           position: relative;
           overflow: hidden;
-          height: 286mm;
+          height: 296mm;
           background: #0B0B0B;
           color: #F5F0E1;
           display: flex;
           align-items: center;
           justify-content: center;
           text-align: center;
-          page-break-after: always;
-          break-after: page;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
@@ -523,8 +524,6 @@ export default function EbookPreview() {
 
         .ebook-chapter {
           padding: 2.5rem 3rem;
-          page-break-before: always;
-          break-before: page;
         }
         .ebook-chapter-number {
           font-family: 'Cinzel', serif;
@@ -577,17 +576,15 @@ export default function EbookPreview() {
         .ebook-cta {
           display: flex;
           flex-direction: column;
-          min-height: 296mm;
+          min-height: 60vh;
           padding: 3rem 3rem 2rem;
-          page-break-before: always;
-          break-before: page;
           box-sizing: border-box;
         }
         .ebook-cta-center {
-        flex: 1;
+          flex: 1;
           display: flex;
           align-items: center;
-          justify-content: center;
+  justify-content: center;
         }
         .ebook-cta-box {
           border: 1.5px solid var(--digi-gold);
@@ -618,19 +615,64 @@ export default function EbookPreview() {
         }
         .ebook-copyright p { margin: 0; }
 
+        /* ===== IMPRESSION PDF ===== */
+        @page { margin: 14mm 0; }
+        @page cover { margin: 0; }
+
         @media print {
           .no-print, header, aside { display: none !important; }
-          body { background: white; }
-          @page { margin: 0; }
+          html, body, #root, main {
+            height: auto !important;
+            overflow: visible !important;
+            background: white;
+          }
           .ebook-doc { background: white; }
-          .ebook-cover, .cv-ribbon {
+
+          .ebook-cover {
+            page: cover;
+            height: 296mm;
+            min-height: 0;
+            break-after: page;
+            page-break-after: always;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
+          .cv-ribbon {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .ebook-toc,
+          .ebook-chapter {
+            padding-top: 0;
+            padding-bottom: 0;
+          }
+          .ebook-chapter {
+            break-before: page;
+            page-break-before: always;
+          }
+          .ebook-chapter-number { margin-bottom: 0; }
+
+          .ebook-cta {
+            min-height: 255mm;
+            padding-top: 0;
+            padding-bottom: 0;
+            break-before: page;
+            page-break-before: always;
+          }
+
+          .ebook-body div,
+          .ebook-body table { break-inside: auto !important; }
+          .ebook-body table { width: 100%; border-collapse: collapse; }
+          .ebook-body thead { display: table-header-group; }
+          .ebook-body tr,
+          .ebook-body blockquote,
+          .ebook-body li { break-inside: avoid !important; }
+
           .ebook-illustration { break-inside: avoid; margin: 8mm 0; }
           .ebook-illustration img { max-height: 120mm; object-fit: contain; }
         }
       `}</style>
     </DashboardLayout>
   );
-      }
+          }
