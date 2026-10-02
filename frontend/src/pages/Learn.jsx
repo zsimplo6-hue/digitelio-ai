@@ -5,6 +5,79 @@ import CertificateDoc, { printCertificate } from "../components/CertificateExpor
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+const TXT = {
+  fr: {
+    loading: "Chargement...", unavailable: "Accès indisponible", invalid: "Ce lien d'accès n'est pas valide.",
+    space: "ESPACE APPRENANT", hello: "Bonjour", by: "Par", progress: "Votre progression",
+    congrats: "🎉 Félicitations, formation terminée !", cert: "🎓 Télécharger mon certificat",
+    allDone: "Vous avez suivi tous les modules.", start: "▶ Commencer la formation", cont: "▶ Continuer",
+    program: "Programme", back: "← Programme", module: (n, t) => `Module ${n} sur ${t}`,
+    watch: "▶ Regarder la vidéo ↗", videoTitle: "Vidéo du module", resources: "Ressources",
+    moduleDone: "✓ Module terminé", saving: "Enregistrement...", finish: "✓ Terminer ce module",
+    prev: "← Précédent", next: "Suivant →", powered: "Propulsé par",
+  },
+  en: {
+    loading: "Loading...", unavailable: "Access unavailable", invalid: "This access link is not valid.",
+    space: "LEARNER AREA", hello: "Hello", by: "By", progress: "Your progress",
+    congrats: "🎉 Congratulations, course completed!", cert: "🎓 Download my certificate",
+    allDone: "You have completed all the modules.", start: "▶ Start the course", cont: "▶ Continue",
+    program: "Curriculum", back: "← Curriculum", module: (n, t) => `Module ${n} of ${t}`,
+    watch: "▶ Watch the video ↗", videoTitle: "Module video", resources: "Resources",
+    moduleDone: "✓ Module completed", saving: "Saving...", finish: "✓ Complete this module",
+    prev: "← Previous", next: "Next →", powered: "Powered by",
+  },
+  es: {
+    loading: "Cargando...", unavailable: "Acceso no disponible", invalid: "Este enlace de acceso no es válido.",
+    space: "ESPACIO DEL ALUMNO", hello: "Hola", by: "Por", progress: "Tu progreso",
+    congrats: "🎉 ¡Felicidades, curso terminado!", cert: "🎓 Descargar mi certificado",
+    allDone: "Has completado todos los módulos.", start: "▶ Empezar el curso", cont: "▶ Continuar",
+    program: "Programa", back: "← Programa", module: (n, t) => `Módulo ${n} de ${t}`,
+    watch: "▶ Ver el vídeo ↗", videoTitle: "Vídeo del módulo", resources: "Recursos",
+    moduleDone: "✓ Módulo completado", saving: "Guardando...", finish: "✓ Terminar este módulo",
+    prev: "← Anterior", next: "Siguiente →", powered: "Impulsado por",
+  },
+  pt: {
+    loading: "Carregando...", unavailable: "Acesso indisponível", invalid: "Este link de acesso não é válido.",
+    space: "ÁREA DO ALUNO", hello: "Olá", by: "Por", progress: "O seu progresso",
+    congrats: "🎉 Parabéns, curso concluído!", cert: "🎓 Baixar o meu certificado",
+    allDone: "Você concluiu todos os módulos.", start: "▶ Começar o curso", cont: "▶ Continuar",
+    program: "Programa", back: "← Programa", module: (n, t) => `Módulo ${n} de ${t}`,
+    watch: "▶ Assistir ao vídeo ↗", videoTitle: "Vídeo do módulo", resources: "Recursos",
+    moduleDone: "✓ Módulo concluído", saving: "Salvando...", finish: "✓ Concluir este módulo",
+    prev: "← Anterior", next: "Seguinte →", powered: "Desenvolvido por",
+  },
+  de: {
+    loading: "Wird geladen...", unavailable: "Zugang nicht verfügbar", invalid: "Dieser Zugangslink ist ungültig.",
+    space: "LERNBEREICH", hello: "Hallo", by: "Von", progress: "Ihr Fortschritt",
+    congrats: "🎉 Glückwunsch, Kurs abgeschlossen!", cert: "🎓 Mein Zertifikat herunterladen",
+    allDone: "Sie haben alle Module abgeschlossen.", start: "▶ Kurs starten", cont: "▶ Weiter",
+    program: "Programm", back: "← Programm", module: (n, t) => `Modul ${n} von ${t}`,
+    watch: "▶ Video ansehen ↗", videoTitle: "Modulvideo", resources: "Ressourcen",
+    moduleDone: "✓ Modul abgeschlossen", saving: "Wird gespeichert...", finish: "✓ Modul abschließen",
+    prev: "← Zurück", next: "Weiter →", powered: "Bereitgestellt von",
+  },
+  it: {
+    loading: "Caricamento...", unavailable: "Accesso non disponibile", invalid: "Questo link di accesso non è valido.",
+    space: "AREA STUDENTE", hello: "Ciao", by: "Di", progress: "I tuoi progressi",
+    congrats: "🎉 Complimenti, corso completato!", cert: "🎓 Scarica il mio certificato",
+    allDone: "Hai completato tutti i moduli.", start: "▶ Inizia il corso", cont: "▶ Continua",
+    program: "Programma", back: "← Programma", module: (n, t) => `Modulo ${n} di ${t}`,
+    watch: "▶ Guarda il video ↗", videoTitle: "Video del modulo", resources: "Risorse",
+    moduleDone: "✓ Modulo completato", saving: "Salvataggio...", finish: "✓ Completa questo modulo",
+    prev: "← Precedente", next: "Successivo →", powered: "Offerto da",
+  },
+  ar: {
+    loading: "جارٍ التحميل...", unavailable: "الوصول غير متاح", invalid: "رابط الوصول هذا غير صالح.",
+    space: "فضاء المتعلّم", hello: "مرحبًا", by: "بقلم", progress: "تقدمك",
+    congrats: "🎉 تهانينا، لقد أنهيت الدورة!", cert: "🎓 تنزيل شهادتي",
+    allDone: "لقد أنهيت جميع الوحدات.", start: "▶ ابدأ الدورة", cont: "▶ متابعة",
+    program: "البرنامج", back: "→ البرنامج", module: (n, t) => `الوحدة ${n} من ${t}`,
+    watch: "▶ شاهد الفيديو ↗", videoTitle: "فيديو الوحدة", resources: "الموارد",
+    moduleDone: "✓ تم إنهاء الوحدة", saving: "جارٍ الحفظ...", finish: "✓ إنهاء هذه الوحدة",
+    prev: "→ السابق", next: "التالي ←", powered: "مدعوم من",
+  },
+};
+
 function embedUrl(url) {
   if (!url) return null;
   const yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
@@ -29,7 +102,7 @@ export default function Learn() {
       try {
         const res = await fetch(`${API}/api/learn/${token}`);
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "Lien d'accès invalide.");
+        if (!res.ok) throw new Error(json.error || TXT.fr.invalid);
         if (alive) {
           setData(json);
           document.title = `${json.formation.title} | Digitelio AI`;
@@ -49,7 +122,7 @@ export default function Learn() {
   if (loading) {
     return (
       <div className="lr-root">
-        <p className="lr-center">Chargement...</p>
+        <p className="lr-center">{TXT.fr.loading}</p>
         <LrStyle />
       </div>
     );
@@ -60,8 +133,8 @@ export default function Learn() {
       <div className="lr-root">
         <div className="lr-center">
           <div className="lr-brand">DIGITELIO AI</div>
-          <h1 className="lr-title" style={{ fontSize: "1.3rem" }}>Accès indisponible</h1>
-          <p className="lr-muted">{error || "Ce lien d'accès n'est pas valide."}</p>
+          <h1 className="lr-title" style={{ fontSize: "1.3rem" }}>{TXT.fr.unavailable}</h1>
+          <p className="lr-muted">{error || TXT.fr.invalid}</p>
         </div>
         <LrStyle />
       </div>
@@ -69,6 +142,9 @@ export default function Learn() {
   }
 
   const f = data.formation;
+  const lang = TXT[f.language] ? f.language : "fr";
+  const t = TXT[lang];
+  const rtl = lang === "ar";
   const modules = data.modules || [];
   const done = new Set(data.completed || []);
   const doneCount = modules.filter((m) => done.has(m.id)).length;
@@ -77,6 +153,7 @@ export default function Learn() {
   const finished = total > 0 && doneCount >= total;
   const nextTodo = modules.find((m) => !done.has(m.id));
   const active = modules.find((m) => m.id === activeId);
+  const activeIdx = active ? modules.findIndex((m) => m.id === active.id) : -1;
 
   function open(id) {
     setSaveErr("");
@@ -94,7 +171,7 @@ export default function Learn() {
         body: JSON.stringify({ done: true }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Enregistrement impossible.");
+      if (!res.ok) throw new Error(json.error || "Error");
       setData((d) => ({ ...d, completed: json.completed, completed_at: json.completed_at }));
       const idx = modules.findIndex((m) => m.id === mid);
       const next = modules[idx + 1];
@@ -111,24 +188,24 @@ export default function Learn() {
   const resources = active ? (active.resources || []).filter((r) => r.label && r.url) : [];
 
   return (
-    <div className="lr-root">
+    <div className="lr-root" dir={rtl ? "rtl" : "ltr"}>
       <div className="lr-screen">
         <div className="lr-wrap">
           <div className="lr-brand">DIGITELIO AI</div>
           <div className="lr-ed">
             <span />
-            <em>ESPACE APPRENANT</em>
+            <em>{t.space}</em>
             <span />
           </div>
 
           {!active ? (
             <>
-              <div className="lr-hello">Bonjour {data.learner}</div>
+              <div className="lr-hello">{t.hello} {data.learner}</div>
               <h1 className="lr-title">{f.title}</h1>
-              {f.instructor && <div className="lr-by">Par {f.instructor}</div>}
+              {f.instructor && <div className="lr-by">{t.by} {f.instructor}</div>}
 
               <div className="lr-progress-top">
-                <span>Votre progression</span>
+                <span>{t.progress}</span>
                 <span>
                   {doneCount}/{total} · {pct}%
                 </span>
@@ -139,24 +216,24 @@ export default function Learn() {
 
               {finished && (
                 <div className="lr-done">
-                  <div className="lr-done-title">🎉 Félicitations, formation terminée !</div>
+                  <div className="lr-done-title">{t.congrats}</div>
                   {f.certificate ? (
                     <button className="lr-cta" onClick={printCertificate}>
-                      🎓 Télécharger mon certificat
+                      {t.cert}
                     </button>
                   ) : (
-                    <div className="lr-muted">Vous avez suivi tous les modules.</div>
+                    <div className="lr-muted">{t.allDone}</div>
                   )}
                 </div>
               )}
 
               {nextTodo && (
                 <button className="lr-cta" style={{ marginTop: "1.2rem" }} onClick={() => open(nextTodo.id)}>
-                  {doneCount === 0 ? "▶ Commencer la formation" : "▶ Continuer"}
+                  {doneCount === 0 ? t.start : t.cont}
                 </button>
               )}
 
-              <h2 className="lr-h2">Programme</h2>
+              <h2 className="lr-h2">{t.program}</h2>
               <ol className="lr-modules">
                 {modules.map((m, i) => (
                   <li key={m.id}>
@@ -176,21 +253,19 @@ export default function Learn() {
           ) : (
             <>
               <button className="lr-back" onClick={() => setActiveId(null)}>
-                ← Programme
+                {t.back}
               </button>
-              <div className="lr-step">
-                Module {modules.findIndex((m) => m.id === active.id) + 1} sur {total}
-              </div>
+              <div className="lr-step">{t.module(activeIdx + 1, total)}</div>
               <h1 className="lr-title lr-mtitle-big">{active.title}</h1>
 
               {embed && (
                 <div className="lr-video">
-                  <iframe src={embed} title="Vidéo du module" allowFullScreen />
+                  <iframe src={embed} title={t.videoTitle} allowFullScreen />
                 </div>
               )}
               {active.video_url && !embed && (
                 <a className="lr-link" href={active.video_url} target="_blank" rel="noopener noreferrer">
-                  ▶ Regarder la vidéo ↗
+                  {t.watch}
                 </a>
               )}
 
@@ -198,7 +273,7 @@ export default function Learn() {
 
               {resources.length > 0 && (
                 <>
-                  <h2 className="lr-h2">Ressources</h2>
+                  <h2 className="lr-h2">{t.resources}</h2>
                   <ul className="lr-res">
                     {resources.map((r, i) => (
                       <li key={i}>
@@ -214,28 +289,22 @@ export default function Learn() {
               {saveErr && <div className="lr-err">{saveErr}</div>}
 
               {done.has(active.id) ? (
-                <div className="lr-donebadge">✓ Module terminé</div>
+                <div className="lr-donebadge">{t.moduleDone}</div>
               ) : (
                 <button className="lr-cta" style={{ marginTop: "1.6rem" }} onClick={() => complete(active.id)} disabled={busy}>
-                  {busy ? "Enregistrement..." : "✓ Terminer ce module"}
+                  {busy ? t.saving : t.finish}
                 </button>
               )}
 
               <div className="lr-nav">
-                {modules.findIndex((m) => m.id === active.id) > 0 && (
-                  <button
-                    className="lr-ghost"
-                    onClick={() => open(modules[modules.findIndex((m) => m.id === active.id) - 1].id)}
-                  >
-                    ← Précédent
+                {activeIdx > 0 && (
+                  <button className="lr-ghost" onClick={() => open(modules[activeIdx - 1].id)}>
+                    {t.prev}
                   </button>
                 )}
-                {modules.findIndex((m) => m.id === active.id) < total - 1 && (
-                  <button
-                    className="lr-ghost"
-                    onClick={() => open(modules[modules.findIndex((m) => m.id === active.id) + 1].id)}
-                  >
-                    Suivant →
+                {activeIdx < total - 1 && (
+                  <button className="lr-ghost" onClick={() => open(modules[activeIdx + 1].id)}>
+                    {t.next}
                   </button>
                 )}
               </div>
@@ -243,7 +312,7 @@ export default function Learn() {
           )}
 
           <div className="lr-foot">
-            Propulsé par <strong>Digitelio AI</strong>
+            {t.powered} <strong>Digitelio AI</strong>
           </div>
         </div>
       </div>
@@ -262,18 +331,27 @@ export default function Learn() {
 function LrStyle() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap');
 
       .lr-root {
         min-height: 100vh;
         background: #0B0B0B;
         color: #F5F0E1;
-        font-family: 'Manrope', sans-serif;
+        font-family: 'Manrope', 'Noto Naskh Arabic', sans-serif;
         display: flex;
         justify-content: center;
         padding: 1.5rem 1.1rem 3rem;
         box-sizing: border-box;
       }
+      .lr-root[dir="rtl"] { font-family: 'Noto Naskh Arabic', 'Manrope', sans-serif; }
+      .lr-root[dir="rtl"] .lr-title,
+      .lr-root[dir="rtl"] .lr-h2 { font-family: 'Noto Naskh Arabic', serif; letter-spacing: 0; text-transform: none; }
+      .lr-root[dir="rtl"] .lr-ed,
+      .lr-root[dir="rtl"] .lr-step,
+      .lr-root[dir="rtl"] .lr-brand { letter-spacing: 0; }
+      .lr-root[dir="rtl"] .lr-ed em { margin-right: 0; }
+      .lr-root[dir="rtl"] .lr-lesson ul,
+      .lr-root[dir="rtl"] .lr-lesson ol { padding-left: 0; padding-right: 1.3rem; }
       .lr-screen { width: 100%; display: flex; justify-content: center; }
       .lr-wrap { width: 100%; max-width: 36rem; }
       .lr-center { text-align: center; margin: 30vh auto 0; }
@@ -323,7 +401,7 @@ function LrStyle() {
       }
       .lr-modules { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
       .lr-mod {
-        width: 100%; display: flex; gap: 0.9rem; align-items: flex-start; text-align: left;
+        width: 100%; display: flex; gap: 0.9rem; align-items: flex-start; text-align: start;
         padding: 0.8rem; border-radius: 12px; cursor: pointer; font-family: inherit; color: inherit;
         background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
       }
@@ -369,4 +447,4 @@ function LrStyle() {
       }
     `}</style>
   );
-                              }
+}
