@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Input, Select } from "../components/ui/Field.jsx";
+import { LANGUAGES } from "../utils/templates.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -21,9 +22,12 @@ async function postJSON(path, body) {
 
 export default function CreateEbook() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [language, setLanguage] = useState("fr");
+  const [params] = useSearchParams();
+  const [title, setTitle] = useState(params.get("title") || "");
+  const [description, setDescription] = useState(params.get("description") || "");
+  const [language, setLanguage] = useState(
+    LANGUAGES.some((l) => l.id === params.get("lang")) ? params.get("lang") : "fr"
+  );
   const [chapters, setChapters] = useState("8");
   const [phase, setPhase] = useState("idle"); // idle | plan | writing | done
   const [error, setError] = useState("");
@@ -141,10 +145,16 @@ export default function CreateEbook() {
             />
           </div>
 
-          <Select label="Langue" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={busy}>
-            <option value="fr">Français</option>
-            <option value="en">Anglais</option>
+          <Select label="Langue du livre" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={busy}>
+            {LANGUAGES.map((l) => (
+              <option key={l.id} value={l.id}>{l.label}</option>
+            ))}
           </Select>
+          {language === "ar" && (
+            <p className="dg-helper-text" style={{ marginTop: 0 }}>
+              La qualité est un peu moins régulière en arabe : relisez bien le texte avant de le vendre.
+            </p>
+          )}
 
           <Select label="Longueur" value={chapters} onChange={(e) => setChapters(e.target.value)} disabled={busy}>
             <option value="5">Court : 5 chapitres</option>
@@ -227,7 +237,7 @@ export default function CreateEbook() {
           )}
           {phase === "done" && !cancelled && failed.length === 0 && emptyCount === 0 && (
             <div className="dg-alert dg-alert--success" style={{ marginTop: 12 }}>
-              ✓ eBook complet. Ouvrez-le pour relire, ajouter des images et télécharger le PDF.
+              ✓ eBook complet. Ouvrez-le pour relire, choisir un modèle, ajouter des images et télécharger le PDF.
             </div>
           )}
 
@@ -248,4 +258,4 @@ export default function CreateEbook() {
       )}
     </DashboardLayout>
   );
-            }
+      }
