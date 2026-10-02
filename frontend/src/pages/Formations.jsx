@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
+import { LANGUAGES } from "../utils/templates.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -16,11 +17,15 @@ async function api(path, options = {}) {
   return data;
 }
 
-const EXAMPLES = [
-  "Créer une boutique Shopify rentable",
-  "Lancer sa chaîne YouTube",
-  "Maîtriser le marketing sur TikTok",
-];
+const EXAMPLES = {
+  fr: ["Créer une boutique Shopify rentable", "Lancer sa chaîne YouTube", "Maîtriser le marketing sur TikTok"],
+  en: ["Build a profitable Shopify store", "Launch your YouTube channel", "Master TikTok marketing"],
+  es: ["Crear una tienda Shopify rentable", "Lanzar tu canal de YouTube", "Dominar el marketing en TikTok"],
+  pt: ["Criar uma loja Shopify rentável", "Lançar o seu canal no YouTube", "Dominar o marketing no TikTok"],
+  de: ["Einen profitablen Shopify-Shop aufbauen", "Den eigenen YouTube-Kanal starten", "TikTok-Marketing meistern"],
+  it: ["Creare un negozio Shopify redditizio", "Lanciare il proprio canale YouTube", "Padroneggiare il marketing su TikTok"],
+  ar: ["إنشاء متجر شوبيفاي مربح", "إطلاق قناتك على يوتيوب", "إتقان التسويق على تيك توك"],
+};
 
 function youtubeId(url) {
   const m = (url || "").match(
@@ -53,6 +58,7 @@ function LessonEditor({ formation, module, onChange }) {
   const embed = embedUrl(cleanVideo);
   const ytId = youtubeId(cleanVideo);
   const cleanResources = resources.filter((r) => r.label.trim() && r.url.trim());
+  const rtl = formation.language === "ar";
 
   async function save() {
     setSaving(true);
@@ -118,6 +124,7 @@ function LessonEditor({ formation, module, onChange }) {
           {tab === "edit" ? (
             <textarea
               className="fm-input fm-textarea"
+              dir={rtl ? "rtl" : "ltr"}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Texte de la leçon (Markdown : ### Titre, - puce)..."
@@ -125,6 +132,7 @@ function LessonEditor({ formation, module, onChange }) {
           ) : (
             <div
               className="fm-lesson"
+              dir={rtl ? "rtl" : "ltr"}
               dangerouslySetInnerHTML={{
                 __html: content.trim() ? renderMarkdown(content) : "<p>Aucun texte pour le moment.</p>",
               }}
@@ -188,7 +196,7 @@ function LessonEditor({ formation, module, onChange }) {
       </div>
 
       {/* Feuille imprimée (invisible à l'écran) */}
-      <div className="fm-sheet">
+      <div className="fm-sheet" dir={rtl ? "rtl" : "ltr"}>
         <div className="fm-sheet-kicker">{formation.title}</div>
         <h1 className="fm-sheet-title">{module.title}</h1>
 
@@ -241,6 +249,7 @@ export default function Formations() {
   const [current, setCurrent] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [topic, setTopic] = useState("");
+  const [language, setLanguage] = useState("fr");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -290,7 +299,7 @@ export default function Formations() {
     try {
       const data = await api("/formations", {
         method: "POST",
-        body: JSON.stringify({ topic: topic.trim() }),
+        body: JSON.stringify({ topic: topic.trim(), language }),
       });
       setCurrent(data.formation);
       setActiveId(null);
@@ -417,6 +426,7 @@ export default function Formations() {
     ? current.modules.filter((m) => !(m.content || "").trim()).length
     : 0;
   const percent = gen.total ? Math.round((gen.done / gen.total) * 100) : 0;
+  const examples = EXAMPLES[language] || EXAMPLES.fr;
 
   return (
     <DashboardLayout>
@@ -435,19 +445,41 @@ export default function Formations() {
             <div className="fm-label">Nouvelle formation</div>
             <input
               className="fm-input"
+              dir={language === "ar" ? "rtl" : "ltr"}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="Ex : Créer une boutique Shopify rentable"
+              placeholder={`Ex : ${examples[0]}`}
               maxLength={150}
               disabled={creating || gen.running}
             />
             <div className="fm-chips">
-              {EXAMPLES.map((ex) => (
+              {examples.map((ex) => (
                 <button type="button" key={ex} className="fm-chip" onClick={() => setTopic(ex)}>
                   {ex}
                 </button>
               ))}
             </div>
+
+            <div className="fm-label" style={{ marginTop: "0.4rem" }}>Langue de la formation</div>
+            <select
+              className="fm-input"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              disabled={creating || gen.running}
+              style={{ marginBottom: language === "ar" ? "0.4rem" : "1rem" }}
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+            {language === "ar" && (
+              <p className="fm-muted fm-small" style={{ marginBottom: "1rem" }}>
+                La qualité est un peu moins régulière en arabe : relisez bien les leçons avant de vendre.
+              </p>
+            )}
+
             <button
               type="submit"
               className="btn-primary fm-btn"
@@ -460,8 +492,14 @@ export default function Formations() {
           {current && (
             <div className="fm-card">
               <div className="fm-label">Plan de la formation</div>
-              <h2 className="fm-title">{current.title}</h2>
-              {current.description && <p className="fm-muted">{current.description}</p>}
+              <h2 className="fm-title" dir={current.language === "ar" ? "rtl" : "ltr"}>
+                {current.title}
+              </h2>
+              {current.description && (
+                <p className="fm-muted" dir={current.language === "ar" ? "rtl" : "ltr"}>
+                  {current.description}
+                </p>
+              )}
 
               <ol className="fm-modules">
                 {(current.modules || []).map((m, i) => {
@@ -585,6 +623,7 @@ export default function Formations() {
           color: inherit; outline: none;
         }
         .fm-input:focus { border-color: #D4AF37; }
+        select.fm-input option { color: #111; }
         .fm-textarea { min-height: 20rem; line-height: 1.6; font-size: 0.92rem; resize: vertical; }
         .fm-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.8rem 0 1rem; }
         .fm-chip {
@@ -671,6 +710,9 @@ export default function Formations() {
             display: block; color: #111; background: #fff; font-family: 'Inter', sans-serif;
             -webkit-print-color-adjust: exact; print-color-adjust: exact;
           }
+          .fm-sheet[dir="rtl"] { font-family: 'Noto Naskh Arabic', 'Inter', serif; }
+          .fm-sheet[dir="rtl"] .fm-lesson p { text-align: right; }
+          .fm-sheet[dir="rtl"] .fm-lesson ul { padding-left: 0; padding-right: 1.3rem; }
           .fm-sheet a { color: #9a7a14; text-decoration: underline; }
           .fm-sheet-kicker {
             font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase;
@@ -706,5 +748,3 @@ export default function Formations() {
         }
       `}</style>
     </DashboardLayout>
-  );
-}
