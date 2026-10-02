@@ -14,7 +14,7 @@ const TXT = {
     program: "Programme", back: "← Programme", module: (n, t) => `Module ${n} sur ${t}`,
     watch: "▶ Regarder la vidéo ↗", videoTitle: "Vidéo du module", resources: "Ressources",
     moduleDone: "✓ Module terminé", saving: "Enregistrement...", finish: "✓ Terminer ce module",
-    prev: "← Précédent", next: "Suivant →", powered: "Propulsé par",
+    prev: "← Précédent", next: "Suivant →", powered: "Propulsé par", saveFail: "Enregistrement impossible.",
   },
   en: {
     loading: "Loading...", unavailable: "Access unavailable", invalid: "This access link is not valid.",
@@ -24,7 +24,7 @@ const TXT = {
     program: "Curriculum", back: "← Curriculum", module: (n, t) => `Module ${n} of ${t}`,
     watch: "▶ Watch the video ↗", videoTitle: "Module video", resources: "Resources",
     moduleDone: "✓ Module completed", saving: "Saving...", finish: "✓ Complete this module",
-    prev: "← Previous", next: "Next →", powered: "Powered by",
+    prev: "← Previous", next: "Next →", powered: "Powered by", saveFail: "Could not save.",
   },
   es: {
     loading: "Cargando...", unavailable: "Acceso no disponible", invalid: "Este enlace de acceso no es válido.",
@@ -34,7 +34,7 @@ const TXT = {
     program: "Programa", back: "← Programa", module: (n, t) => `Módulo ${n} de ${t}`,
     watch: "▶ Ver el vídeo ↗", videoTitle: "Vídeo del módulo", resources: "Recursos",
     moduleDone: "✓ Módulo completado", saving: "Guardando...", finish: "✓ Terminar este módulo",
-    prev: "← Anterior", next: "Siguiente →", powered: "Impulsado por",
+    prev: "← Anterior", next: "Siguiente →", powered: "Impulsado por", saveFail: "No se pudo guardar.",
   },
   pt: {
     loading: "Carregando...", unavailable: "Acesso indisponível", invalid: "Este link de acesso não é válido.",
@@ -44,7 +44,7 @@ const TXT = {
     program: "Programa", back: "← Programa", module: (n, t) => `Módulo ${n} de ${t}`,
     watch: "▶ Assistir ao vídeo ↗", videoTitle: "Vídeo do módulo", resources: "Recursos",
     moduleDone: "✓ Módulo concluído", saving: "Salvando...", finish: "✓ Concluir este módulo",
-    prev: "← Anterior", next: "Seguinte →", powered: "Desenvolvido por",
+    prev: "← Anterior", next: "Seguinte →", powered: "Desenvolvido por", saveFail: "Não foi possível salvar.",
   },
   de: {
     loading: "Wird geladen...", unavailable: "Zugang nicht verfügbar", invalid: "Dieser Zugangslink ist ungültig.",
@@ -54,7 +54,7 @@ const TXT = {
     program: "Programm", back: "← Programm", module: (n, t) => `Modul ${n} von ${t}`,
     watch: "▶ Video ansehen ↗", videoTitle: "Modulvideo", resources: "Ressourcen",
     moduleDone: "✓ Modul abgeschlossen", saving: "Wird gespeichert...", finish: "✓ Modul abschließen",
-    prev: "← Zurück", next: "Weiter →", powered: "Bereitgestellt von",
+    prev: "← Zurück", next: "Weiter →", powered: "Bereitgestellt von", saveFail: "Speichern nicht möglich.",
   },
   it: {
     loading: "Caricamento...", unavailable: "Accesso non disponibile", invalid: "Questo link di accesso non è valido.",
@@ -64,7 +64,7 @@ const TXT = {
     program: "Programma", back: "← Programma", module: (n, t) => `Modulo ${n} di ${t}`,
     watch: "▶ Guarda il video ↗", videoTitle: "Video del modulo", resources: "Risorse",
     moduleDone: "✓ Modulo completato", saving: "Salvataggio...", finish: "✓ Completa questo modulo",
-    prev: "← Precedente", next: "Successivo →", powered: "Offerto da",
+    prev: "← Precedente", next: "Successivo →", powered: "Offerto da", saveFail: "Impossibile salvare.",
   },
   ar: {
     loading: "جارٍ التحميل...", unavailable: "الوصول غير متاح", invalid: "رابط الوصول هذا غير صالح.",
@@ -74,7 +74,7 @@ const TXT = {
     program: "البرنامج", back: "→ البرنامج", module: (n, t) => `الوحدة ${n} من ${t}`,
     watch: "▶ شاهد الفيديو ↗", videoTitle: "فيديو الوحدة", resources: "الموارد",
     moduleDone: "✓ تم إنهاء الوحدة", saving: "جارٍ الحفظ...", finish: "✓ إنهاء هذه الوحدة",
-    prev: "→ السابق", next: "التالي ←", powered: "مدعوم من",
+    prev: "→ السابق", next: "التالي ←", powered: "مدعوم من", saveFail: "تعذّر الحفظ.",
   },
 };
 
@@ -171,7 +171,7 @@ export default function Learn() {
         body: JSON.stringify({ done: true }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Error");
+      if (!res.ok) throw new Error(t.saveFail);
       setData((d) => ({ ...d, completed: json.completed, completed_at: json.completed_at }));
       const idx = modules.findIndex((m) => m.id === mid);
       const next = modules[idx + 1];
@@ -322,6 +322,7 @@ export default function Learn() {
         formation={{ id: data.ref, title: f.title }}
         name={data.learner}
         instructor={f.instructor}
+        language={lang}
       />
       <LrStyle />
     </div>
