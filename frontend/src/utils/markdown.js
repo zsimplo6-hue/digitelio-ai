@@ -19,7 +19,7 @@ export function renderMarkdown(text) {
   const TD =
     "padding:0.55rem 0.7rem;vertical-align:top;border:1px solid rgba(128,128,128,0.35);";
   const CALLOUT =
-    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid #D4AF37;background:rgba(212,175,55,0.12);border-radius:0 8px 8px 0;line-height:1.7;break-inside:avoid;" +
+    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid #D4AF37;background:rgba(212,175,55,0.12);border-radius:0 8px 8px 0;line-height:1.7;" +
     PRINT;
 
   const lines = String(text).replace(/\r/g, "").split("\n");
@@ -67,10 +67,13 @@ export function renderMarkdown(text) {
         i++;
       }
       i--;
-      html += `<div style="overflow-x:auto;margin:1.2rem 0"><table style="width:100%;border-collapse:collapse;font-size:0.92em;break-inside:avoid">`;
+      // Pas de break-inside sur le tableau entier : seules les lignes restent insécables
+      html += `<div class="md-table-wrap" style="margin:1.2rem 0"><table style="width:100%;border-collapse:collapse;font-size:0.92em">`;
       html += `<thead><tr>${head.map((c) => `<th style="${TH}">${inline(c)}</th>`).join("")}</tr></thead><tbody>`;
       rows.forEach((r) => {
-        html += `<tr>${head.map((_, ci) => `<td style="${TD}">${inline(r[ci] ?? "")}</td>`).join("")}</tr>`;
+        html += `<tr style="break-inside:avoid;page-break-inside:avoid">${head
+          .map((_, ci) => `<td style="${TD}">${inline(r[ci] ?? "")}</td>`)
+          .join("")}</tr>`;
       });
       html += "</tbody></table></div>";
       continue;
@@ -85,7 +88,7 @@ export function renderMarkdown(text) {
         i++;
       }
       i--;
-      html += `<div style="${CALLOUT}">${parts.map((p) => inline(p)).join("<br>")}</div>`;
+      html += `<blockquote style="${CALLOUT}">${parts.map((p) => inline(p)).join("<br>")}</blockquote>`;
       continue;
     }
 
@@ -128,4 +131,4 @@ export function renderMarkdown(text) {
 export function extractChapterTitles(content) {
   const matches = [...content.matchAll(/^## (Chapitre.+)$/gm)];
   return matches.map((m) => m[1]);
-      }
+    }
