@@ -4,6 +4,16 @@ import EbookDocument from "../components/EbookDocument.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
+const BTN = {
+  fr: { hello: "Bonjour", pdf: "Télécharger en PDF" },
+  en: { hello: "Hello", pdf: "Download as PDF" },
+  es: { hello: "Hola", pdf: "Descargar en PDF" },
+  pt: { hello: "Olá", pdf: "Baixar em PDF" },
+  de: { hello: "Hallo", pdf: "Als PDF herunterladen" },
+  it: { hello: "Ciao", pdf: "Scarica in PDF" },
+  ar: { hello: "مرحبًا", pdf: "تنزيل بصيغة PDF" },
+};
+
 export default function EbookRead() {
   const { token } = useParams();
   const [data, setData] = useState(null);
@@ -56,19 +66,30 @@ export default function EbookRead() {
   }
 
   const b = data.ebook;
+  const lang = b.language || "fr";
+  const txt = BTN[lang] || BTN.fr;
 
   return (
     <div className="er-root">
       <div className="no-print er-toolbar">
-        <div className="er-toolbar-inner">
-          <span className="er-hello">Bonjour {data.buyer_name || ""}</span>
+        <div className="er-toolbar-inner" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <span className="er-hello">
+            {txt.hello} {data.buyer_name || ""}
+          </span>
           <button className="er-cta er-cta-small" onClick={() => window.print()}>
-            📄 Télécharger en PDF
+            📄 {txt.pdf}
           </button>
         </div>
       </div>
 
-      <EbookDocument title={b.title} description={b.description} sections={b.sections || []} />
+      <EbookDocument
+        title={b.title}
+        description={b.description}
+        sections={b.sections || []}
+        template={b.template || "finance"}
+        brand={b.brand || {}}
+        language={lang}
+      />
 
       <ErStyle />
     </div>
@@ -115,4 +136,4 @@ function ErStyle() {
       .er-cta-small { padding: 0.6rem 1rem; font-size: 0.85rem; }
     `}</style>
   );
-}
+         }
