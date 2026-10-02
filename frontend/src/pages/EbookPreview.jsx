@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import CoverMockup from "../components/CoverMockup.jsx";
 import EbookDocument from "../components/EbookDocument.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
+import { TEMPLATES, TEMPLATE_ORDER } from "../utils/templates.js";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 
@@ -186,6 +187,8 @@ export default function EbookPreview() {
   const [sections, setSections] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [error, setError] = useState("");
+  const [style, setStyle] = useState({ template: "finance", brand: {} });
+  const [styleErr, setStyleErr] = useState("");
 
   useEffect(() => {
     async function fetchEbook() {
@@ -200,6 +203,13 @@ export default function EbookPreview() {
       }
     }
     fetchEbook();
+  }, [id]);
+
+  useEffect(() => {
+    fetch(`${API}/api/ebooks/${id}/style`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setStyle({ template: d.template, brand: d.brand || {} }))
+      .catch(() => {});
   }, [id]);
 
   if (error) {
@@ -226,6 +236,24 @@ export default function EbookPreview() {
     setEbook((e) => ({ ...e, ...patch }));
   }
 
+  async function chooseTemplate(tid) {
+    const previous = style.template;
+    setStyle((s) => ({ ...s, template: tid }));
+    setStyleErr("");
+    try {
+      const res = await fetch(`${API}/api/ebooks/${id}/style`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: tid }),
+      });
+      if (!res.ok) throw new Error("Impossible d'enregistrer le modèle.");
+    } catch (e) {
+      setStyle((s) => ({ ...s, template: previous }));
+      setStyleErr(e.message);
+    }
+  }
+
   const activeSection = sections.find((s) => s.id === activeId);
   const coverDesc = ebook.tagline ? ebook.tagline : cleanForCover(ebook.description, ebook.title);
 
@@ -245,6 +273,29 @@ export default function EbookPreview() {
       </p>
 
       <div className="no-print" style={{ display: "grid", gap: 16, marginBottom: 24 }}>
+        <Card title="Modèle du livre">
+          <div className="dg-cover-actions" style={{ flexWrap: "wrap", marginTop: 0 }}>
+            {TEMPLATE_ORDER.map((tid) => (
+              <button
+                key={tid}
+                type="button"
+                className="dg-chip"
+                style={style.template === tid ? { borderColor: "#7C3AED", fontWeight: 700 } : undefined}
+                onClick={() => chooseTemplate(tid)}
+              >
+                {TEMPLATES[tid].name}
+              </button>
+            ))}
+          </div>
+          {styleErr && <div className="dg-alert dg-alert--error">{styleErr}</div>}
+          <p className="dg-helper-text">
+            Le modèle change la police, les couleurs et la couverture du PDF.{" "}
+            <Link to="/dashboard/templates" style={{ color: "#7C3AED", fontWeight: 600 }}>Voir la galerie</Link>
+            {" · "}
+            <Link to="/dashboard/brand" style={{ color: "#7C3AED", fontWeight: 600 }}>Mon style</Link>
+          </p>
+        </Card>
+
         <Card title="Plan de l'eBook">
           <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 4 }}>
             {sections.map((s) => (
@@ -277,7 +328,14 @@ export default function EbookPreview() {
         <CoverMockup ebook={ebook} onSaved={patchEbook} />
       </div>
 
-      <EbookDocument title={ebook.title} description={coverDesc} sections={sections} />
+      <EbookDocument
+        title={ebook.title}
+        description={coverDesc}
+        sections={sections}
+        template={style.template}
+        brand={style.brand}
+        language={ebook.language || "fr"}
+      />
     </DashboardLayout>
   );
-          }
+        }
