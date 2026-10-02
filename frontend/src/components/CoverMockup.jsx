@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Card } from "./ui/Card.jsx";
 import { Button } from "./ui/Button.jsx";
+import { getDefaultCurrency } from "../utils/currency.js";
+
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
 const THEMES = {
   sombre: { label: "Sombre & or", bg: ["#262626", "#040404"], glow: "rgba(212,175,55,0.35)" },
@@ -11,7 +14,6 @@ const THEMES = {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    if (!src.startsWith("data:")) img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Image illisible."));
     img.src = src;
@@ -136,10 +138,27 @@ function drawMockup(canvas, img, themeKey) {
   ctx.fill();
 }
 
-export default function CoverMockup({ initialSrc = "", title = "ebook" }) {
+/* Version légère (JPEG) pour l'enregistrement sur la page de vente */
+function exportJpeg(canvas) {
+  for (let size = 1000; size >= 600; size -= 200) {
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    c.getContext("2d").drawImage(canvas, 0, 0, size, size);
+    for (const q of [0.85, 0.75, 0.65, 0.55]) {
+      const data = c.toDataURL("image/jpeg", q);
+      if (data.length <= 850000) return data;
+    }
+  }
+  return null;
+}
+
+export default function CoverMockup({ ebook, onSaved }) {
   const canvasRef = useRef(null);
-  const [src, setSrc] = useState(initialSrc || "");
+  const [src, setSrc] = useState("");
   const [theme, setTheme] = useState("sombre");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -158,6 +177,7 @@ export default function CoverMockup({ initialSrc = "", title = "ebook" }) {
     e.target.value = "";
     if (!file) return;
     setErr("");
+    setMsg("");
     if (!file.type.startsWith("image/")) return setErr("Choisissez une image (JPG, PNG ou WebP).");
     try {
       setSrc(await readFile(file));
@@ -166,27 +186,64 @@ export default function CoverMockup({ initialSrc = "", title = "ebook" }) {
     }
   }
 
+  function pickTheme(k) {
+    setTheme(k);
+    setMsg("");
+  }
+
   function download() {
     canvasRef.current?.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `mockup-${String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}.png`;
+      a.download = `mockup-${String(ebook.title || "ebook")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .slice(0, 40)}.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }, "image/png");
   }
 
+  async function save() {
+    if (!canvasRef.current) return;
+    setErr("");
+    setMsg("");
+    const cover = exportJpeg(canvasRef.current);
+    if (!cover) return setErr("Image trop lourde pour être enregistrée.");
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/ebooks/${ebook.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          price: ebook.price ?? null,
+          currency: ebook.currency || getDefaultCurrency(),
+          cover_url: cover,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Erreur lors de l'enregistrement.");
+      onSaved?.({ cover_url: data.ebook?.cover_url ?? cover });
+      setMsg("Couverture enregistrée ✓");
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Card className="no-print" title="Mockup 3D de la couverture">
       <p className="dg-helper-text" style={{ marginTop: 0 }}>
-        Envoyez l'image de la couverture de votre e-book : elle est transformée en mockup 3D à télécharger
-        pour vos publications.
+        Ajoutez l'image de couverture de votre e-book : elle est transformée en mockup 3D. Enregistrez-la comme
+        couverture de votre page de vente, ou téléchargez-la pour vos publications.
       </p>
 
-      <div className="dg-cover-actions">
-        <label className="dg-chip">
-          {src ? "Changer la couverture" : "+ Envoyer ma couverture"}
+      <div className="dg-cover-actions" style={{ flexWrap: "wrap" }}>
+        <label className="dg-chip" style={{ cursor: "pointer" }}>
+          + Ajouter une image de couverture
           <input type="file" accept="image/*" onChange={onFile} hidden />
         </label>
         {Object.entries(THEMES).map(([k, t]) => (
@@ -195,18 +252,26 @@ export default function CoverMockup({ initialSrc = "", title = "ebook" }) {
             type="button"
             className="dg-chip"
             style={theme === k ? { borderColor: "#7C3AED", fontWeight: 700 } : undefined}
-            onClick={() => setTheme(k)}
+            onClick={() => pickTheme(k)}
           >
             {t.label}
           </button>
         ))}
       </div>
 
+      {!src && ebook.cover_url && (
+        <p className="dg-helper-text">✓ Une couverture est déjà enregistrée pour votre page de vente.</p>
+      )}
+
       {err && <div className="dg-alert dg-alert--error">{err}</div>}
 
       {src && (
         <>
           <canvas ref={canvasRef} style={{ width: "100%", height: "auto", borderRadius: 12, marginTop: 12 }} />
+          {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
+          <Button variant="secondary" size="lg" onClick={save} disabled={saving} style={{ width: "100%" }}>
+            {saving ? "Enregistrement..." : "💾 Enregistrer la couverture"}
+          </Button>
           <Button variant="primary" size="lg" onClick={download} style={{ width: "100%" }}>
             ⬇️ Télécharger mon mockup
           </Button>
@@ -214,4 +279,4 @@ export default function CoverMockup({ initialSrc = "", title = "ebook" }) {
       )}
     </Card>
   );
-                     }
+      }
