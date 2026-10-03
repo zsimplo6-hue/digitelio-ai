@@ -58,7 +58,7 @@ export default function Templates() {
       <div className="dg-settings-wrap" style={{ maxWidth: "56rem" }}>
         <h1 className="text-2xl font-bold">Modèles d'eBooks</h1>
         <p className="dg-page__subtitle">
-          6 mises en page soignées, avec leurs propres polices et couleurs. Pour changer le modèle d'un eBook
+          6 mises en page premium, avec leurs propres polices et couleurs. Pour changer le modèle d'un eBook
           existant, ouvrez-le puis choisissez « Modèle du livre ».
         </p>
 
@@ -97,10 +97,10 @@ export default function Templates() {
           })}
         </div>
 
-        <h1 className="text-2xl font-bold" style={{ marginTop: 40 }}>Modèles de formations premium</h1>
+        <h1 className="text-2xl font-bold" style={{ marginTop: 44 }}>Modèles de formations</h1>
         <p className="dg-page__subtitle">
-          6 modèles ultra premium pour le PDF de vos formations (couverture, sommaire, modules). Pour en
-          appliquer un : ouvrez une formation, puis « Modèle de la formation ».
+          6 modèles ultra premium, différents de ceux des eBooks, pour le PDF de vos formations (couverture,
+          sommaire, modules). Pour en appliquer un : ouvrez une formation, puis « Modèle de la formation ».
         </p>
 
         <div style={GRID}>
@@ -133,4 +133,4 @@ export default function Templates() {
       </div>
     </DashboardLayout>
   );
-                              }
+      }
