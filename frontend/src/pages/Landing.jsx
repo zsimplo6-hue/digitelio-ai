@@ -2,26 +2,27 @@ import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
 const categories = [
-  { icon: "📚", title: "eBooks", desc: "Créez des eBooks professionnels et captivants" },
-  { icon: "🎓", title: "Formations", desc: "Concevez des formations en ligne prêtes à vendre" },
-  { icon: "🛒", title: "Pages de vente", desc: "Pages de vente premium sans code" },
-  { icon: "📣", title: "Marketing digital", desc: "Contenus et visuels automatisés" },
-  { icon: "🧩", title: "Produits digitaux", desc: "Tout un écosystème dans un seul outil" },
+  { icon: "📚", title: "eBooks", desc: "Rédigez des eBooks professionnels, chapitre par chapitre" },
+  { icon: "🎓", title: "Formations", desc: "Concevez des formations complètes avec leçons et quiz" },
+  { icon: "🎨", title: "Modèles premium", desc: "12 mises en page prêtes à l'emploi pour vos PDF" },
+  { icon: "💡", title: "Idées de produits", desc: "Trouvez des niches adaptées à votre pays" },
+  { icon: "📣", title: "Marketing digital", desc: "Posts, scripts et emails de lancement générés" },
 ];
 
 const pillars = [
   "eBooks & guides",
   "Formations en ligne",
-  "Pages de vente",
+  "Modèles premium",
+  "Idées de produits",
+  "7 langues",
   "Marketing digital",
-  "Produits digitaux",
 ];
 
 /* À garder identique aux limites de src/routes/billing.js (Worker) */
 const plans = [
   {
     tone: "free",
-    common: false,
+    paid: false,
     name: "Gratuit",
     price: "Gratuit",
     unit: "pour toujours",
@@ -37,9 +38,9 @@ const plans = [
   },
   {
     tone: "pro",
-    common: true,
+    paid: true,
     name: "Pro",
-    price: "9 900",
+    price: "4 999",
     unit: "FCFA / mois",
     features: [
       "10 eBooks par mois",
@@ -53,9 +54,9 @@ const plans = [
   },
   {
     tone: "biz",
-    common: true,
+    paid: true,
     name: "Business",
-    price: "24 900",
+    price: "12 999",
     unit: "FCFA / mois",
     features: [
       "50 eBooks par mois",
@@ -69,12 +70,15 @@ const plans = [
   },
 ];
 
-const commonFeatures = [
-  "Pages de vente et espace apprenant",
-  "Certificats de réussite",
-  "Export PDF premium",
-  "Analytics de vos pages",
+/* Inclus dans tous les plans */
+const allPlanFeatures = [
+  "Génération en 7 langues",
+  "12 modèles premium (eBooks et formations)",
+  "Idées de produits par pays",
 ];
+
+/* Réservé aux plans payants */
+const paidFeatures = ["Certificats de réussite", "Export PDF premium"];
 
 const pricingCss = `
 .dg-pricing{--dg-blue:#3B82F6;--dg-violet:#8B5CF6;--dg-gold:#D4AF37;--dg-ink:#0F1029;--dg-muted:#8A8DA3;--dg-off:#D5D7E0}
@@ -125,21 +129,21 @@ const sidebarItems = [
   { icon: "🏠", label: "Tableau de bord", active: true },
   { icon: "📘", label: "eBooks", active: false },
   { icon: "🎓", label: "Formations", active: false },
-  { icon: "🛒", label: "Pages de vente", active: false },
-  { icon: "📊", label: "Analytics", active: false },
+  { icon: "🎨", label: "Modèles", active: false },
+  { icon: "💡", label: "Idées", active: false },
 ];
 
 const quickStats = [
   { icon: "📘", value: "3", label: "eBooks" },
   { icon: "🎓", value: "2", label: "Formations" },
-  { icon: "👥", value: "1", label: "Apprenants" },
-  { icon: "✅", value: "0", label: "Terminés" },
+  { icon: "🎨", value: "12", label: "Modèles" },
+  { icon: "🌍", value: "7", label: "Langues" },
 ];
 
 const previewStats = [
-  { value: "2 547", label: "Produits créés" },
-  { value: "98%", label: "Satisfaction" },
-  { value: "12s", label: "Génération" },
+  { value: "12", label: "Modèles premium" },
+  { value: "7", label: "Langues" },
+  { value: "PDF", label: "Export premium" },
 ];
 
 export default function Landing() {
@@ -164,13 +168,13 @@ export default function Landing() {
             </span>
 
             <h1 className="mt-6 text-4xl font-extrabold leading-tight md:text-5xl">
-              Créez, publiez, vendez{" "}
+              Créez, personnalisez, lancez{" "}
               <span className="text-gradient">des eBooks, formations et produits digitaux</span>{" "}
               avec l'IA.
             </h1>
 
             <p className="mt-6 max-w-lg text-base text-digi-navy/70 dark:text-white/70">
-              Digitelio AI vous permet de transformer vos idées en produits digitaux rentables
+              Digitelio AI transforme vos idées en eBooks et formations premium, en 7 langues,
               en quelques minutes, sans compétences techniques.
             </p>
 
@@ -251,15 +255,15 @@ export default function Landing() {
                     ))}
                   </div>
 
-                  {/* Bandeau revenu */}
+                  {/* Bandeau création */}
                   <div
                     style={{ animationDelay: "2s" }}
                     className="digi-row-in rounded-lg bg-digi-gradient/10 border border-digi-blue/20 px-3 py-2"
                   >
                     <p className="text-[10px] font-semibold text-digi-navy dark:text-white">
-                      💰 Revenu estimé
+                      ✨ Dernière création
                     </p>
-                    <p className="text-sm font-bold text-digi-blue">10 000 FCFA</p>
+                    <p className="text-sm font-bold text-digi-blue">Prête à exporter en PDF</p>
                   </div>
 
                   {/* Actions rapides */}
@@ -300,7 +304,7 @@ export default function Landing() {
 
             {/* Badge flottant */}
             <div className="digi-badge-pop absolute -bottom-6 -left-6 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow">
-              +2,5k <br /> Produits créés
+              7 langues <br /> disponibles
             </div>
           </div>
         </div>
@@ -342,8 +346,11 @@ export default function Landing() {
                 {p.features.map((f) => (
                   <li key={f}>{f}</li>
                 ))}
-                {commonFeatures.map((f) => (
-                  <li key={f} className={p.common ? "" : "off"}>
+                {allPlanFeatures.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+                {paidFeatures.map((f) => (
+                  <li key={f} className={p.paid ? "" : "off"}>
                     {f}
                   </li>
                 ))}
@@ -380,7 +387,7 @@ export default function Landing() {
           </div>
           <div className="card">
             <p className="text-sm text-digi-navy/70 dark:text-white/70">
-              "La génération de pages de vente m'a fait gagner des semaines de travail."
+              "Les modèles premium donnent à mes eBooks un rendu vraiment professionnel."
             </p>
             <p className="mt-4 font-semibold">— Marc D.</p>
           </div>
@@ -422,7 +429,17 @@ export default function Landing() {
               Quels formats de produits puis-je créer ?
             </summary>
             <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-              eBooks, formations en ligne, pages de vente et contenus marketing digitaux.
+              eBooks et formations en ligne, exportés en PDF premium avec 12 modèles au choix, plus
+              des contenus marketing pour les présenter.
+            </p>
+          </details>
+          <details className="card">
+            <summary className="cursor-pointer font-semibold">
+              Dans quelles langues puis-je créer mes produits ?
+            </summary>
+            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
+              Français, anglais, espagnol, portugais, allemand, italien et arabe. La qualité est un
+              peu moins régulière en arabe : relisez bien le texte avant de le diffuser.
             </p>
           </details>
         </div>
@@ -436,8 +453,8 @@ export default function Landing() {
               Une seule plateforme, <span className="text-gradient">des possibilités infinies.</span>
             </h2>
             <p className="mt-4 text-sm text-white/70">
-              De l'idée à la vente, Digitelio AI vous accompagne à chaque étape pour créer des
-              produits digitaux qui génèrent des revenus.
+              De l'idée au PDF premium, Digitelio AI vous accompagne à chaque étape pour créer des
+              produits digitaux professionnels.
             </p>
             <a href="/signup" className="btn-primary mt-6 inline-flex">
               Commencer gratuitement →
@@ -456,4 +473,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-}
+              }
