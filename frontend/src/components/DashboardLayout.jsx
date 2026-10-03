@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useNavigate, useLocation } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Sidebar from "./Sidebar.jsx";
+import Logo from "./Logo.jsx";
 
 export default function DashboardLayout({ title, children }) {
   const { user, logout } = useAuth();
@@ -49,14 +50,7 @@ export default function DashboardLayout({ title, children }) {
             >
               ☰
             </button>
-            <div className="flex items-center gap-2 text-lg font-bold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-digi-gradient text-white">
-                D
-              </span>
-              <span>
-                Digitelio <span className="text-gradient">AI</span>
-              </span>
-            </div>
+            <Logo height={34} />
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <span className="hidden text-sm text-digi-navy/60 dark:text-white/60 sm:inline">
@@ -76,4 +70,4 @@ export default function DashboardLayout({ title, children }) {
       </div>
     </div>
   );
-      }
+}
