@@ -12,12 +12,16 @@ const USAGE_ROWS = [
   { kind: "marketing", icon: "📣", label: "Contenus marketing" },
 ];
 
-const COMMON = [
-  "Pages de vente et espace apprenant",
-  "Certificats de réussite",
-  "Export PDF premium",
-  "Analytics de vos pages",
+/* Inclus dans tous les plans */
+const ALL_PLANS = [
+  "Génération en 7 langues",
+  "6 modèles d'eBooks et 6 modèles de formations",
+  "Idées de produits par pays",
+  "Mockup 3D de couverture",
 ];
+
+/* Réservé aux plans payants */
+const PAID_ONLY = ["Certificats de réussite", "Export PDF premium"];
 
 const n = (v) => Number(v).toLocaleString("fr-FR");
 
@@ -31,7 +35,7 @@ function planLines(l) {
   ];
 }
 
-/* "9 900 FCFA / mois" -> { amount: "9 900", unit: "FCFA / mois" } ; "Gratuit" reste tel quel */
+/* "4 999 FCFA / mois" -> { amount: "4 999", unit: "FCFA / mois" } ; "Gratuit" reste tel quel */
 function splitPrice(text) {
   const m = String(text || "").match(/^([\d\s\u00a0\u202f.,]+?)\s+(\D.*)$/);
   return m ? { amount: m[1].trim(), unit: m[2].trim() } : { amount: String(text || ""), unit: "" };
@@ -200,7 +204,6 @@ export default function Subscriptions() {
 
   const contact = data?.contact || {};
 
-
   return (
     <DashboardLayout>
       <div className="sb-page">
@@ -224,7 +227,7 @@ export default function Subscriptions() {
                   <div className="sb-expired-title">⏳ Votre abonnement {data.expired_plan_name} a expiré</div>
                   <div>
                     Il s'est terminé le {fmtDateTime(data.until)}. Renouvelez-le pour retrouver l'accès à
-                    Digitelio AI. Vos contenus sont conservés et vos pages de vente restent en ligne.
+                    Digitelio AI. Vos contenus sont conservés.
                   </div>
                 </div>
               )}
@@ -370,7 +373,13 @@ export default function Subscriptions() {
                             {t}
                           </li>
                         ))}
-                        {COMMON.map((t) => (
+                        {ALL_PLANS.map((t) => (
+                          <li key={t}>
+                            <span className="sb-check">✓</span>
+                            {t}
+                          </li>
+                        ))}
+                        {PAID_ONLY.map((t) => (
                           <li key={t} className={isFree ? "sb-common" : ""}>
                             {isFree ? (
                               <span className="sb-check soft" />
@@ -462,7 +471,7 @@ export default function Subscriptions() {
 
         .sb-plans { position: relative; isolation: isolate; display: grid; gap: 1.6rem; padding-top: 0.9rem; }
         @media (min-width: 900px) { .sb-plans { grid-template-columns: repeat(3, 1fr); gap: 1.2rem; align-items: stretch; } }
-        .sb-plans::before {
+   .sb-plans::before {
           content: ""; position: absolute; inset: -40px -20px; z-index: -1; pointer-events: none; filter: blur(12px);
           background:
             radial-gradient(420px 220px at 15% 8%, rgba(59,130,246,0.16), transparent 70%),
@@ -496,7 +505,7 @@ export default function Subscriptions() {
           padding: 0.3rem 1rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; color: #fff;
           background: linear-gradient(90deg,#3B82F6,#8B5CF6); animation: sb-pulse 2.4s ease-in-out infinite;
         }
- 
+
         .sb-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
         .sb-plan-name { font-weight: 800; font-size: 1.2rem; }
         .sb-current-tag {
@@ -508,11 +517,11 @@ export default function Subscriptions() {
           font-size: 2.3rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1;
           background: linear-gradient(120deg,#3B82F6,#8B5CF6); -webkit-background-clip: text; background-clip: text;
           -webkit-text-fill-color: transparent; color: transparent;
-          }
+        }
         .sb-plan-business .sb-price-n { background-image: linear-gradient(120deg,#D4AF37,#f3d77a); }
         .sb-plan-free .sb-price-n { background: none; -webkit-text-fill-color: currentColor; color: inherit; }
         .sb-price-u { font-size: 0.9rem; font-weight: 600; opacity: 0.7; margin-left: 0.45rem; }
- 
+
         .sb-plan-list { list-style: none; padding: 0; margin: 0 0 1.4rem; display: grid; gap: 0.6rem; font-size: 0.88rem; flex: 1; }
         .sb-plan-list li { display: flex; align-items: flex-start; gap: 0.6rem; line-height: 1.4; }
         .sb-common { opacity: 0.78; }
@@ -522,7 +531,7 @@ export default function Subscriptions() {
           background: linear-gradient(135deg,#3B82F6,#8B5CF6);
         }
         .sb-check.soft { background: transparent; border: 1.5px solid rgba(128,128,128,0.45); }
- 
+
         .sb-cta-btn {
           position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
           width: 100%; padding: 1rem 1.1rem; border: 0; border-radius: 16px; font-family: inherit; font-size: 0.95rem;
@@ -561,13 +570,13 @@ export default function Subscriptions() {
           animation: sb-spin 0.7s linear infinite;
         }
 
-          .sb-foot { margin-top: 1.6rem; font-size: 0.8rem; line-height: 1.6; opacity: 0.75; text-align: center; }
+        .sb-foot { margin-top: 1.6rem; font-size: 0.8rem; line-height: 1.6; opacity: 0.75; text-align: center; }
         .sb-foot a { color: #D4AF37; text-decoration: underline; }
- 
+
         @media (prefers-reduced-motion: reduce) {
           .sb-plan, .sb-plan.featured::before, .sb-pop, .sb-cta-btn, .sb-cta-btn::after, .sb-bar-fill { animation: none !important; transition: none !important; }
         }
       `}</style>
     </DashboardLayout>
   );
-}
+      }
