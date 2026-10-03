@@ -4,6 +4,16 @@ import { renderMarkdown } from "../utils/markdown.js";
    false = les modules s'enchaînent sans page vide (recommandé) */
 const MODULE_PER_PAGE = false;
 
+const FX = {
+  fr: { editions: "ÉDITIONS", sub: "FORMATION", toc: "Sommaire", module: "Module", video: "Vidéo de la leçon", watch: "▶ Regarder la vidéo de la leçon", thumb: "Miniature de la vidéo", res: "Ressources", thanks: "Merci de votre suivi", thanksText: "Cette formation a été conçue et publiée avec Digitelio AI, la plateforme qui transforme vos idées en produits digitaux prêts à vendre.", rights: "Tous droits réservés.", made: "Formation générée et éditée avec Digitelio AI.", noCopy: "Toute reproduction, distribution ou revente non autorisée est interdite." },
+  en: { editions: "EDITIONS", sub: "COURSE", toc: "Contents", module: "Module", video: "Lesson video", watch: "▶ Watch the lesson video", thumb: "Video thumbnail", res: "Resources", thanks: "Thank you for following", thanksText: "This course was designed and published with Digitelio AI, the platform that turns your ideas into ready-to-sell digital products.", rights: "All rights reserved.", made: "Course generated and edited with Digitelio AI.", noCopy: "Any unauthorized reproduction, distribution or resale is prohibited." },
+  es: { editions: "EDICIONES", sub: "CURSO", toc: "Índice", module: "Módulo", video: "Vídeo de la lección", watch: "▶ Ver el vídeo de la lección", thumb: "Miniatura del vídeo", res: "Recursos", thanks: "Gracias por seguir el curso", thanksText: "Este curso fue creado y publicado con Digitelio AI, la plataforma que convierte tus ideas en productos digitales listos para vender.", rights: "Todos los derechos reservados.", made: "Curso generado y editado con Digitelio AI.", noCopy: "Queda prohibida toda reproducción, distribución o reventa no autorizada." },
+  pt: { editions: "EDIÇÕES", sub: "CURSO", toc: "Sumário", module: "Módulo", video: "Vídeo da aula", watch: "▶ Assistir ao vídeo da aula", thumb: "Miniatura do vídeo", res: "Recursos", thanks: "Obrigado por acompanhar", thanksText: "Este curso foi criado e publicado com o Digitelio AI, a plataforma que transforma as suas ideias em produtos digitais prontos para vender.", rights: "Todos os direitos reservados.", made: "Curso gerado e editado com o Digitelio AI.", noCopy: "É proibida qualquer reprodução, distribuição ou revenda não autorizada." },
+  de: { editions: "AUSGABEN", sub: "KURS", toc: "Inhalt", module: "Modul", video: "Lektionsvideo", watch: "▶ Lektionsvideo ansehen", thumb: "Video-Vorschaubild", res: "Ressourcen", thanks: "Danke fürs Mitmachen", thanksText: "Dieser Kurs wurde mit Digitelio AI erstellt und veröffentlicht – der Plattform, die Ihre Ideen in verkaufsfertige digitale Produkte verwandelt.", rights: "Alle Rechte vorbehalten.", made: "Kurs erstellt und herausgegeben mit Digitelio AI.", noCopy: "Jede unerlaubte Vervielfältigung, Verbreitung oder der Weiterverkauf ist untersagt." },
+  it: { editions: "EDIZIONI", sub: "CORSO", toc: "Indice", module: "Modulo", video: "Video della lezione", watch: "▶ Guarda il video della lezione", thumb: "Anteprima del video", res: "Risorse", thanks: "Grazie per aver seguito il corso", thanksText: "Questo corso è stato creato e pubblicato con Digitelio AI, la piattaforma che trasforma le tue idee in prodotti digitali pronti da vendere.", rights: "Tutti i diritti riservati.", made: "Corso generato e curato con Digitelio AI.", noCopy: "È vietata qualsiasi riproduzione, distribuzione o rivendita non autorizzata." },
+  ar: { editions: "إصدارات", sub: "دورة", toc: "المحتويات", module: "الوحدة", video: "فيديو الدرس", watch: "▶ شاهد فيديو الدرس", thumb: "صورة مصغرة للفيديو", res: "الموارد", thanks: "شكرًا لمتابعتكم", thanksText: "تم إعداد هذه الدورة ونشرها باستخدام Digitelio AI، المنصة التي تحوّل أفكارك إلى منتجات رقمية جاهزة للبيع.", rights: "جميع الحقوق محفوظة.", made: "أُعدّت هذه الدورة وحُرّرت باستخدام Digitelio AI.", noCopy: "يُمنع أي نسخ أو توزيع أو إعادة بيع دون إذن." },
+};
+
 function youtubeId(url) {
   const m = (url || "").match(
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/
@@ -25,6 +35,8 @@ async function ensureFonts() {
     "500 1em Inter",
     "700 1em Inter",
   ].map((f) => document.fonts.load(f, sample));
+  loads.push(document.fonts.load("700 1em 'Noto Naskh Arabic'", "دورة"));
+  loads.push(document.fonts.load("400 1em 'Noto Naskh Arabic'", "دورة"));
   await Promise.race([
     Promise.allSettled(loads),
     new Promise((resolve) => setTimeout(resolve, 4000)),
@@ -55,7 +67,9 @@ export async function printFormation() {
   setTimeout(() => window.print(), 300);
 }
 
-export default function FormationDoc({ formation }) {
+export default function FormationDoc({ formation, language = "fr" }) {
+  const T = FX[language] || FX.fr;
+  const rtl = language === "ar";
   const all = formation.modules || [];
   const year = new Date().getFullYear();
 
@@ -64,7 +78,7 @@ export default function FormationDoc({ formation }) {
     t.length > 70 ? "1.6rem" : t.length > 50 ? "1.9rem" : t.length > 30 ? "2.2rem" : "2.6rem";
 
   return (
-    <div className="fx-doc">
+    <div className={`fx-doc${rtl ? " fx-rtl" : ""}`} dir={rtl ? "rtl" : "ltr"}>
       {/* COUVERTURE */}
       <section className="fx-cover">
         <div className="fx-ribbon fx-tl" />
@@ -75,13 +89,13 @@ export default function FormationDoc({ formation }) {
           <div className="fx-brand">DIGITELIO AI</div>
           <div className="fx-editions">
             <span />
-            <em>ÉDITIONS</em>
+            <em>{T.editions}</em>
             <span />
           </div>
           <h1 className="fx-cover-title" style={{ fontSize: titleSize }}>
             {formation.title}
           </h1>
-          <div className="fx-cover-sub">FORMATION</div>
+          <div className="fx-cover-sub">{T.sub}</div>
           <div className="fx-divider">
             <span />
             <i />
@@ -93,14 +107,14 @@ export default function FormationDoc({ formation }) {
 
       {/* SOMMAIRE */}
       <section className="fx-toc">
-        <div className="fx-label">Sommaire</div>
+        <div className="fx-label">{T.toc}</div>
         <ul>
           {all.map((m, i) => (
             <li key={m.id}>
               <span className="fx-toc-icon">◆</span>
               <div>
                 <div className="fx-toc-title">
-                  Module {i + 1} : {m.title}
+                  {T.module} {i + 1} : {m.title}
                 </div>
                 {m.summary && <div className="fx-toc-sum">{m.summary}</div>}
               </div>
@@ -124,22 +138,22 @@ export default function FormationDoc({ formation }) {
 
             {m.video_url && (
               <div className="fx-video">
-                <h3 className="fx-h3">Vidéo de la leçon</h3>
+                <h3 className="fx-h3">{T.video}</h3>
                 {yt && (
                   <a className="fx-thumb" href={m.video_url} target="_blank" rel="noreferrer">
-                    <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt="Miniature de la vidéo" />
+                    <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt={T.thumb} />
                     <span className="fx-play">▶</span>
                   </a>
                 )}
                 <a className="fx-btn" href={m.video_url} target="_blank" rel="noreferrer">
-                  ▶ Regarder la vidéo de la leçon
+                  {T.watch}
                 </a>
               </div>
             )}
 
             {res.length > 0 && (
               <div className="fx-res">
-                <h3 className="fx-h3">Ressources</h3>
+                <h3 className="fx-h3">{T.res}</h3>
                 <ul>
                   {res.map((r, k) => (
                     <li key={k}>
@@ -159,21 +173,19 @@ export default function FormationDoc({ formation }) {
       <section className="fx-end">
         <div className="fx-end-center">
           <div className="fx-end-box">
-            <p className="fx-end-title">Merci de votre suivi</p>
-            <p className="fx-end-text">
-              Cette formation a été conçue et publiée avec Digitelio AI, la plateforme qui transforme vos idées en produits digitaux prêts à vendre.
-            </p>
+            <p className="fx-end-title">{T.thanks}</p>
+            <p className="fx-end-text">{T.thanksText}</p>
           </div>
         </div>
         <footer className="fx-copy">
-          <p>© {year} — Tous droits réservés.</p>
-          <p>Formation générée et éditée avec Digitelio AI.</p>
-          <p>Toute reproduction, distribution ou revente non autorisée est interdite.</p>
+          <p>© {year} — {T.rights}</p>
+          <p>{T.made}</p>
+          <p>{T.noCopy}</p>
         </footer>
       </section>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700&family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap');
 
         .fx-doc { display: none; }
 
@@ -345,7 +357,6 @@ export default function FormationDoc({ formation }) {
             break-before: page;
             page-break-before: always;
           }
-          /* numéro + titre restent toujours avec le début du texte */
           .fx-head {
             break-inside: avoid;
             break-after: avoid;
@@ -384,7 +395,6 @@ export default function FormationDoc({ formation }) {
             orphans: 3;
             widows: 3;
           }
-          /* « Voici les points clés : » reste avec sa liste */
           .fx-lesson p:has(+ ul),
           .fx-lesson p:has(+ ol) { break-after: avoid; }
           .fx-lesson ul { padding-left: 1.3rem; margin: 0.5rem 0; }
@@ -409,7 +419,6 @@ export default function FormationDoc({ formation }) {
             overflow: hidden;
             text-decoration: none !important;
           }
-          /* recadrage 16/9 : supprime les bandes noires de la miniature YouTube */
           .fx-thumb img {
             display: block;
             width: 100%;
@@ -478,8 +487,26 @@ export default function FormationDoc({ formation }) {
             line-height: 1.8;
           }
           .fx-copy p { margin: 0; }
+
+          /* ===== Arabe : droite à gauche, police adaptée ===== */
+          .fx-rtl,
+          .fx-rtl .fx-cover-title,
+          .fx-rtl .fx-cover-sub,
+          .fx-rtl .fx-title,
+          .fx-rtl .fx-num,
+          .fx-rtl .fx-end-title { font-family: 'Noto Naskh Arabic', serif; }
+          .fx-rtl .fx-lesson p { text-align: right; }
+          .fx-rtl .fx-lesson ul,
+          .fx-rtl .fx-lesson ol { padding-left: 0 !important; padding-right: 1.3rem !important; }
+          .fx-rtl .fx-res ul { padding-left: 0; padding-right: 1.3rem; }
+          .fx-rtl .fx-brand,
+          .fx-rtl .fx-editions,
+          .fx-rtl .fx-cover-sub,
+          .fx-rtl .fx-label { letter-spacing: 0; margin-right: 0; }
+          .fx-rtl .fx-editions em { margin-right: 0; }
+          .fx-rtl .fx-cover-title { text-transform: none; }
         }
       `}</style>
     </div>
   );
-}
+      }
