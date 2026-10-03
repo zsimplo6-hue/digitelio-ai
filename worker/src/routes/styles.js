@@ -126,26 +126,62 @@ export async function handleSetTemplate(request, env, ebookId) {
 }
 
 /* ===== Idées de produits par pays ===== */
-function parseIdeas(text) {
-  const s = String(text || "");
-  const a = s.indexOf("[");
-  const z = s.lastIndexOf("]");
-  if (a === -1 || z <= a) return [];
-  try {
-    const arr = JSON.parse(s.slice(a, z + 1));
-    return arr
-      .map((x) => ({
-        niche: clip(x.niche, 60),
-        why: clip(x.why, 200),
-        title: clip(x.title, 120),
-        description: clip(x.description, 240),
-        type: x.type === "formation" ? "formation" : "ebook",
-      }))
-      .filter((x) => x.title && x.niche)
-      .slice(0, 8);
-  } catch {
-    return [];
+
+const clean = (s) =>
+  String(s || "")
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "")
+    .replace(/[*_`#>]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const FORMATION_RE = /formation|course|curso|kurs|corso|دورة/i;
+
+function toIdea(o) {
+  const idea = {
+    niche: clean(o.niche).slice(0, 60),
+    why: clean(o.why).slice(0, 220),
+    title: clean(o.title).slice(0, 120),
+    description: clean(o.description).slice(0, 260),
+    type: FORMATION_RE.test(String(o.type || "")) ? "formation" : "ebook",
+  };
+  return idea.niche && idea.title && idea.description ? idea : null;
+}
+
+/* Format principal : une idée par ligne, champs séparés par " | ". Robuste si la réponse est coupée. */
+function parseLines(text) {
+  const ideas = [];
+  for (const raw of String(text || "").split("\n")) {
+    const line = raw.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, "");
+    const parts = line.split("|").map((p) => p.trim());
+    if (parts.length < 4) continue;
+    const [niche, why, title, description, type = ""] = parts;
+    const idea = toIdea({ niche, why, title, description, type });
+    if (idea) ideas.push(idea);
   }
+  return ideas;
+}
+
+/* Secours : si le modèle répond quand même en JSON, on lit chaque objet séparément */
+function parseJsonObjects(text) {
+  const ideas = [];
+  for (const m of String(text || "").matchAll(/\{[^{}]*\}/g)) {
+    try {
+      const idea = toIdea(JSON.parse(m[0]));
+      if (idea) ideas.push(idea);
+    } catch {
+      /* objet incomplet : on l'ignore */
+    }
+  }
+  return ideas;
+}
+
+function parseIdeas(text) {
+  let ideas = parseLines(text);
+  if (ideas.length < 3) {
+    const alt = parseJsonObjects(text);
+    if (alt.length > ideas.length) ideas = alt;
+  }
+  return ideas.slice(0, 8);
 }
 
 export async function handleIdeas(request, env) {
@@ -157,38 +193,61 @@ export async function handleIdeas(request, env) {
   const interest = clip(body?.interest, 120);
   const langName = LANG_NAMES[body?.language] || "français";
 
-  const prompt = `Tu aides des créateurs de produits digitaux à choisir une niche.
-Propose 8 idées de niches pour des eBooks ou formations en ligne, adaptées au public de : ${country}.
-Centre d'intérêt de la personne : ${interest || "aucun, propose des niches variées"}.
-Langue des réponses : ${langName}.
+  const prompt = `Tu es un stratège de produits digitaux qui aide des créateurs à choisir une niche vendable.
 
-Pour chaque idée :
-- "niche" : le thème en quelques mots ;
-- "why" : une phrase qui explique pourquoi cette niche peut intéresser le public local, SANS chiffres ni statistiques inventés ;
-- "title" : un titre d'eBook accrocheur ;
-- "description" : une phrase qui décrit le sujet et le public visé ;
-- "type" : "ebook" ou "formation".
+Public visé : ${country}.
+Centre d'intérêt : ${interest || "aucun, propose des niches variées et complémentaires"}.
+Langue de rédaction de TOUTES les idées : ${langName}.
 
-Réponds UNIQUEMENT par un tableau JSON valide, sans texte autour :
-[{"niche":"","why":"","title":"","description":"","type":"ebook"}]`;
+Propose 6 idées d'eBooks ou de formations en ligne, adaptées à la réalité de ce public (habitudes, moyens de paiement mobiles, métiers courants, besoins du quotidien, contexte local).
 
+Exigences de qualité :
+- Chaque idée vise un public PRÉCIS (pas "tout le monde") et un problème CONCRET.
+- Évite les thèmes génériques (« réussir sa vie », « devenir riche »). Sois spécifique et différenciant.
+- Les titres sont accrocheurs, avec une promesse claire, sans résultat garanti.
+- Varie les niches et mélange eBooks et formations.
+- N'invente AUCUN chiffre, statistique ou étude.
+
+Format STRICT : une idée par ligne, 5 champs séparés par le symbole |, rien d'autre (pas d'introduction, pas de numérotation, pas de gras) :
+niche en quelques mots | pourquoi cette niche intéresse ce public (une phrase) | titre accrocheur | description : sujet, public visé et bénéfice (une phrase) | ebook ou formation
+
+Exemple de forme (ne le recopie pas) :
+Pâtisserie à domicile | Beaucoup de personnes cherchent un revenu depuis chez elles | Pâtissière à domicile : lancer son activité avec 10 gâteaux qui se vendent | Guide pratique pour les débutantes qui veulent vendre des gâteaux sur WhatsApp et les réseaux sociaux | ebook`;
+
+  let lastError = "";
   try {
     let ideas = [];
     for (let i = 0; i < 2 && ideas.length < 3; i++) {
       const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
         messages: [
-          { role: "system", content: "Tu es un consultant en produits digitaux. Tu réponds uniquement en JSON valide." },
+          {
+            role: "system",
+            content:
+              "Tu es un consultant senior en produits digitaux. Tu écris des idées concrètes, spécifiques et premium, dans la langue demandée, en respectant exactement le format demandé.",
+          },
           { role: "user", content: prompt },
         ],
-        max_tokens: 1800,
+        max_tokens: 2500,
+        temperature: 0.8,
       });
-      ideas = parseIdeas(r.response);
+      // Selon le modèle, la réponse peut déjà être un objet : on la remet en texte
+      const raw =
+        typeof r?.response === "string"
+          ? r.response
+          : r?.response != null
+          ? JSON.stringify(r.response)
+          : "";
+      lastError = raw ? "" : "Réponse vide de l'IA.";
+      ideas = parseIdeas(raw);
     }
     if (ideas.length < 3) {
-      return Response.json({ error: "Aucune idée générée, réessayez." }, { status: 502 });
+      return Response.json(
+        { error: "L'IA n'a pas renvoyé d'idées exploitables. Réessayez.", details: lastError },
+        { status: 502 }
+      );
     }
     return Response.json({ ideas });
   } catch (err) {
     return Response.json({ error: "Erreur lors de la génération IA.", details: err.message }, { status: 502 });
   }
-      }
+  }
