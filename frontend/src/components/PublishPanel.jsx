@@ -31,10 +31,10 @@ const LANG_LABELS = {
 
 export default function PublishPanel({ formation, onChange }) {
   const { user } = useAuth();
-  const cover = formation.cover_url || ""; // conservé tel quel (non modifiable ici)
+  const cover = formation.cover_url || ""; // conservé tel quel, non modifiable ici
   const [certificate, setCertificate] = useState(!!formation.certificate);
   const [learner, setLearner] = useState("");
-  const [template, setTemplate] = useState("academy");
+  const [template, setTemplate] = useState("noir");
   const [brand, setBrand] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
