@@ -12,16 +12,15 @@ const USAGE_ROWS = [
   { kind: "marketing", icon: "📣", label: "Contenus marketing" },
 ];
 
-/* Inclus dans tous les plans */
-const ALL_PLANS = [
-  "Génération en 7 langues",
-  "6 modèles d'eBooks et 6 modèles de formations",
-  "Idées de produits par pays",
-  "Mockup 3D de couverture",
-];
-
-/* Réservé aux plans payants */
-const PAID_ONLY = ["Certificats de réussite", "Export PDF premium"];
+const FULL_FEATURES = {
+  languages: "all",
+  ebook_templates: "all",
+  formation_templates: "all",
+  ideas: true,
+  mockup: true,
+  certificate: true,
+  pdf: true,
+};
 
 const n = (v) => Number(v).toLocaleString("fr-FR");
 
@@ -32,6 +31,25 @@ function planLines(l) {
     `${n(l.lesson)} leçons IA par mois`,
     `${n(l.marketing)} contenus marketing par mois`,
     `${n(l.learners)} apprenants par formation`,
+  ];
+}
+
+/* Fonctionnalités du plan : { t: texte, on: inclus ou non } */
+function featureLines(f) {
+  const x = f || FULL_FEATURES;
+  return [
+    { t: x.languages === "all" ? "Génération en 7 langues" : "Génération en 1 langue (français)", on: true },
+    {
+      t:
+        x.ebook_templates === "all"
+          ? "6 modèles d'eBooks et 6 modèles de formations"
+          : "1 modèle d'eBook et 1 modèle de formation",
+      on: true,
+    },
+    { t: "Idées de produits par pays", on: !!x.ideas },
+    { t: "Mockup 3D de couverture", on: !!x.mockup },
+    { t: "Certificats de réussite", on: !!x.certificate },
+    { t: "Export PDF premium", on: !!x.pdf },
   ];
 }
 
@@ -178,6 +196,10 @@ export default function Subscriptions() {
     }
   }
 
+  function goToPlans() {
+    document.getElementById("sb-plans")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const status = data?.status;
   const active = status === "active";
   const expired = status === "expired";
@@ -203,6 +225,15 @@ export default function Subscriptions() {
       : 0;
 
   const contact = data?.contact || {};
+
+  /* Quotas atteints et plan suivant à proposer */
+  const fullRows = data
+    ? USAGE_ROWS.filter((r) => (data.usage[r.kind] || 0) >= (data.limits[r.kind] || 1))
+    : [];
+  const nextPlanName = data ? (data.plan === "free" ? "Pro" : data.plan === "pro" ? "Business" : null) : null;
+  const myFeatures = data?.features || null;
+  const myFeatureLines = featureLines(myFeatures);
+  const hasLockedFeatures = myFeatureLines.some((f) => !f.on) || (myFeatures && myFeatures.languages !== "all");
 
   return (
     <DashboardLayout>
@@ -267,17 +298,18 @@ export default function Subscriptions() {
                     const used = data.usage[r.kind] || 0;
                     const limit = data.limits[r.kind] || 1;
                     const pct = Math.min(100, Math.round((used / limit) * 100));
-                    const color =
-                      pct >= 100
-                        ? "linear-gradient(90deg,#ef4444,#f87171)"
-                        : pct >= 80
-                        ? "linear-gradient(90deg,#d97706,#fbbf24)"
-                        : "linear-gradient(90deg,#3B82F6,#8B5CF6)";
+                    const isFull = used >= limit;
+                    const color = isFull
+                      ? "linear-gradient(90deg,#ef4444,#f87171)"
+                      : pct >= 80
+                      ? "linear-gradient(90deg,#d97706,#fbbf24)"
+                      : "linear-gradient(90deg,#3B82F6,#8B5CF6)";
                     return (
                       <div key={r.kind} className="sb-usage">
                         <div className="sb-usage-top">
                           <span>
                             {r.icon} {r.label}
+                            {isFull && <span className="sb-full-tag">Limite atteinte</span>}
                           </span>
                           <span className="sb-usage-n">
                             {n(used)} / {n(limit)}
@@ -292,6 +324,24 @@ export default function Subscriptions() {
                       </div>
                     );
                   })}
+
+                  {fullRows.length > 0 && (
+                    <div className="sb-full-box">
+                      <div>
+                        🚫 Vous avez atteint la limite de votre plan {data.plan_name} pour :{" "}
+                        <b>{fullRows.map((r) => r.label.toLowerCase()).join(", ")}</b>.{" "}
+                        {nextPlanName
+                          ? `Passez au plan ${nextPlanName} pour continuer et profiter de tous les avantages de Digitelio AI.`
+                          : "Le compteur repart à zéro à la prochaine période."}
+                      </div>
+                      {nextPlanName && (
+                        <button type="button" className="sb-full-btn" onClick={goToPlans}>
+                          Voir les plans →
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="sb-muted sb-small">
                     {active
                       ? `Vos compteurs repartent à zéro toutes les 30 jours à partir de votre paiement (prochaine remise à zéro : ${fmtDateTime(data.reset_at)}).`
@@ -301,8 +351,28 @@ export default function Subscriptions() {
                 </div>
               )}
 
+              {/* Fonctionnalités du plan */}
+              {!expired && (
+                <div className="sb-card">
+                  <div className="sb-label">Fonctionnalités de votre plan</div>
+                  <ul className="sb-feat">
+                    {myFeatureLines.map((f) => (
+                      <li key={f.t} className={f.on ? "" : "locked"}>
+                        <span>{f.on ? "✅" : "🔒"}</span>
+                        <span>{f.t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {hasLockedFeatures && nextPlanName && (
+                    <div className="sb-muted sb-small">
+                      Les fonctionnalités verrouillées sont disponibles avec le plan Pro ou Business.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Plans */}
-              <div className="sb-label" style={{ marginTop: "2.4rem" }}>Choisissez votre plan</div>
+              <div id="sb-plans" className="sb-label" style={{ marginTop: "2.4rem" }}>Choisissez votre plan</div>
               <div className="sb-plans">
                 {data.plans.map((p, i) => {
                   const isFree = p.key === "free";
@@ -373,20 +443,10 @@ export default function Subscriptions() {
                             {t}
                           </li>
                         ))}
-                        {ALL_PLANS.map((t) => (
-                          <li key={t}>
-                            <span className="sb-check">✓</span>
-                            {t}
-                          </li>
-                        ))}
-                        {PAID_ONLY.map((t) => (
-                          <li key={t} className={isFree ? "sb-common" : ""}>
-                            {isFree ? (
-                              <span className="sb-check soft" />
-                            ) : (
-                              <span className="sb-check">✓</span>
-                            )}
-                            {t}
+                        {featureLines(p.features).map((f) => (
+                          <li key={f.t} className={f.on ? "" : "sb-common"}>
+                            {f.on ? <span className="sb-check">✓</span> : <span className="sb-check soft" />}
+                            {f.t}
                           </li>
                         ))}
                       </ul>
@@ -452,10 +512,27 @@ export default function Subscriptions() {
           -webkit-text-fill-color: transparent; color: transparent;
         }
         .sb-usage { margin-bottom: 1rem; }
-        .sb-usage-top { display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem; }
-        .sb-usage-n { opacity: 0.8; }
+        .sb-usage-top { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.4rem; }
+        .sb-usage-n { opacity: 0.8; white-space: nowrap; }
         .sb-bar { height: 10px; border-radius: 999px; background: rgba(128,128,128,0.22); overflow: hidden; }
         .sb-bar-fill { height: 100%; border-radius: 999px; transition: width 0.8s cubic-bezier(.2,.8,.2,1); }
+
+        .sb-full-tag {
+          margin-left: 0.5rem; font-size: 0.66rem; font-weight: 800; padding: 0.15rem 0.55rem;
+          border-radius: 999px; color: #fff; background: #ef4444; vertical-align: middle;
+        }
+        .sb-full-box {
+          margin-top: 0.4rem; padding: 0.9rem 1rem; border-radius: 16px; font-size: 0.88rem; line-height: 1.55;
+          border: 1px solid rgba(239,68,68,0.6); background: rgba(239,68,68,0.08);
+        }
+        .sb-full-btn {
+          margin-top: 0.7rem; padding: 0.6rem 1.1rem; border: 0; border-radius: 12px; cursor: pointer;
+          font-family: inherit; font-weight: 800; font-size: 0.85rem; color: #fff;
+          background: linear-gradient(120deg,#3B82F6,#8B5CF6);
+        }
+        .sb-feat { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; font-size: 0.9rem; }
+        .sb-feat li { display: flex; gap: 0.6rem; align-items: flex-start; line-height: 1.4; }
+        .sb-feat li.locked { opacity: 0.6; }
 
         .sb-pay-msg { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 16px; font-size: 0.9rem; line-height: 1.5; }
         .sb-pay-msg.info { background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.6); }
@@ -471,7 +548,7 @@ export default function Subscriptions() {
 
         .sb-plans { position: relative; isolation: isolate; display: grid; gap: 1.6rem; padding-top: 0.9rem; }
         @media (min-width: 900px) { .sb-plans { grid-template-columns: repeat(3, 1fr); gap: 1.2rem; align-items: stretch; } }
-   .sb-plans::before {
+        .sb-plans::before {
           content: ""; position: absolute; inset: -40px -20px; z-index: -1; pointer-events: none; filter: blur(12px);
           background:
             radial-gradient(420px 220px at 15% 8%, rgba(59,130,246,0.16), transparent 70%),
