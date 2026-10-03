@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
 import CertificateDoc, { printCertificate } from "./CertificateExport.jsx";
+import TemplatePreview from "./TemplatePreview.jsx";
 import { getDefaultCurrency } from "../utils/currency.js";
+import {
+  FORMATION_TEMPLATES,
+  FORMATION_ORDER,
+  formationFontsImport,
+} from "../utils/formationTemplates.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -17,30 +24,6 @@ async function api(path, options = {}) {
   return data;
 }
 
-function compressImage(file, maxW = 1000, quality = 0.82) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Impossible de lire l'image."));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Image illisible."));
-      img.onload = () => {
-        const scale = Math.min(1, maxW / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 const LANG_LABELS = {
   fr: "Français", en: "English", es: "Español", pt: "Português",
   de: "Deutsch", it: "Italiano", ar: "العربية",
@@ -48,9 +31,11 @@ const LANG_LABELS = {
 
 export default function PublishPanel({ formation, onChange }) {
   const { user } = useAuth();
-  const [cover, setCover] = useState(formation.cover_url || "");
+  const cover = formation.cover_url || ""; // conservé tel quel (non modifiable ici)
   const [certificate, setCertificate] = useState(!!formation.certificate);
   const [learner, setLearner] = useState("");
+  const [template, setTemplate] = useState("academy");
+  const [brand, setBrand] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -60,26 +45,27 @@ export default function PublishPanel({ formation, onChange }) {
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
 
-  async function onCoverFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  useEffect(() => {
+    api(`/formations/${formation.id}/style`)
+      .then((d) => d.template && setTemplate(d.template))
+      .catch(() => {});
+    api("/brand")
+      .then((d) => setBrand(d.brand || {}))
+      .catch(() => {});
+  }, [formation.id]);
+
+  async function chooseTemplate(id) {
+    const previous = template;
+    setTemplate(id);
     setErr("");
-    setMsg("");
-    if (!file.type.startsWith("image/")) {
-      setErr("Choisissez un fichier image (JPG, PNG ou WebP).");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setErr("Image trop lourde (10 Mo maximum).");
-      return;
-    }
     try {
-      let data = await compressImage(file, 1000, 0.82);
-      if (data.length > 850000) data = await compressImage(file, 800, 0.6);
-      setCover(data);
-    } catch (e2) {
-      setErr(e2.message);
+      await api(`/formations/${formation.id}/style`, {
+        method: "PUT",
+        body: JSON.stringify({ template: id }),
+      });
+    } catch (e) {
+      setTemplate(previous);
+      setErr(e.message);
     }
   }
 
@@ -119,30 +105,40 @@ export default function PublishPanel({ formation, onChange }) {
             <li className={allWritten ? "ok" : ""}>
               {allWritten ? "✓" : "○"} Leçons rédigées : {written}/{modules.length}
             </li>
-            <li className={cover ? "ok" : ""}>
-              {cover ? "✓" : "○"} Image de couverture (recommandée)
-            </li>
           </ul>
 
-          {/* Couverture */}
-          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Image de couverture</div>
-          {cover ? (
-            <div className="pb-cover">
-              <img src={cover} alt="Couverture de la formation" />
-            </div>
-          ) : (
-            <div className="pb-cover pb-cover-empty">Aucune image</div>
-          )}
-          <div className="pb-cover-actions">
-            <label className="fm-chip pb-file">
-              {cover ? "Changer l'image" : "+ Ajouter une image"}
-              <input type="file" accept="image/*" onChange={onCoverFile} hidden />
-            </label>
-            {cover && (
-              <button type="button" className="fm-chip" onClick={() => setCover("")}>
-                Retirer
+          {/* Modèle */}
+          <div className="fm-label" style={{ marginTop: "1.2rem" }}>Modèle de la formation</div>
+          <style>{formationFontsImport(FORMATION_ORDER)}</style>
+          <div className="pb-tpls">
+            {FORMATION_ORDER.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="fm-chip"
+                style={template === id ? { borderColor: "#D4AF37", background: "rgba(212,175,55,0.15)", fontWeight: 700 } : undefined}
+                onClick={() => chooseTemplate(id)}
+              >
+                {FORMATION_TEMPLATES[id].name}
               </button>
-            )}
+            ))}
+          </div>
+          <div style={{ marginTop: "0.9rem" }}>
+            <TemplatePreview
+              kind="formation"
+              templateId={template}
+              brand={brand}
+              title={formation.title}
+              author={brand.author_name || ""}
+              slogan={brand.tagline || ""}
+              size="sm"
+            />
+          </div>
+          <div className="fm-muted fm-small">
+            Le modèle change la couverture, les polices et les couleurs du PDF.{" "}
+            <Link to="/dashboard/templates" style={{ color: "#D4AF37", fontWeight: 600 }}>Voir la galerie</Link>
+            {" · "}
+            <Link to="/dashboard/brand" style={{ color: "#D4AF37", fontWeight: 600 }}>Mon style</Link>
           </div>
 
           {/* Certificat */}
@@ -189,13 +185,13 @@ export default function PublishPanel({ formation, onChange }) {
           <button
             type="button"
             className="fm-btn fm-btn-outline"
-            onClick={printFormation}
+            onClick={() => printFormation(template, language)}
             disabled={written === 0}
           >
             📘 Télécharger la formation en PDF
           </button>
           <div className="fm-muted fm-small">
-            Couverture premium, sommaire, modules enchaînés, vidéos et ressources cliquables.
+            Couverture premium, sommaire, modules enchaînés, vidéos, images et ressources cliquables.
             {!allWritten && written > 0 && ` ${modules.length - written} leçon(s) non rédigée(s) seront ignorées.`}
             {written === 0 && " Rédigez au moins une leçon pour activer l'export."}
           </div>
@@ -213,17 +209,7 @@ export default function PublishPanel({ formation, onChange }) {
         <style>{`
           .pb-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.88rem; opacity: 0.85; }
           .pb-checks li.ok { color: #16a34a; opacity: 1; font-weight: 600; }
-          .pb-cover {
-            width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
-            border: 1px solid rgba(128,128,128,0.3);
-          }
-          .pb-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-          .pb-cover-empty {
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.85rem; opacity: 0.6; border-style: dashed;
-          }
-          .pb-cover-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
-          .pb-file { cursor: pointer; }
+          .pb-tpls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
           .pb-cert { display: flex; gap: 0.7rem; align-items: flex-start; margin-top: 1.2rem; cursor: pointer; }
           .pb-cert input { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; accent-color: #D4AF37; }
           .pb-cert span { display: flex; flex-direction: column; font-weight: 600; }
@@ -236,7 +222,7 @@ export default function PublishPanel({ formation, onChange }) {
       </div>
 
       {/* Documents imprimés (invisibles à l'écran) */}
-      <FormationDoc formation={formation} language={language} />
+      <FormationDoc formation={formation} language={language} template={template} brand={brand} />
       <CertificateDoc
         formation={formation}
         name={learner}
@@ -245,4 +231,4 @@ export default function PublishPanel({ formation, onChange }) {
       />
     </>
   );
-    }
+        }
