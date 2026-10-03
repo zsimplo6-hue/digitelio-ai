@@ -4,6 +4,8 @@ import {
   handleLogin,
   handleMe,
   handleLogout,
+  handleForgotPassword,
+  handleResetPassword,
   handleGoogleLogin,
   handleGoogleCallback,
 } from "./routes/auth.js";
@@ -135,6 +137,12 @@ export default {
       }
       if (url.pathname === "/api/auth/login" && request.method === "POST") {
         return withCors(await handleLogin(request, env), request);
+      }
+      if (url.pathname === "/api/auth/forgot-password" && request.method === "POST") {
+        return withCors(await handleForgotPassword(request, env), request);
+      }
+      if (url.pathname === "/api/auth/reset-password" && request.method === "POST") {
+        return withCors(await handleResetPassword(request, env), request);
       }
       if (url.pathname === "/api/auth/me" && request.method === "GET") {
         return withCors(await handleMe(request, env), request);
