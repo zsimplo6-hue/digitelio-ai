@@ -102,9 +102,9 @@ export default function Login() {
                 />
                 Se souvenir de moi
               </label>
-              <a href="#" className="text-digi-blue hover:underline">
+              <Link to="/forgot-password" className="text-digi-blue hover:underline">
                 Mot de passe oublié ?
-              </a>
+              </Link>
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
@@ -134,4 +134,4 @@ export default function Login() {
       </div>
     </div>
   );
-          }
+}
