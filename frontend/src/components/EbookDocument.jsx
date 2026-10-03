@@ -93,6 +93,7 @@ function Doc({ title, description, sections, prefix, template, brand, language }
           </div>
 
           {description && <p className="cv-desc">{description}</p>}
+          {brand.tagline && <div className="cv-slogan">{brand.tagline}</div>}
           {brand.author_name && (
             <div className="cv-author">
               {ui.by} {brand.author_name}
@@ -355,6 +356,14 @@ function DocStyle({ template, ar }) {
         max-width: 90%;
         margin: 0;
       }
+      .cv-slogan {
+        font-family: var(--b-font);
+        font-style: italic;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: var(--cover-sub);
+        max-width: 85%;
+      }
       .cv-author {
         font-family: var(--b-font);
         font-size: 0.85rem;
@@ -495,7 +504,7 @@ function DocStyle({ template, ar }) {
           min-height: 0;
           width: 100%;
           padding: 0;
-          break-after: page;
+         break-after: page;
           page-break-after: always;
         }
 
