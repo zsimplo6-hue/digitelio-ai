@@ -11,24 +11,47 @@ export const CONTACT = {
   },
 };
 
+/* Fonctionnalités réservées aux plans payants */
+const FREE_FEATURES = {
+  languages: ["fr"],
+  ebook_templates: ["finance"],
+  formation_templates: ["noir"],
+  ideas: false,
+  mockup: false,
+  certificate: false,
+  pdf: true,
+};
+const PAID_FEATURES = {
+  languages: "all",
+  ebook_templates: "all",
+  formation_templates: "all",
+  ideas: true,
+  mockup: true,
+  certificate: true,
+  pdf: true,
+};
+
 export const PLANS = {
   free: {
     name: "Gratuit",
     price_text: "Gratuit",
     price_xof: 0,
-    limits: { ebook: 1, formation: 1, lesson: 15, marketing: 10, learners: 10 },
+    limits: { ebook: 1, formation: 1, lesson: 15, marketing: 10, learners: 5 },
+    features: FREE_FEATURES,
   },
   pro: {
     name: "Pro",
     price_text: "4 999 FCFA / mois",
     price_xof: 4999,
     limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
+    features: PAID_FEATURES,
   },
   business: {
     name: "Business",
     price_text: "12 999 FCFA / mois",
     price_xof: 12999,
     limits: { ebook: 50, formation: 30, lesson: 600, marketing: 300, learners: 300 },
+    features: PAID_FEATURES,
   },
 };
 
@@ -126,7 +149,7 @@ function expiredResponse(state) {
 
 function blockedResponse(planKey, what, limit, used, recurring) {
   let tail;
-  if (planKey === "free") tail = "Passez à un plan payant dans « Abonnements » pour continuer.";
+  if (planKey === "free") tail = "Passez au plan Pro ou Business dans « Abonnements » pour continuer.";
   else if (planKey === "pro") tail = "Passez au plan Business dans « Abonnements » pour continuer.";
   else tail = "Réessayez à la prochaine période ou contactez le support.";
 
@@ -157,6 +180,42 @@ export async function checkAccess(request, env) {
   if (!user) return null;
   const state = subscriptionState(user);
   return state.status === "expired" ? expiredResponse(state) : null;
+}
+
+/* Vérifie qu'une fonctionnalité est incluse dans le plan de l'utilisateur.
+   feature : "language" | "ebook_template" | "formation_template" | "ideas" | "certificate"
+   Retourne une Response 403 si non incluse, sinon null. */
+export async function checkFeature(request, env, feature, value) {
+  const auth = await getAuthenticatedUser(request, env);
+  if (!auth) return null;
+  const user = await loadUser(env, auth.sub);
+  if (!user) return null;
+  const state = subscriptionState(user);
+  if (state.status === "expired") return expiredResponse(state);
+
+  const plan = PLANS[state.planKey];
+  const f = plan.features;
+  const inList = (list, v) => list === "all" || list.includes(v);
+  const upgrade = "Passez au plan Pro ou Business dans « Abonnements ».";
+
+  let message = null;
+  if (feature === "language" && !inList(f.languages, value)) {
+    message = `Le plan ${plan.name} propose uniquement le français. ${upgrade} pour générer dans les 7 langues.`;
+  } else if (feature === "ebook_template" && !inList(f.ebook_templates, value)) {
+    message = `Ce modèle d'eBook est réservé aux plans Pro et Business. Le plan ${plan.name} inclut un seul modèle. ${upgrade}`;
+  } else if (feature === "formation_template" && !inList(f.formation_templates, value)) {
+    message = `Ce modèle de formation est réservé aux plans Pro et Business. Le plan ${plan.name} inclut un seul modèle. ${upgrade}`;
+  } else if (feature === "ideas" && !f.ideas) {
+    message = `Les idées de produits par pays sont réservées aux plans Pro et Business. ${upgrade}`;
+  } else if (feature === "certificate" && !f.certificate) {
+    message = `Les certificats de réussite sont réservés aux plans Pro et Business. ${upgrade}`;
+  }
+
+  if (!message) return null;
+  return Response.json(
+    { error: message, code: "feature_locked", feature, plan: state.planKey },
+    { status: 403 }
+  );
 }
 
 export async function checkQuota(request, env, kind) {
@@ -294,6 +353,7 @@ export async function handleBilling(request, env) {
     until: toIso(state.untilMs),
     server_time: toIso(now),
     limits: PLANS[state.planKey].limits,
+    features: PLANS[state.planKey].features,
     usage,
     reset_at: toIso(period.resetAtMs),
     plans: Object.entries(PLANS).map(([key, p]) => ({
@@ -301,7 +361,8 @@ export async function handleBilling(request, env) {
       name: p.name,
       price_text: p.price_text,
       limits: p.limits,
+      features: p.features,
     })),
     contact: CONTACT,
   });
-    }
+}
