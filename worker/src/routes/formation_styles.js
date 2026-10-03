@@ -1,7 +1,7 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 
-const IDS = ["academy", "masterclass", "impact", "emerald", "sunrise", "studio"];
+const IDS = ["noir", "aurora", "bordeaux", "ivoire", "neon", "ocean"];
 
 let ready = false;
 async function ensureTable(env) {
@@ -37,7 +37,7 @@ export async function handleGetFormationStyle(request, env, formationId) {
   const row = await env.DB.prepare("SELECT template FROM formation_styles WHERE formation_id = ?")
     .bind(formationId)
     .first();
-  return Response.json({ template: IDS.includes(row?.template) ? row.template : "academy" });
+  return Response.json({ template: IDS.includes(row?.template) ? row.template : "noir" });
 }
 
 export async function handleSetFormationTemplate(request, env, formationId) {
