@@ -69,6 +69,7 @@ import {
   checkAccess,
   checkQuota,
   checkLearners,
+  checkFeature,
   recordUsage,
   handleBilling,
 } from "./routes/billing.js";
@@ -105,6 +106,11 @@ function needsSubscription(path) {
     path.startsWith("/api/formations") ||
     path.startsWith("/api/ideas")
   );
+}
+
+/* Lit le corps JSON sans consommer la requête (le handler pourra le relire) */
+async function bodyOf(request) {
+  return await request.clone().json().catch(() => null);
 }
 
 export default {
@@ -158,6 +164,9 @@ export default {
       }
 
       if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
+        const body = await bodyOf(request);
+        const lock = await checkFeature(request, env, "language", body?.language || "fr");
+        if (lock) return withCors(lock, request);
         const gate = await checkQuota(request, env, "ebook");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleGenerateEbook(request, env);
@@ -204,6 +213,9 @@ export default {
             return withCors(await handleGetStyle(request, env, ebookId), request);
           }
           if (request.method === "PUT") {
+            const body = await bodyOf(request);
+            const lock = await checkFeature(request, env, "ebook_template", body?.template);
+            if (lock) return withCors(lock, request);
             return withCors(await handleSetTemplate(request, env, ebookId), request);
           }
         }
@@ -348,6 +360,9 @@ export default {
         return withCors(await handleListFormations(request, env), request);
       }
       if (url.pathname === "/api/formations" && request.method === "POST") {
+        const body = await bodyOf(request);
+        const lock = await checkFeature(request, env, "language", body?.language || "fr");
+        if (lock) return withCors(lock, request);
         const gate = await checkQuota(request, env, "formation");
         if (gate.blocked) return withCors(gate.blocked, request);
         const res = await handleCreateFormation(request, env);
@@ -363,6 +378,9 @@ export default {
             return withCors(await handleGetFormationStyle(request, env, formationId), request);
           }
           if (request.method === "PUT") {
+            const body = await bodyOf(request);
+            const lock = await checkFeature(request, env, "formation_template", body?.template);
+            if (lock) return withCors(lock, request);
             return withCors(await handleSetFormationTemplate(request, env, formationId), request);
           }
         }
@@ -372,6 +390,11 @@ export default {
             return withCors(await handleGetFormation(request, env, formationId), request);
           }
           if (request.method === "PUT") {
+            const body = await bodyOf(request);
+            if (body?.certificate) {
+              const lock = await checkFeature(request, env, "certificate");
+              if (lock) return withCors(lock, request);
+            }
             return withCors(await handleUpdateSettings(request, env, formationId), request);
           }
           if (request.method === "DELETE") {
@@ -428,9 +451,16 @@ export default {
         return withCors(await handleGetBrand(request, env), request);
       }
       if (url.pathname === "/api/brand" && request.method === "PUT") {
+        const body = await bodyOf(request);
+        if (body?.default_template) {
+          const lock = await checkFeature(request, env, "ebook_template", body.default_template);
+          if (lock) return withCors(lock, request);
+        }
         return withCors(await handleSaveBrand(request, env), request);
       }
       if (url.pathname === "/api/ideas" && request.method === "POST") {
+        const lock = await checkFeature(request, env, "ideas");
+        if (lock) return withCors(lock, request);
         return withCors(await handleIdeas(request, env), request);
       }
 
