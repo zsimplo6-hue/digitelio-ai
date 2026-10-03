@@ -4,8 +4,16 @@ import TemplatePreview from "../components/TemplatePreview.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { TEMPLATES, TEMPLATE_ORDER, fontsImport } from "../utils/templates.js";
+import { FORMATION_TEMPLATES, FORMATION_ORDER, formationFontsImport } from "../utils/formationTemplates.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
+
+const GRID = {
+  display: "grid",
+  gap: 16,
+  marginTop: 16,
+  gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+};
 
 export default function Templates() {
   const [brand, setBrand] = useState({});
@@ -46,8 +54,9 @@ export default function Templates() {
   return (
     <DashboardLayout title="Modèles">
       <style>{fontsImport(TEMPLATE_ORDER)}</style>
+      <style>{formationFontsImport(FORMATION_ORDER)}</style>
       <div className="dg-settings-wrap" style={{ maxWidth: "56rem" }}>
-        <h1 className="text-2xl font-bold">Modèles</h1>
+        <h1 className="text-2xl font-bold">Modèles d'eBooks</h1>
         <p className="dg-page__subtitle">
           6 mises en page soignées, avec leurs propres polices et couleurs. Pour changer le modèle d'un eBook
           existant, ouvrez-le puis choisissez « Modèle du livre ».
@@ -56,14 +65,7 @@ export default function Templates() {
         {err && <div className="dg-alert dg-alert--error">{err}</div>}
         {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
 
-        <div
-          style={{
-            display: "grid",
-            gap: 16,
-            marginTop: 20,
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          }}
-        >
+        <div style={GRID}>
           {TEMPLATE_ORDER.map((id) => {
             const t = TEMPLATES[id];
             const isDefault = brand.default_template === id;
@@ -94,7 +96,41 @@ export default function Templates() {
             );
           })}
         </div>
+
+        <h1 className="text-2xl font-bold" style={{ marginTop: 40 }}>Modèles de formations premium</h1>
+        <p className="dg-page__subtitle">
+          6 modèles ultra premium pour le PDF de vos formations (couverture, sommaire, modules). Pour en
+          appliquer un : ouvrez une formation, puis « Modèle de la formation ».
+        </p>
+
+        <div style={GRID}>
+          {FORMATION_ORDER.map((id) => {
+            const t = FORMATION_TEMPLATES[id];
+            const key = `f-${id}`;
+            return (
+              <Card key={key}>
+                <TemplatePreview
+                  kind="formation"
+                  templateId={id}
+                  brand={{}}
+                  title="Titre de votre formation"
+                  size={open === key ? "lg" : "sm"}
+                />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
+                  <div className="dg-helper-text" style={{ marginTop: 2 }}>{t.tagline}</div>
+                  <div className="dg-helper-text" style={{ marginTop: 2 }}>Idéal pour : {t.ideal}</div>
+                </div>
+                <div className="dg-cover-actions" style={{ flexWrap: "wrap" }}>
+                  <button type="button" className="dg-chip" onClick={() => setOpen(open === key ? null : key)}>
+                    {open === key ? "Réduire" : "Agrandir l'aperçu"}
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </DashboardLayout>
   );
-        }
+                              }
