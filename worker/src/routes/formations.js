@@ -331,18 +331,42 @@ export async function handleUpdateModule(request, env, formationId, moduleId) {
     return Response.json({ error: "Lien vidéo invalide." }, { status: 400 });
   }
 
+  /* Ressources : image (data URL), vidéo (lien YouTube/Vimeo) ou lien simple */
   let resources = [];
+  let imageBudget = 0;
   if (Array.isArray(body.resources)) {
     for (const r of body.resources.slice(0, 20)) {
-      const label = String(r?.label || "").trim().slice(0, 100);
       const url = String(r?.url || "").trim();
+      const label = String(r?.label || "").trim().slice(0, 100);
+
+      if (r?.type === "image" || url.startsWith("data:image/")) {
+        const okFormat = /^data:image\/(jpeg|png|webp);base64,/.test(url);
+        imageBudget += url.length;
+        if (!okFormat || url.length > 400000 || imageBudget > 1200000) {
+          return Response.json(
+            { error: "Image invalide ou trop lourde (3 images par leçon environ)." },
+            { status: 400 }
+          );
+        }
+        resources.push({ type: "image", label: label || "Image", url });
+        continue;
+      }
+
+      if (r?.type === "video") {
+        if (!isHttpUrl(url) || url.length > 500) {
+          return Response.json({ error: "Lien vidéo invalide (http...)." }, { status: 400 });
+        }
+        resources.push({ type: "video", label: label || "Vidéo", url });
+        continue;
+      }
+
       if (!label || !isHttpUrl(url) || url.length > 500) {
         return Response.json(
           { error: "Chaque ressource doit avoir un nom et un lien valide (http...)." },
           { status: 400 }
         );
       }
-      resources.push({ label, url });
+      resources.push({ type: "link", label, url });
     }
   }
 
@@ -414,4 +438,4 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
       { status: 502 }
     );
   }
-              }
+  }
