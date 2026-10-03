@@ -1,6 +1,13 @@
 import { TEMPLATES, themeVars } from "../utils/templates.js";
 
-export default function TemplatePreview({ templateId, brand = {}, title = "Titre de votre eBook", size = "sm" }) {
+export default function TemplatePreview({
+  templateId,
+  brand = {},
+  title = "Titre de votre eBook",
+  author = "",
+  slogan = "",
+  size = "sm",
+}) {
   const t = TEMPLATES[templateId] || TEMPLATES.finance;
   const vars = themeVars(templateId, brand);
   const left = t.layout.cover === "left";
@@ -16,7 +23,8 @@ export default function TemplatePreview({ templateId, brand = {}, title = "Titre
           {title}
         </div>
         <div className="tp-line" />
-        <div className="tp-sub">{t.tagline}</div>
+        {slogan ? <div className="tp-slogan">{slogan}</div> : <div className="tp-sub">{t.tagline}</div>}
+        {author && <div className="tp-author">Par {author}</div>}
       </div>
 
       <div className="tp-page">
@@ -42,14 +50,16 @@ export default function TemplatePreview({ templateId, brand = {}, title = "Titre
           content: ""; position: absolute; inset: 0.7em; border: 1px solid var(--accent);
           border-radius: 0.2em; pointer-events: none;
         }
-        .tp-brand { font-size: 0.65em; letter-spacing: 0.25em; color: var(--accent); font-weight: 700; }
+        .tp-brand { font-size: 0.65em; letter-spacing: 0.25em; color: var(--accent); font-weight: 700; overflow-wrap: anywhere; }
         .tp-title {
           font-family: var(--h-font); font-weight: 700; font-size: 1.5em; line-height: 1.15;
           background: var(--title-bg); -webkit-background-clip: text; background-clip: text;
-          -webkit-text-fill-color: transparent;
+          -webkit-text-fill-color: transparent; overflow-wrap: anywhere;
         }
         .tp-line { width: 3em; height: 2px; background: var(--accent); }
         .tp-sub { font-size: 0.7em; color: var(--cover-sub); font-family: var(--b-font); }
+        .tp-slogan { font-size: 0.72em; font-style: italic; color: var(--cover-sub); font-family: var(--b-font); line-height: 1.4; overflow-wrap: anywhere; }
+        .tp-author { font-size: 0.62em; letter-spacing: 0.12em; color: var(--accent); font-family: var(--b-font); font-weight: 700; margin-top: 0.4em; overflow-wrap: anywhere; }
         .tp-page {
           aspect-ratio: 3 / 4; background: var(--paper); border: 1px solid rgba(128,128,128,0.25);
           border-radius: 0.5em; padding: 1.1em; font-family: var(--b-font); color: var(--text); overflow: hidden;
