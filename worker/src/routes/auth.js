@@ -1,6 +1,7 @@
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signJWT, verifyJWT } from "../utils/jwt.js";
 import { parseCookies, buildAuthCookie, buildClearCookie } from "../utils/cookies.js";
+import { sendEmail } from "../utils/email.js";
 
 function generateId() {
   return crypto.randomUUID();
@@ -150,6 +151,209 @@ export async function handleLogout() {
   );
 }
 
+/* ===================== MOT DE PASSE OUBLIÉ ===================== */
+
+const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const RESET_MAX_PER_HOUR = 3;
+const DEFAULT_APP_URL = "https://digitelio.com";
+const GENERIC_FORGOT_MESSAGE =
+  "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé. Pensez à vérifier vos courriers indésirables.";
+
+let resetReady = false;
+async function ensureResetTable(env) {
+  if (resetReady) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS password_resets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        used_at INTEGER,
+        created_at INTEGER NOT NULL
+      )`
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets (user_id, created_at)"
+    ),
+  ]);
+  resetReady = true;
+}
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function randomToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const esc = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+function emailShell(title, bodyHtml, buttonHtml, footer) {
+  return `
+  <div style="font-family: -apple-system, Inter, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #F7F7FB;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="font-weight: 700; font-size: 18px; color: #0F0F1E;">DIGITELIO <span style="color: #7C3AED;">AI</span></span>
+    </div>
+    <div style="background: #fff; border-radius: 20px; padding: 32px 28px; box-shadow: 0 8px 24px rgba(16,16,40,0.06);">
+      <h1 style="font-size: 20px; color: #0F0F1E; margin: 0 0 12px;">${title}</h1>
+      <p style="font-size: 14px; color: #6B6B85; line-height: 1.6; margin: 0 0 20px;">${bodyHtml}</p>
+      ${buttonHtml}
+    </div>
+    <p style="text-align: center; font-size: 12px; color: #9C9CB4; margin-top: 20px;">${footer}</p>
+  </div>`;
+}
+
+function resetEmailHtml(name, url) {
+  const button = `
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${esc(url)}" style="display: inline-block; background: linear-gradient(135deg,#6D3BF5,#C13BF5); color: #fff; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
+          Choisir un nouveau mot de passe
+        </a>
+      </div>
+      <p style="font-size: 12px; color: #9C9CB4; text-align: center; word-break: break-all;">Ou copiez ce lien : ${esc(url)}</p>`;
+  return emailShell(
+    `Bonjour${name ? `, ${esc(name)}` : ""} 👋`,
+    "Vous avez demandé à réinitialiser votre mot de passe Digitelio AI. Ce lien est valable <strong>30 minutes</strong> et ne peut servir qu'une seule fois.",
+    button,
+    "Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet email : votre mot de passe reste inchangé."
+  );
+}
+
+function resetDoneEmailHtml(name) {
+  return emailShell(
+    "Votre mot de passe a été modifié",
+    `Bonjour${name ? ` ${esc(name)}` : ""}, le mot de passe de votre compte Digitelio AI vient d'être modifié. Si c'est bien vous, vous pouvez vous connecter avec votre nouveau mot de passe.`,
+    "",
+    "Si vous n'êtes pas à l'origine de ce changement, demandez immédiatement une nouvelle réinitialisation depuis la page de connexion."
+  );
+}
+
+export async function handleForgotPassword(request, env) {
+  const body = await request.json().catch(() => null);
+  const email = String(body?.email || "").trim().toLowerCase();
+
+  // Réponse identique dans tous les cas : on ne révèle jamais si un compte existe
+  const ok = () => Response.json({ message: GENERIC_FORGOT_MESSAGE });
+  if (!isValidEmail(email)) return ok();
+
+  try {
+    await ensureResetTable(env);
+
+    const user = await env.DB.prepare("SELECT id, full_name, email FROM users WHERE email = ?")
+      .bind(email)
+      .first();
+    if (!user) return ok();
+
+    const now = Date.now();
+    const recent = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM password_resets WHERE user_id = ? AND created_at > ?"
+    )
+      .bind(user.id, now - 60 * 60 * 1000)
+      .first();
+    if ((recent?.n || 0) >= RESET_MAX_PER_HOUR) return ok();
+
+    const token = randomToken();
+    const tokenHash = await sha256Hex(token);
+
+    await env.DB.prepare(
+      "INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(generateId(), user.id, tokenHash, now + RESET_TTL_MS, now)
+      .run();
+
+    const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
+    const url = `${appUrl}/reset-password?token=${token}`;
+
+    const result = await sendEmail(env, {
+      to: user.email,
+      toName: user.full_name || user.email,
+      subject: "Réinitialisation de votre mot de passe Digitelio AI",
+      html: resetEmailHtml(user.full_name, url),
+    });
+    if (!result?.ok) console.error("Email de réinitialisation non envoyé", result?.error);
+  } catch (err) {
+    console.error("Erreur mot de passe oublié", err.message);
+  }
+  return ok();
+}
+
+export async function handleResetPassword(request, env) {
+  const body = await request.json().catch(() => null);
+  const token = String(body?.token || "");
+  const password = String(body?.password || "");
+
+  const invalid = () =>
+    Response.json(
+      { error: "Ce lien est invalide ou a expiré. Refaites une demande de réinitialisation." },
+      { status: 400 }
+    );
+
+  if (!/^[0-9a-f]{64}$/.test(token)) return invalid();
+  if (password.length < 8) {
+    return Response.json(
+      { error: "Le mot de passe doit contenir au moins 8 caractères." },
+      { status: 400 }
+    );
+  }
+  if (password.length > 200) {
+    return Response.json({ error: "Mot de passe trop long." }, { status: 400 });
+  }
+
+  await ensureResetTable(env);
+
+  const tokenHash = await sha256Hex(token);
+  const row = await env.DB.prepare(
+    "SELECT id, user_id, expires_at, used_at FROM password_resets WHERE token_hash = ?"
+  )
+    .bind(tokenHash)
+    .first();
+
+  const now = Date.now();
+  if (!row || row.used_at || row.expires_at < now) return invalid();
+
+  const user = await env.DB.prepare("SELECT id, full_name, email FROM users WHERE id = ?")
+    .bind(row.user_id)
+    .first();
+  if (!user) return invalid();
+
+  const passwordHash = await hashPassword(password);
+
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").bind(
+      passwordHash,
+      user.id
+    ),
+    env.DB.prepare("UPDATE password_resets SET used_at = ? WHERE id = ?").bind(now, row.id),
+    // Tous les autres liens encore valides de ce compte sont annulés
+    env.DB.prepare("DELETE FROM password_resets WHERE user_id = ? AND id != ?").bind(user.id, row.id),
+  ]);
+
+  try {
+    await sendEmail(env, {
+      to: user.email,
+      toName: user.full_name || user.email,
+      subject: "Votre mot de passe Digitelio AI a été modifié",
+      html: resetDoneEmailHtml(user.full_name),
+    });
+  } catch (err) {
+    console.error("Email de confirmation non envoyé", err.message);
+  }
+
+  return Response.json({ success: true });
+}
+
+/* ===================== GOOGLE ===================== */
+
 export async function handleGoogleLogin(request, env) {
   const redirectUri = `${new URL(request.url).origin}/api/auth/callback/google`;
 
@@ -235,4 +439,4 @@ export async function handleGoogleCallback(request, env) {
       Location: "https://digitelio-ai-frontend.zsimplo6.workers.dev/dashboard",
     },
   });
-}
+  }
