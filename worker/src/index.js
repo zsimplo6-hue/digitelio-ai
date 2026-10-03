@@ -82,6 +82,10 @@ import {
   handleSaveBrand,
   handleIdeas,
 } from "./routes/styles.js";
+import {
+  handleGetFormationStyle,
+  handleSetFormationTemplate,
+} from "./routes/formation_styles.js";
 
 const GATED_EXACT = new Set([
   "/api/generate/ebook",
@@ -345,6 +349,15 @@ export default {
       if (url.pathname.startsWith("/api/formations/")) {
         const parts = url.pathname.split("/").filter(Boolean);
         const formationId = parts[2];
+
+        if (parts.length === 4 && parts[3] === "style") {
+          if (request.method === "GET") {
+            return withCors(await handleGetFormationStyle(request, env, formationId), request);
+          }
+          if (request.method === "PUT") {
+            return withCors(await handleSetFormationTemplate(request, env, formationId), request);
+          }
+        }
 
         if (parts.length === 3) {
           if (request.method === "GET") {
