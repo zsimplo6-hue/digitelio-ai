@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import TemplatePreview from "../components/TemplatePreview.jsx";
 import { Card } from "../components/ui/Card.jsx";
@@ -26,9 +27,42 @@ async function call(path, options = {}) {
   return data;
 }
 
+const allowed = (list, id) => !list || list === "all" || list.includes(id);
+
+function LockBanner() {
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        padding: "12px 14px",
+        borderRadius: 14,
+        border: "1px solid rgba(212,175,55,0.6)",
+        background: "rgba(212,175,55,0.1)",
+        fontSize: 14,
+        lineHeight: 1.5,
+      }}
+    >
+      🔒 Votre plan <b>Gratuit</b> inclut <b>1 modèle d'eBook</b> et <b>1 modèle de formation</b>. Passez au
+      plan <b>Pro</b> ou <b>Business</b> pour déverrouiller tous les autres modèles.{" "}
+      <Link to="/dashboard/abonnements" style={{ color: "#7C3AED", fontWeight: 700 }}>
+        Voir les abonnements →
+      </Link>
+    </div>
+  );
+}
+
+function LockTag() {
+  return (
+    <span className="dg-pill" style={{ marginLeft: 6 }}>
+      🔒 Pro / Business
+    </span>
+  );
+}
+
 export default function Templates() {
   const [brand, setBrand] = useState({});
   const [formationDefault, setFormationDefault] = useState("noir");
+  const [features, setFeatures] = useState(null);
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
@@ -41,7 +75,14 @@ export default function Templates() {
     call("/api/formations/default/style")
       .then((d) => d.template && setFormationDefault(d.template))
       .catch(() => {});
+    call("/api/billing")
+      .then((d) => setFeatures(d.features || null))
+      .catch(() => {});
   }, []);
+
+  const ebookOk = (id) => !features || allowed(features.ebook_templates, id);
+  const formationOk = (id) => !features || allowed(features.formation_templates, id);
+  const hasLocks = features && (features.ebook_templates !== "all" || features.formation_templates !== "all");
 
   async function setEbookDefault(id) {
     setBusy(id);
@@ -90,6 +131,7 @@ export default function Templates() {
           existant, ouvrez-le puis choisissez « Modèle du livre ».
         </p>
 
+        {hasLocks && <LockBanner />}
         {err && <div className="dg-alert dg-alert--error">{err}</div>}
         {msg && <div className="dg-alert dg-alert--success">{msg}</div>}
 
@@ -97,28 +139,46 @@ export default function Templates() {
           {TEMPLATE_ORDER.map((id) => {
             const t = TEMPLATES[id];
             const isDefault = brand.default_template === id;
+            const ok = ebookOk(id);
             return (
               <Card key={id}>
-                <TemplatePreview templateId={id} brand={{}} size={open === id ? "lg" : "sm"} />
+                <div style={ok ? undefined : { opacity: 0.55, filter: "grayscale(0.35)" }}>
+                  <TemplatePreview templateId={id} brand={{}} size={open === id ? "lg" : "sm"} />
+                </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>
-                    {t.name} {isDefault && <span className="dg-pill dg-pill--ok" style={{ marginLeft: 6 }}>Par défaut</span>}
+                    {t.name}
+                    {ok && isDefault && <span className="dg-pill dg-pill--ok" style={{ marginLeft: 6 }}>Par défaut</span>}
+                    {!ok && <LockTag />}
                   </div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>{t.tagline}</div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>Idéal pour : {t.ideal}</div>
+                  {!ok && (
+                    <div className="dg-helper-text" style={{ marginTop: 6, color: "#B67909", fontWeight: 600 }}>
+                      Disponible avec le plan Pro ou Business.
+                    </div>
+                  )}
                 </div>
                 <div className="dg-cover-actions" style={{ flexWrap: "wrap" }}>
                   <button type="button" className="dg-chip" onClick={() => setOpen(open === id ? null : id)}>
                     {open === id ? "Réduire" : "Agrandir l'aperçu"}
                   </button>
-                  <Button
-                    variant={isDefault ? "secondary" : "primary"}
-                    size="sm"
-                    disabled={isDefault || busy === id}
-                    onClick={() => setEbookDefault(id)}
-                  >
-                    {isDefault ? "✓ Modèle par défaut" : busy === id ? "..." : "Utiliser par défaut"}
-                  </Button>
+                  {ok ? (
+                    <Button
+                      variant={isDefault ? "secondary" : "primary"}
+                      size="sm"
+                      disabled={isDefault || busy === id}
+                      onClick={() => setEbookDefault(id)}
+                    >
+                      {isDefault ? "✓ Modèle par défaut" : busy === id ? "..." : "Utiliser par défaut"}
+                    </Button>
+                  ) : (
+                    <Link to="/dashboard/abonnements">
+                      <Button variant="secondary" size="sm">
+                        🔒 Déverrouiller
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </Card>
             );
@@ -137,34 +197,52 @@ export default function Templates() {
             const t = FORMATION_TEMPLATES[id];
             const key = `f-${id}`;
             const isDefault = formationDefault === id;
+            const ok = formationOk(id);
             return (
               <Card key={key}>
-                <TemplatePreview
-                  kind="formation"
-                  templateId={id}
-                  brand={{}}
-                  title="Titre de votre formation"
-                  size={open === key ? "lg" : "sm"}
-                />
+                <div style={ok ? undefined : { opacity: 0.55, filter: "grayscale(0.35)" }}>
+                  <TemplatePreview
+                    kind="formation"
+                    templateId={id}
+                    brand={{}}
+                    title="Titre de votre formation"
+                    size={open === key ? "lg" : "sm"}
+                  />
+                </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>
-                    {t.name} {isDefault && <span className="dg-pill dg-pill--ok" style={{ marginLeft: 6 }}>Par défaut</span>}
+                    {t.name}
+                    {ok && isDefault && <span className="dg-pill dg-pill--ok" style={{ marginLeft: 6 }}>Par défaut</span>}
+                    {!ok && <LockTag />}
                   </div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>{t.tagline}</div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>Idéal pour : {t.ideal}</div>
+                  {!ok && (
+                    <div className="dg-helper-text" style={{ marginTop: 6, color: "#B67909", fontWeight: 600 }}>
+                      Disponible avec le plan Pro ou Business.
+                    </div>
+                  )}
                 </div>
                 <div className="dg-cover-actions" style={{ flexWrap: "wrap" }}>
                   <button type="button" className="dg-chip" onClick={() => setOpen(open === key ? null : key)}>
                     {open === key ? "Réduire" : "Agrandir l'aperçu"}
                   </button>
-                  <Button
-                    variant={isDefault ? "secondary" : "primary"}
-                    size="sm"
-                    disabled={isDefault || busy === key}
-                    onClick={() => setFormationDefaultTpl(id)}
-                  >
-                    {isDefault ? "✓ Modèle par défaut" : busy === key ? "..." : "Utiliser par défaut"}
-                  </Button>
+                  {ok ? (
+                    <Button
+                      variant={isDefault ? "secondary" : "primary"}
+                      size="sm"
+                      disabled={isDefault || busy === key}
+                      onClick={() => setFormationDefaultTpl(id)}
+                    >
+                      {isDefault ? "✓ Modèle par défaut" : busy === key ? "..." : "Utiliser par défaut"}
+                    </Button>
+                  ) : (
+                    <Link to="/dashboard/abonnements">
+                      <Button variant="secondary" size="sm">
+                        🔒 Déverrouiller
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </Card>
             );
@@ -173,4 +251,4 @@ export default function Templates() {
       </div>
     </DashboardLayout>
   );
-}
+             }
