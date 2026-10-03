@@ -8,111 +8,114 @@ const alpha = (hex, a) => {
   return `rgba(${r},${g},${b},${a})`;
 };
 
-export const FORMATION_ORDER = ["academy", "masterclass", "impact", "emerald", "sunrise", "studio"];
+export const FORMATION_ORDER = ["noir", "aurora", "bordeaux", "ivoire", "neon", "ocean"];
 
 export const FORMATION_TEMPLATES = {
-  academy: {
-    id: "academy",
-    name: "Académie Or",
-    tagline: "Noir profond et or, prestige absolu",
-    ideal: "Finance, business, trading, formations haut de gamme",
-    fonts: "family=Cinzel:wght@400;700&family=Manrope:wght@300;400;600;700",
-    heading: "'Cinzel', serif",
-    body: "'Manrope', sans-serif",
+  noir: {
+    id: "noir",
+    name: "Black Label",
+    tagline: "Noir absolu et champagne, luxe discret",
+    ideal: "Formations haut de gamme, finance, investissement, mentoring",
+    fonts: "family=Bodoni+Moda:wght@500;700&family=Jost:wght@400;500;600",
+    heading: "'Bodoni Moda', serif",
+    body: "'Jost', sans-serif",
     colors: {
-      paper: "#FBFAF6", ink: "#0B0B0B", text: "#222222",
-      accent: "#D4AF37", accentSoft: "rgba(212,175,55,0.14)", onAccent: "#0B0B0B",
-      cover: "radial-gradient(circle at 25% 15%,#1d1d1d,#050505 70%)",
-      coverInk: "#F5F0E1", coverSub: "#FFFFFF",
-      titleBg: "linear-gradient(180deg,#F6E27A 0%,#D4AF37 50%,#8C6D1F 100%)",
+      paper: "#FBFAF7", ink: "#0A0A0A", text: "#252525",
+      accent: "#B89B66", onAccent: "#0A0A0A",
+      cover: "radial-gradient(circle at 70% 10%,#1d1a15,#060606 70%)",
+      coverInk: "#F4EEE2", coverSub: "#CDB68A",
+      titleBg: "linear-gradient(180deg,#F3E7C9 0%,#CDB68A 55%,#8E7A55 100%)",
     },
     layout: { cover: "center", ribbons: true, upper: true },
   },
-  masterclass: {
-    id: "masterclass",
-    name: "Master Class",
-    tagline: "Bleu nuit et platine, autorité éditoriale",
-    ideal: "Expertise, leadership, carrière, consulting",
-    fonts: "family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600",
-    heading: "'Playfair Display', serif",
-    body: "'Inter', sans-serif",
+  aurora: {
+    id: "aurora",
+    name: "Aurora",
+    tagline: "Bleu nuit et turquoise lumineux, tech et avenir",
+    ideal: "IA, no-code, technologie, marketing digital, data",
+    fonts: "family=Outfit:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;700",
+    heading: "'Outfit', sans-serif",
+    body: "'Space Grotesk', sans-serif",
     colors: {
-      paper: "#FFFFFF", ink: "#0A1B33", text: "#1F2D44",
-      accent: "#7F96BD", accentSoft: "rgba(127,150,189,0.16)", onAccent: "#071426",
-      cover: "linear-gradient(155deg,#071426,#13294B 60%,#1B3A66)",
-      coverInk: "#FFFFFF", coverSub: "#C9D3E3",
-      titleBg: "linear-gradient(180deg,#FFFFFF,#C9D3E3)",
+      paper: "#FFFFFF", ink: "#06182B", text: "#1C2E40",
+      accent: "#0FA899", onAccent: "#FFFFFF",
+      cover: "linear-gradient(150deg,#070B1F,#0B2C45 55%,#0E5C63)",
+      coverInk: "#FFFFFF", coverSub: "#9FE8DA",
+      titleBg: "linear-gradient(#FFFFFF,#BFFAF0)",
     },
     layout: { cover: "left", ribbons: false, upper: false },
   },
-  impact: {
-    id: "impact",
-    name: "Impact",
-    tagline: "Violet électrique, énergie et modernité",
-    ideal: "Marketing digital, réseaux sociaux, entrepreneuriat, IA",
-    fonts: "family=Sora:wght@600;700;800&family=Inter:wght@400;500;600",
-    heading: "'Sora', sans-serif",
+  bordeaux: {
+    id: "bordeaux",
+    name: "Bordeaux Royal",
+    tagline: "Bordeaux profond et or, élégance classique",
+    ideal: "Business, leadership, droit, immobilier, carrière",
+    fonts: "family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700",
+    heading: "'Libre Baskerville', serif",
+    body: "'Source Sans 3', sans-serif",
+    colors: {
+      paper: "#FFFBF7", ink: "#2B0713", text: "#40222B",
+      accent: "#B5822A", onAccent: "#FFFFFF",
+      cover: "linear-gradient(160deg,#2B0713,#5E1228 60%,#7A1B35)",
+      coverInk: "#FBEFE3", coverSub: "#E6C27A",
+      titleBg: "linear-gradient(#F7E3B0,#E6C27A)",
+    },
+    layout: { cover: "frame", ribbons: false, upper: true },
+  },
+  ivoire: {
+    id: "ivoire",
+    name: "Ivoire Éditorial",
+    tagline: "Papier ivoire et terracotta, style magazine",
+    ideal: "Design, créativité, photo, artisanat, lifestyle",
+    fonts: "family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;700",
+    heading: "'Fraunces', serif",
+    body: "'DM Sans', sans-serif",
+    colors: {
+      paper: "#FFFFFF", ink: "#1A1A1A", text: "#2E2E2E",
+      accent: "#B3472A", onAccent: "#FFFFFF",
+      cover: "#F2ECDF", coverInk: "#1A1A1A", coverSub: "#6B5E4E",
+      titleBg: "linear-gradient(#1A1A1A,#1A1A1A)",
+    },
+    layout: { cover: "left", ribbons: false, upper: false },
+  },
+  neon: {
+    id: "neon",
+    name: "Néon Pulse",
+    tagline: "Nuit violette et néon, énergie créateur",
+    ideal: "Réseaux sociaux, création de contenu, e-commerce, jeunes publics",
+    fonts: "family=Syne:wght@600;700;800&family=Inter:wght@400;500;600",
+    heading: "'Syne', sans-serif",
     body: "'Inter', sans-serif",
     colors: {
-      paper: "#FFFFFF", ink: "#14102B", text: "#2A2547",
-      accent: "#7C3AED", accentSoft: "rgba(124,58,237,0.10)", onAccent: "#FFFFFF",
-      cover: "linear-gradient(140deg,#2A0B6B,#6D3BF5 55%,#C13BF5)",
-      coverInk: "#FFFFFF", coverSub: "#EBDDFF",
-      titleBg: "linear-gradient(#FFFFFF,#FFFFFF)",
+      paper: "#FFFFFF", ink: "#150B26", text: "#2C2140",
+      accent: "#C026D3", onAccent: "#FFFFFF",
+      cover: "linear-gradient(145deg,#0B0B12,#17102B 60%,#2A0F3F)",
+      coverInk: "#FFFFFF", coverSub: "#D9B3FF",
+      titleBg: "linear-gradient(90deg,#C6F432,#6EF3C5)",
     },
-    layout: { cover: "left", ribbons: false, upper: true },
+    layout: { cover: "left", ribbons: true, upper: true },
   },
-  emerald: {
-    id: "emerald",
-    name: "Émeraude",
-    tagline: "Vert profond et champagne, raffinement",
-    ideal: "Bien-être, santé, nutrition, développement personnel",
-    fonts: "family=Cormorant+Garamond:wght@600;700&family=Lato:wght@400;700",
-    heading: "'Cormorant Garamond', serif",
-    body: "'Lato', sans-serif",
-    colors: {
-      paper: "#F8F6EF", ink: "#0B3D2E", text: "#23463A",
-      accent: "#B8975A", accentSoft: "rgba(184,151,90,0.16)", onAccent: "#0B3D2E",
-      cover: "linear-gradient(165deg,#06281F,#0E5A43)",
-      coverInk: "#F3EBD3", coverSub: "#D8C08A",
-      titleBg: "linear-gradient(180deg,#F3E2B0,#C9A55C)",
-    },
-    layout: { cover: "frame", ribbons: false, upper: false },
-  },
-  sunrise: {
-    id: "sunrise",
-    name: "Aurore",
-    tagline: "Dégradé coucher de soleil, chaleureux et inspirant",
-    ideal: "Créativité, cuisine, lifestyle, coaching",
-    fonts: "family=DM+Serif+Display&family=Nunito+Sans:wght@400;600;700",
-    heading: "'DM Serif Display', serif",
+  ocean: {
+    id: "ocean",
+    name: "Océan",
+    tagline: "Bleu profond et corail, confiance et sérénité",
+    ideal: "Santé, coaching, langues, éducation, développement personnel",
+    fonts: "family=Raleway:wght@500;700;800&family=Nunito+Sans:wght@400;600;700",
+    heading: "'Raleway', sans-serif",
     body: "'Nunito Sans', sans-serif",
     colors: {
-      paper: "#FFFBF6", ink: "#2B1A14", text: "#45302A",
-      accent: "#E8553D", accentSoft: "rgba(232,85,61,0.10)", onAccent: "#FFFFFF",
-      cover: "linear-gradient(160deg,#FF9A5A,#E8553D 55%,#B8326B)",
-      coverInk: "#FFFFFF", coverSub: "#FFE9DC",
-      titleBg: "linear-gradient(#FFFFFF,#FFFFFF)",
+      paper: "#F7FCFD", ink: "#05202C", text: "#1D3A47",
+      accent: "#E8603A", onAccent: "#FFFFFF",
+      cover: "linear-gradient(160deg,#03212F,#06506B 60%,#0A7A8F)",
+      coverInk: "#FFFFFF", coverSub: "#BDE9F0",
+      titleBg: "linear-gradient(#FFFFFF,#BDE9F0)",
     },
     layout: { cover: "center", ribbons: false, upper: false },
   },
-  studio: {
-    id: "studio",
-    name: "Studio",
-    tagline: "Minimaliste blanc et noir, design éditorial",
-    ideal: "Design, tech, photo, productivité, no-code",
-    fonts: "family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600",
-    heading: "'Space Grotesk', sans-serif",
-    body: "'Inter', sans-serif",
-    colors: {
-      paper: "#FFFFFF", ink: "#0A0A0A", text: "#262626",
-      accent: "#111111", accentSoft: "rgba(17,17,17,0.06)", onAccent: "#C6F432",
-      cover: "#F4F4F0", coverInk: "#0A0A0A", coverSub: "#555555",
-      titleBg: "linear-gradient(#0A0A0A,#0A0A0A)",
-    },
-    layout: { cover: "left", ribbons: false, upper: true },
-  },
 };
+
+/* Ancien identifiant, gardé pour ne rien casser */
+FORMATION_TEMPLATES.academy = FORMATION_TEMPLATES.noir;
 
 export function formationFontsImport(ids, withArabic = false) {
   const fams = ids.map((id) => FORMATION_TEMPLATES[id]?.fonts).filter(Boolean).join("&");
@@ -121,9 +124,10 @@ export function formationFontsImport(ids, withArabic = false) {
 }
 
 export function formationThemeVars(id, brand = {}) {
-  const t = FORMATION_TEMPLATES[id] || FORMATION_TEMPLATES.academy;
+  const t = FORMATION_TEMPLATES[id] || FORMATION_TEMPLATES.noir;
   const c = t.colors;
-  const accent = brand.accent_color || c.accent;
+  const brandAccent = brand.accent_color && lum(brand.accent_color) < 0.85 ? brand.accent_color : "";
+  const accent = brandAccent || c.accent;
   let cover = c.cover;
   let coverInk = c.coverInk;
   let coverSub = c.coverSub;
@@ -140,8 +144,9 @@ export function formationThemeVars(id, brand = {}) {
     "--ink": c.ink,
     "--text": c.text,
     "--accent": accent,
-    "--accent-soft": brand.accent_color ? alpha(accent, 0.12) : c.accentSoft,
-    "--on-accent": brand.accent_color ? (lum(accent) > 0.6 ? "#1B1B1F" : "#FFFFFF") : c.onAccent,
+    "--accent-soft": alpha(accent, 0.17),
+    "--accent-head": alpha(accent, 0.32),
+    "--on-accent": brandAccent ? (lum(accent) > 0.6 ? "#1B1B1F" : "#FFFFFF") : c.onAccent,
     "--cover-bg": cover,
     "--cover-ink": coverInk,
     "--cover-sub": coverSub,
