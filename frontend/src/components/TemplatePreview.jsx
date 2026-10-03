@@ -1,4 +1,5 @@
 import { TEMPLATES, themeVars } from "../utils/templates.js";
+import { FORMATION_TEMPLATES, formationThemeVars } from "../utils/formationTemplates.js";
 
 export default function TemplatePreview({
   templateId,
@@ -7,9 +8,13 @@ export default function TemplatePreview({
   author = "",
   slogan = "",
   size = "sm",
+  kind = "ebook",
 }) {
-  const t = TEMPLATES[templateId] || TEMPLATES.finance;
-  const vars = themeVars(templateId, brand);
+  const isF = kind === "formation";
+  const t = isF
+    ? FORMATION_TEMPLATES[templateId] || FORMATION_TEMPLATES.academy
+    : TEMPLATES[templateId] || TEMPLATES.finance;
+  const vars = isF ? formationThemeVars(templateId, brand) : themeVars(templateId, brand);
   const left = t.layout.cover === "left";
 
   return (
@@ -18,6 +23,7 @@ export default function TemplatePreview({
         className={`tp-cover${t.layout.cover === "frame" ? " is-frame" : ""}`}
         style={{ alignItems: left ? "flex-start" : "center", textAlign: left ? "left" : "center" }}
       >
+        {t.layout.ribbons && <div className="tp-ribbon" />}
         <div className="tp-brand">{brand.brand_name || "DIGITELIO AI"}</div>
         <div className="tp-title" style={{ textTransform: t.layout.upper ? "uppercase" : "none" }}>
           {title}
@@ -28,11 +34,15 @@ export default function TemplatePreview({
       </div>
 
       <div className="tp-page">
-        <div className="tp-chap">Chapitre 1</div>
-        <div className="tp-h">Comprendre l'essentiel</div>
-        <p className="tp-p">Chaque chapitre vous guide pas à pas vers des résultats concrets.</p>
+        <div className="tp-chap">{isF ? "Module 1" : "Chapitre 1"}</div>
+        <div className="tp-h">{isF ? "Les fondamentaux" : "Comprendre l'essentiel"}</div>
+        <p className="tp-p">
+          {isF
+            ? "Chaque module vous guide pas à pas avec des exercices concrets."
+            : "Chaque chapitre vous guide pas à pas vers des résultats concrets."}
+        </p>
         <div className="tp-callout">
-          <b>À retenir :</b> une idée forte par chapitre.
+          <b>{isF ? "Exercice :" : "À retenir :"}</b> {isF ? "appliquez dès aujourd'hui." : "une idée forte par chapitre."}
         </div>
         <div className="tp-bar" />
         <div className="tp-bar short" />
@@ -50,16 +60,21 @@ export default function TemplatePreview({
           content: ""; position: absolute; inset: 0.7em; border: 1px solid var(--accent);
           border-radius: 0.2em; pointer-events: none;
         }
-        .tp-brand { font-size: 0.65em; letter-spacing: 0.25em; color: var(--accent); font-weight: 700; overflow-wrap: anywhere; }
-        .tp-title {
-          font-family: var(--h-font); font-weight: 700; font-size: 1.5em; line-height: 1.15;
-          background: var(--title-bg); -webkit-background-clip: text; background-clip: text;
-          -webkit-text-fill-color: transparent; overflow-wrap: anywhere;
+        .tp-ribbon {
+          position: absolute; width: 140%; height: 1px; right: -30%; bottom: 14%;
+          background: linear-gradient(90deg, transparent, var(--accent), transparent);
+          transform: rotate(-38deg); box-shadow: 0 0 6px var(--accent);
         }
-        .tp-line { width: 3em; height: 2px; background: var(--accent); }
-        .tp-sub { font-size: 0.7em; color: var(--cover-sub); font-family: var(--b-font); }
-        .tp-slogan { font-size: 0.72em; font-style: italic; color: var(--cover-sub); font-family: var(--b-font); line-height: 1.4; overflow-wrap: anywhere; }
-        .tp-author { font-size: 0.62em; letter-spacing: 0.12em; color: var(--accent); font-family: var(--b-font); font-weight: 700; margin-top: 0.4em; overflow-wrap: anywhere; }
+        .tp-brand { font-size: 0.65em; letter-spacing: 0.25em; color: var(--cover-ink); font-weight: 700; overflow-wrap: anywhere; position: relative; }
+        .tp-title {
+          font-family: var(--h-font); font-weight: 700; font-size: 1.8em; line-height: 1.12;
+          background: var(--title-bg); -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent; overflow-wrap: anywhere; position: relative;
+        }
+        .tp-line { width: 3em; height: 2px; background: var(--accent); position: relative; }
+        .tp-sub { font-size: 0.7em; color: var(--cover-sub); font-family: var(--b-font); position: relative; }
+        .tp-slogan { font-size: 0.72em; font-style: italic; color: var(--cover-sub); font-family: var(--b-font); line-height: 1.4; overflow-wrap: anywhere; position: relative; }
+        .tp-author { font-size: 0.62em; letter-spacing: 0.12em; color: var(--cover-sub); font-family: var(--b-font); font-weight: 700; margin-top: 0.4em; overflow-wrap: anywhere; position: relative; }
         .tp-page {
           aspect-ratio: 3 / 4; background: var(--paper); border: 1px solid rgba(128,128,128,0.25);
           border-radius: 0.5em; padding: 1.1em; font-family: var(--b-font); color: var(--text); overflow: hidden;
