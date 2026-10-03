@@ -18,11 +18,20 @@ const pillars = [
   "Marketing digital",
 ];
 
+/* Fonctionnalités des plans payants (tout est inclus) */
+const PAID_EXTRAS = [
+  { t: "Génération en 7 langues", on: true },
+  { t: "6 modèles d'eBooks et 6 modèles de formations", on: true },
+  { t: "Idées de produits par pays", on: true },
+  { t: "Mockup 3D de couverture", on: true },
+  { t: "Certificats de réussite", on: true },
+  { t: "Export PDF premium", on: true },
+];
+
 /* À garder identique aux limites de src/routes/billing.js (Worker) */
 const plans = [
   {
     tone: "free",
-    paid: false,
     name: "Gratuit",
     price: "Gratuit",
     unit: "pour toujours",
@@ -31,14 +40,21 @@ const plans = [
       "1 formation par mois",
       "15 leçons IA par mois",
       "10 contenus marketing par mois",
-      "10 apprenants par formation",
+      "5 apprenants par formation",
+    ],
+    extras: [
+      { t: "Génération en 1 langue (français)", on: true },
+      { t: "1 modèle d'eBook et 1 modèle de formation", on: true },
+      { t: "Idées de produits par pays", on: false },
+      { t: "Mockup 3D de couverture", on: false },
+      { t: "Certificats de réussite", on: false },
+      { t: "Export PDF premium", on: true },
     ],
     cta: "Commencer",
     featured: false,
   },
   {
     tone: "pro",
-    paid: true,
     name: "Pro",
     price: "4 999",
     unit: "FCFA / mois",
@@ -49,12 +65,12 @@ const plans = [
       "100 contenus marketing par mois",
       "100 apprenants par formation",
     ],
+    extras: PAID_EXTRAS,
     cta: "Passer au plan Pro",
     featured: true,
   },
   {
     tone: "biz",
-    paid: true,
     name: "Business",
     price: "12 999",
     unit: "FCFA / mois",
@@ -65,20 +81,11 @@ const plans = [
       "300 contenus marketing par mois",
       "300 apprenants par formation",
     ],
+    extras: PAID_EXTRAS,
     cta: "Passer au plan Business",
     featured: false,
   },
 ];
-
-/* Inclus dans tous les plans */
-const allPlanFeatures = [
-  "Génération en 7 langues",
-  "12 modèles premium (eBooks et formations)",
-  "Idées de produits par pays",
-];
-
-/* Réservé aux plans payants */
-const paidFeatures = ["Certificats de réussite", "Export PDF premium"];
 
 const pricingCss = `
 .dg-pricing{--dg-blue:#3B82F6;--dg-violet:#8B5CF6;--dg-gold:#D4AF37;--dg-ink:#0F1029;--dg-muted:#8A8DA3;--dg-off:#D5D7E0}
@@ -346,12 +353,9 @@ export default function Landing() {
                 {p.features.map((f) => (
                   <li key={f}>{f}</li>
                 ))}
-                {allPlanFeatures.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-                {paidFeatures.map((f) => (
-                  <li key={f} className={p.paid ? "" : "off"}>
-                    {f}
+                {p.extras.map((f) => (
+                  <li key={f.t} className={f.on ? "" : "off"}>
+                    {f.t}
                   </li>
                 ))}
               </ul>
@@ -416,21 +420,12 @@ export default function Landing() {
           </details>
           <details className="card">
             <summary className="cursor-pointer font-semibold">
-              Comment fonctionne l'abonnement ?
-            </summary>
-            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-              Votre abonnement démarre à l'instant de votre paiement et dure 30 jours, à la seconde
-              près. À l'échéance, il expire : vous le renouvelez pour continuer, sans engagement. Vos
-              contenus sont toujours conservés.
-            </p>
-          </details>
-          <details className="card">
-            <summary className="cursor-pointer font-semibold">
               Quels formats de produits puis-je créer ?
             </summary>
             <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-              eBooks et formations en ligne, exportés en PDF premium avec 12 modèles au choix, plus
-              des contenus marketing pour les présenter.
+              eBooks et formations en ligne, exportés en PDF premium, plus des contenus marketing
+              pour les présenter. Le plan Gratuit inclut 1 modèle d'eBook et 1 modèle de formation ;
+              les plans Pro et Business débloquent les 12 modèles.
             </p>
           </details>
           <details className="card">
@@ -438,8 +433,9 @@ export default function Landing() {
               Dans quelles langues puis-je créer mes produits ?
             </summary>
             <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
-              Français, anglais, espagnol, portugais, allemand, italien et arabe. La qualité est un
-              peu moins régulière en arabe : relisez bien le texte avant de le diffuser.
+              Le plan Gratuit génère en français. Les plans Pro et Business ajoutent l'anglais,
+              l'espagnol, le portugais, l'allemand, l'italien et l'arabe. La qualité est un peu moins
+              régulière en arabe : relisez bien le texte avant de le diffuser.
             </p>
           </details>
         </div>
@@ -473,4 +469,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-              }
+        }
