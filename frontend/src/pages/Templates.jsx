@@ -15,35 +15,63 @@ const GRID = {
   gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
 };
 
+async function call(path, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Erreur d'enregistrement.");
+  return data;
+}
+
 export default function Templates() {
   const [brand, setBrand] = useState({});
+  const [formationDefault, setFormationDefault] = useState("noir");
   const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    fetch(`${API}/api/brand`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setBrand(d.brand || {}))
+    call("/api/brand")
+      .then((d) => setBrand(d.brand || {}))
+      .catch(() => {});
+    call("/api/formations/default/style")
+      .then((d) => d.template && setFormationDefault(d.template))
       .catch(() => {});
   }, []);
 
-  async function setDefault(id) {
+  async function setEbookDefault(id) {
     setBusy(id);
     setErr("");
     setMsg("");
     try {
-      const res = await fetch(`${API}/api/brand`, {
+      const data = await call("/api/brand", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ default_template: id }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Erreur d'enregistrement.");
       setBrand(data.brand);
       setMsg(`« ${TEMPLATES[id].name} » sera utilisé par défaut pour vos eBooks ✓`);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function setFormationDefaultTpl(id) {
+    setBusy(`f-${id}`);
+    setErr("");
+    setMsg("");
+    try {
+      const data = await call("/api/formations/default/style", {
+        method: "PUT",
+        body: JSON.stringify({ template: id }),
+      });
+      setFormationDefault(data.template);
+      setMsg(`« ${FORMATION_TEMPLATES[id].name} » sera utilisé par défaut pour vos formations ✓`);
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -87,7 +115,7 @@ export default function Templates() {
                     variant={isDefault ? "secondary" : "primary"}
                     size="sm"
                     disabled={isDefault || busy === id}
-                    onClick={() => setDefault(id)}
+                    onClick={() => setEbookDefault(id)}
                   >
                     {isDefault ? "✓ Modèle par défaut" : busy === id ? "..." : "Utiliser par défaut"}
                   </Button>
@@ -100,13 +128,15 @@ export default function Templates() {
         <h1 className="text-2xl font-bold" style={{ marginTop: 44 }}>Modèles de formations</h1>
         <p className="dg-page__subtitle">
           6 modèles ultra premium, différents de ceux des eBooks, pour le PDF de vos formations (couverture,
-          sommaire, modules). Pour en appliquer un : ouvrez une formation, puis « Modèle de la formation ».
+          sommaire, modules). Pour changer le modèle d'une formation existante : ouvrez-la, puis « Modèle de la
+          formation ».
         </p>
 
         <div style={GRID}>
           {FORMATION_ORDER.map((id) => {
             const t = FORMATION_TEMPLATES[id];
             const key = `f-${id}`;
+            const isDefault = formationDefault === id;
             return (
               <Card key={key}>
                 <TemplatePreview
@@ -117,7 +147,9 @@ export default function Templates() {
                   size={open === key ? "lg" : "sm"}
                 />
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>
+                    {t.name} {isDefault && <span className="dg-pill dg-pill--ok" style={{ marginLeft: 6 }}>Par défaut</span>}
+                  </div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>{t.tagline}</div>
                   <div className="dg-helper-text" style={{ marginTop: 2 }}>Idéal pour : {t.ideal}</div>
                 </div>
@@ -125,6 +157,14 @@ export default function Templates() {
                   <button type="button" className="dg-chip" onClick={() => setOpen(open === key ? null : key)}>
                     {open === key ? "Réduire" : "Agrandir l'aperçu"}
                   </button>
+                  <Button
+                    variant={isDefault ? "secondary" : "primary"}
+                    size="sm"
+                    disabled={isDefault || busy === key}
+                    onClick={() => setFormationDefaultTpl(id)}
+                  >
+                    {isDefault ? "✓ Modèle par défaut" : busy === key ? "..." : "Utiliser par défaut"}
+                  </Button>
                 </div>
               </Card>
             );
@@ -133,4 +173,4 @@ export default function Templates() {
       </div>
     </DashboardLayout>
   );
-      }
+}
