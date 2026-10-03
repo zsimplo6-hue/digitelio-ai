@@ -4,13 +4,20 @@ import { verifyJWT } from "../utils/jwt.js";
 const IDS = ["noir", "aurora", "bordeaux", "ivoire", "neon", "ocean"];
 
 let ready = false;
-async function ensureTable(env) {
+async function ensureTables(env) {
   if (ready) return;
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS formation_styles (
-      formation_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, template TEXT NOT NULL,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`
-  ).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS formation_styles (
+        formation_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, template TEXT NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS formation_defaults (
+        user_id TEXT PRIMARY KEY, template TEXT NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`
+    ),
+  ]);
   ready = true;
 }
 
@@ -27,19 +34,35 @@ async function owns(env, formationId, userId) {
     .first();
 }
 
+async function readDefault(env, userId) {
+  const row = await env.DB.prepare("SELECT template FROM formation_defaults WHERE user_id = ?")
+    .bind(userId)
+    .first();
+  return IDS.includes(row?.template) ? row.template : "noir";
+}
+
+/* GET /api/formations/:id/style   (id = "default" pour le modèle par défaut du compte) */
 export async function handleGetFormationStyle(request, env, formationId) {
   const user = await getUser(request, env);
   if (!user) return unauthorized();
-  await ensureTable(env);
+  await ensureTables(env);
+
+  const def = await readDefault(env, user.sub);
+  if (formationId === "default") return Response.json({ template: def, default_template: def });
+
   if (!(await owns(env, formationId, user.sub))) {
     return Response.json({ error: "Formation introuvable." }, { status: 404 });
   }
   const row = await env.DB.prepare("SELECT template FROM formation_styles WHERE formation_id = ?")
     .bind(formationId)
     .first();
-  return Response.json({ template: IDS.includes(row?.template) ? row.template : "noir" });
+  return Response.json({
+    template: IDS.includes(row?.template) ? row.template : def,
+    default_template: def,
+  });
 }
 
+/* PUT /api/formations/:id/style   { template } */
 export async function handleSetFormationTemplate(request, env, formationId) {
   const user = await getUser(request, env);
   if (!user) return unauthorized();
@@ -47,7 +70,19 @@ export async function handleSetFormationTemplate(request, env, formationId) {
   if (!body || !IDS.includes(body.template)) {
     return Response.json({ error: "Modèle inconnu." }, { status: 400 });
   }
-  await ensureTable(env);
+  await ensureTables(env);
+
+  if (formationId === "default") {
+    await env.DB.prepare(
+      `INSERT INTO formation_defaults (user_id, template, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET template = excluded.template, updated_at = CURRENT_TIMESTAMP`
+    )
+      .bind(user.sub, body.template)
+      .run();
+    return Response.json({ template: body.template, default_template: body.template });
+  }
+
   if (!(await owns(env, formationId, user.sub))) {
     return Response.json({ error: "Formation introuvable." }, { status: 404 });
   }
