@@ -278,7 +278,8 @@ export async function handleCompleteModule(request, env, token, moduleId) {
     try {
       const appUrl = String(env.APP_URL || DEFAULT_APP_URL).replace(/\/$/, "");
       const learnUrl = `${appUrl}/learn/${token}`;
-      const subjectFn = CERT_SUBJECT[e.language] || CERT_SUBJECT.fr;
+      const lang = LANG_CODES.includes(e.language) ? e.language : "fr";
+      const subjectFn = CERT_SUBJECT[lang] || CERT_SUBJECT.fr;
       const result = await sendEmail(env, {
         to: e.learner_email,
         toName: e.learner_name || e.learner_email,
@@ -288,6 +289,7 @@ export async function handleCompleteModule(request, env, token, moduleId) {
           formationTitle: e.formation_title,
           instructorName: e.instructor || "",
           learnUrl,
+          language: lang,
         }),
       });
       if (!result?.ok) console.error("Email de certificat non envoyé", e.id, result?.error);
