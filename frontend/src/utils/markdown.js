@@ -14,12 +14,15 @@ export function renderMarkdown(text) {
     l.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 
   const TH =
-    "text-align:left;padding:0.6rem 0.7rem;font-weight:700;border:1px solid rgba(128,128,128,0.35);background:var(--accent-soft,rgba(212,175,55,0.2));" +
+    "text-align:left;padding:0.6rem 0.7rem;font-weight:700;border:1px solid rgba(128,128,128,0.35);background:var(--accent-head,rgba(212,175,55,0.3));color:var(--ink,#0B0B0B);" +
     PRINT;
   const TD =
     "padding:0.55rem 0.7rem;vertical-align:top;border:1px solid rgba(128,128,128,0.35);";
+  const TD_ALT =
+    "padding:0.55rem 0.7rem;vertical-align:top;border:1px solid rgba(128,128,128,0.35);background:var(--accent-soft,rgba(212,175,55,0.12));" +
+    PRINT;
   const CALLOUT =
-    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid var(--accent,#D4AF37);background:var(--accent-soft,rgba(212,175,55,0.12));border-radius:0 8px 8px 0;line-height:1.7;" +
+    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid var(--accent,#D4AF37);background:var(--accent-soft,rgba(212,175,55,0.17));border-radius:0 8px 8px 0;line-height:1.7;" +
     PRINT;
 
   const lines = String(text).replace(/\r/g, "").split("\n");
@@ -67,12 +70,12 @@ export function renderMarkdown(text) {
         i++;
       }
       i--;
-      // Pas de break-inside sur le tableau entier : seules les lignes restent insécables
       html += `<div class="md-table-wrap" style="margin:1.2rem 0"><table style="width:100%;border-collapse:collapse;font-size:0.92em">`;
       html += `<thead><tr>${head.map((c) => `<th style="${TH}">${inline(c)}</th>`).join("")}</tr></thead><tbody>`;
-      rows.forEach((r) => {
+      rows.forEach((r, ri) => {
+        const cell = ri % 2 === 1 ? TD_ALT : TD;
         html += `<tr style="break-inside:avoid;page-break-inside:avoid">${head
-          .map((_, ci) => `<td style="${TD}">${inline(r[ci] ?? "")}</td>`)
+          .map((_, ci) => `<td style="${cell}">${inline(r[ci] ?? "")}</td>`)
           .join("")}</tr>`;
       });
       html += "</tbody></table></div>";
@@ -135,4 +138,4 @@ export function extractChapterTitles(content) {
     ),
   ];
   return matches.map((m) => m[1]);
-      }
+                                                                        }
