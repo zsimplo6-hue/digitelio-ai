@@ -301,7 +301,7 @@ function DocStyle({ template, ar }) {
         font-weight: 700;
         font-size: 1.1rem;
         letter-spacing: 0.22em;
-        color: var(--accent);
+        color: var(--cover-ink);
       }
       .cv-editions {
         display: flex;
@@ -504,7 +504,7 @@ function DocStyle({ template, ar }) {
           min-height: 0;
           width: 100%;
           padding: 0;
-         break-after: page;
+      break-after: page;
           page-break-after: always;
         }
 
