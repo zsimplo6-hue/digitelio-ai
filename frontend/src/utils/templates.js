@@ -31,7 +31,7 @@ export const TEMPLATES = {
     body: "'Inter', sans-serif",
     colors: {
       paper: "#FFFFFF", ink: "#0B1F3A", text: "#1F2A3D",
-      accent: "#2F6FED", accentSoft: "rgba(47,111,237,0.10)", onAccent: "#FFFFFF",
+      accent: "#2F6FED", onAccent: "#FFFFFF",
       cover: "linear-gradient(160deg,#0B1F3A,#12305C)", coverInk: "#FFFFFF", coverSub: "#B9CCF5",
       titleBg: "linear-gradient(#FFFFFF,#FFFFFF)",
     },
@@ -47,7 +47,7 @@ export const TEMPLATES = {
     body: "'Inter', sans-serif",
     colors: {
       paper: "#F5F5F2", ink: "#0B0B0B", text: "#222222",
-      accent: "#D4AF37", accentSoft: "rgba(212,175,55,0.12)", onAccent: "#0B0B0B",
+      accent: "#D4AF37", onAccent: "#0B0B0B",
       cover: "#0B0B0B", coverInk: "#F5F0E1", coverSub: "#FFFFFF",
       titleBg: "linear-gradient(180deg,#F6E27A 0%,#D4AF37 50%,#8C6D1F 100%)",
     },
@@ -63,7 +63,7 @@ export const TEMPLATES = {
     body: "'Lato', sans-serif",
     colors: {
       paper: "#FBF8F3", ink: "#2F3E34", text: "#3A4A3F",
-      accent: "#7FA38A", accentSoft: "rgba(127,163,138,0.16)", onAccent: "#1F2D24",
+      accent: "#6E9A7B", onAccent: "#FFFFFF",
       cover: "linear-gradient(170deg,#E8F0E6,#CFE0D3)", coverInk: "#2F3E34", coverSub: "#5C7A66",
       titleBg: "linear-gradient(#2F3E34,#2F3E34)",
     },
@@ -79,7 +79,7 @@ export const TEMPLATES = {
     body: "'Open Sans', sans-serif",
     colors: {
       paper: "#FFFFFF", ink: "#1B1B1F", text: "#2A2A2F",
-      accent: "#FF6B35", accentSoft: "rgba(255,107,53,0.10)", onAccent: "#FFFFFF",
+      accent: "#FF6B35", onAccent: "#FFFFFF",
       cover: "linear-gradient(145deg,#FF6B35,#F7931E)", coverInk: "#FFFFFF", coverSub: "#FFF1E6",
       titleBg: "linear-gradient(#FFFFFF,#FFFFFF)",
     },
@@ -95,7 +95,7 @@ export const TEMPLATES = {
     body: "'Lora', serif",
     colors: {
       paper: "#FAF8FF", ink: "#231A4A", text: "#2E2557",
-      accent: "#C6A55C", accentSoft: "rgba(198,165,92,0.14)", onAccent: "#231A4A",
+      accent: "#B8913F", onAccent: "#FFFFFF",
       cover: "linear-gradient(160deg,#1E1450,#3B2A7A)", coverInk: "#F3EEFF", coverSub: "#CFC3F5",
       titleBg: "linear-gradient(180deg,#F3E2A9,#C6A55C)",
     },
@@ -111,7 +111,7 @@ export const TEMPLATES = {
     body: "'Nunito', sans-serif",
     colors: {
       paper: "#FFFBF5", ink: "#3B2417", text: "#4A3225",
-      accent: "#C65D3B", accentSoft: "rgba(198,93,59,0.10)", onAccent: "#FFFFFF",
+      accent: "#C65D3B", onAccent: "#FFFFFF",
       cover: "linear-gradient(160deg,#F3E3CE,#E9CDAA)", coverInk: "#3B2417", coverSub: "#8A5A3C",
       titleBg: "linear-gradient(#7A2E17,#7A2E17)",
     },
@@ -128,7 +128,11 @@ export function fontsImport(ids) {
 export function themeVars(id, brand = {}) {
   const t = TEMPLATES[id] || TEMPLATES.finance;
   const c = t.colors;
-  const accent = brand.accent_color || c.accent;
+
+  // Une couleur d'accent presque blanche serait invisible sur les pages : on garde alors celle du modèle
+  const brandAccent = brand.accent_color && lum(brand.accent_color) < 0.85 ? brand.accent_color : "";
+  const accent = brandAccent || c.accent;
+
   let cover = c.cover;
   let coverInk = c.coverInk;
   let coverSub = c.coverSub;
@@ -145,8 +149,9 @@ export function themeVars(id, brand = {}) {
     "--ink": c.ink,
     "--text": c.text,
     "--accent": accent,
-    "--accent-soft": brand.accent_color ? alpha(accent, 0.12) : c.accentSoft,
-    "--on-accent": brand.accent_color ? (lum(accent) > 0.6 ? "#1B1B1F" : "#FFFFFF") : c.onAccent,
+    "--accent-soft": alpha(accent, 0.17),
+    "--accent-head": alpha(accent, 0.32),
+    "--on-accent": brandAccent ? (lum(accent) > 0.6 ? "#1B1B1F" : "#FFFFFF") : c.onAccent,
     "--cover-bg": cover,
     "--cover-ink": coverInk,
     "--cover-sub": coverSub,
@@ -155,4 +160,4 @@ export function themeVars(id, brand = {}) {
     "--b-font": t.body,
     "--p-align": t.layout.align === "justify" ? "justify" : "left",
   };
-      }
+        }
