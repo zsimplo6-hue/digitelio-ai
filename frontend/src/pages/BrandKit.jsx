@@ -8,6 +8,7 @@ import { Input } from "../components/ui/Field.jsx";
 import { TEMPLATES, TEMPLATE_ORDER, fontsImport } from "../utils/templates.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
+const TITLE_KEY = "dg_brand_ebook_title";
 
 export default function BrandKit() {
   const navigate = useNavigate();
@@ -15,7 +16,13 @@ export default function BrandKit() {
     brand_name: "", author_name: "", tagline: "",
     accent_color: "", cover_color: "", default_template: "finance",
   });
-  const [ebookTitle, setEbookTitle] = useState("");
+  const [ebookTitle, setEbookTitle] = useState(() => {
+    try {
+      return localStorage.getItem(TITLE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -39,7 +46,7 @@ export default function BrandKit() {
 
   async function save() {
     if (!complete) {
-      setErr("Remplissez les 4 champs obligatoires : marque, titre, auteur et slogan.");
+      setErr("Remplissez les 4 champs : marque, titre, auteur et slogan.");
       return;
     }
     setBusy(true);
@@ -99,18 +106,24 @@ export default function BrandKit() {
 
             <Card title="Identité (4 champs obligatoires)">
               <Input
-                label="Nom de marque *"
+                label="Nom de marque * (en haut de la couverture)"
                 value={b.brand_name}
                 onChange={set("brand_name")}
                 placeholder="Ex : Hunter Art Éditions"
                 maxLength={40}
               />
               <Input
-                label="Titre de l'eBook *"
+                label="Titre de l'eBook * (en grand, en couleur)"
                 value={ebookTitle}
                 onChange={(e) => {
+                  const v = e.target.value.slice(0, 80);
                   setMsg("");
-                  setEbookTitle(e.target.value.slice(0, 80));
+                  setEbookTitle(v);
+                  try {
+                    localStorage.setItem(TITLE_KEY, v);
+                  } catch {
+                    /* stockage indisponible */
+                  }
                 }}
                 placeholder="Ex : Monétiser Telegram, le guide ultime"
                 maxLength={80}
@@ -131,7 +144,7 @@ export default function BrandKit() {
               />
               <p className="dg-helper-text" style={{ marginTop: 0 }}>
                 Marque, auteur et slogan sont enregistrés pour tous vos eBooks. Le titre est propre à chaque
-                eBook : utilisez le bouton « Créer l'eBook avec ce titre » ci-dessous.
+                eBook : utilisez « Créer l'eBook avec ce titre » ci-dessous.
               </p>
             </Card>
 
@@ -199,4 +212,4 @@ export default function BrandKit() {
       </div>
     </DashboardLayout>
   );
-              }
+                }
