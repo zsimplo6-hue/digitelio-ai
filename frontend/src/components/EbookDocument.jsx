@@ -232,18 +232,23 @@ function DocStyle({ template, ar }) {
         margin-bottom: 1.5rem;
       }
 
-      /* ----- Couverture ----- */
+      /* ----- Couverture (aperçu : format page de livre, pas trop longue) ----- */
       .ebook-cover {
         position: relative;
         overflow: hidden;
-        min-height: 80vh;
+        aspect-ratio: 3 / 4;
+        width: 100%;
+        max-width: 26rem;
+        max-height: 36rem;
+        margin: 0 auto;
+        border-radius: 10px;
         background: var(--cover-bg);
         color: var(--cover-ink);
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: 2rem 1.5rem;
+        padding: 1.5rem 1.2rem;
         box-sizing: border-box;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -294,12 +299,12 @@ function DocStyle({ template, ar }) {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 1rem;
+        gap: 0.8rem;
       }
       .cv-brand {
         font-family: var(--b-font);
         font-weight: 700;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         letter-spacing: 0.22em;
         color: var(--cover-ink);
       }
@@ -323,9 +328,9 @@ function DocStyle({ template, ar }) {
       .cv-title {
         font-family: var(--h-font);
         font-weight: 700;
-        font-size: 2.4rem;
+        font-size: 2rem;
         line-height: 1.12;
-        margin: 1.5rem 0 0;
+        margin: 1rem 0 0;
         background: var(--title-bg);
         -webkit-background-clip: text;
         background-clip: text;
@@ -336,21 +341,21 @@ function DocStyle({ template, ar }) {
       .cv-sub {
         font-family: var(--h-font);
         font-weight: 400;
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         text-transform: uppercase;
         letter-spacing: 0.5em;
         margin-right: -0.5em;
         color: var(--cover-sub);
       }
-      .cv-divider { display: flex; align-items: center; gap: 10px; margin: 0.6rem 0; }
+      .cv-divider { display: flex; align-items: center; gap: 10px; margin: 0.4rem 0; }
       .cv-divider i {
         width: 9px; height: 9px; background: var(--accent); transform: rotate(45deg);
       }
       .cv-desc {
         font-family: var(--b-font);
         font-weight: 400;
-        font-size: 0.9rem;
-        line-height: 1.7;
+        font-size: 0.85rem;
+        line-height: 1.6;
         color: var(--cover-ink);
         opacity: 0.88;
         max-width: 90%;
@@ -359,21 +364,21 @@ function DocStyle({ template, ar }) {
       .cv-slogan {
         font-family: var(--b-font);
         font-style: italic;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         line-height: 1.5;
         color: var(--cover-sub);
         max-width: 85%;
       }
       .cv-author {
         font-family: var(--b-font);
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         letter-spacing: 0.1em;
         color: var(--cover-sub);
-        margin-top: 0.4rem;
+        margin-top: 0.3rem;
       }
 
       /* ----- Sommaire ----- */
-      .ebook-toc { padding: 3rem 1.5rem 1rem; max-width: 42rem; margin: 0 auto; }
+      .ebook-toc { padding: 2rem 1.5rem 1rem; max-width: 42rem; margin: 0 auto; }
       .ebook-toc ul { list-style: none; padding: 0; margin: 0; }
       .ebook-toc li {
         border-bottom: 1px solid rgba(128,128,128,0.25);
@@ -443,7 +448,7 @@ function DocStyle({ template, ar }) {
       .ebook-cta {
         display: flex;
         flex-direction: column;
-        min-height: 60vh;
+        min-height: 40vh;
         padding: 3rem 1.5rem 2rem;
         max-width: 42rem;
         margin: 0 auto;
@@ -499,14 +504,25 @@ function DocStyle({ template, ar }) {
           overflow: visible !important;
         }
 
+        /* Couverture du PDF : page entière, bord à bord */
         .print-only-root .ebook-cover {
           height: 296mm;
           min-height: 0;
+          max-height: none;
+          max-width: none;
+          aspect-ratio: auto;
           width: 100%;
+          margin: 0;
           padding: 0;
-      break-after: page;
+          border-radius: 0;
+          break-after: page;
           page-break-after: always;
         }
+        .print-only-root .cv-title { font-size: 3.2rem; margin-top: 12mm; }
+        .print-only-root .cv-sub { font-size: 1.7rem; }
+        .print-only-root .cv-brand { font-size: 1.3rem; }
+        .print-only-root .cv-inner { gap: 5mm; max-width: 78%; }
+        .print-only-root .cv-desc { font-size: 0.9rem; }
 
         .print-only-root .ebook-flow {
           padding: 14mm 0;
