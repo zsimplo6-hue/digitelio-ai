@@ -185,7 +185,9 @@ export default function Learn() {
   }
 
   const embed = active ? embedUrl(active.video_url) : null;
-  const resources = active ? (active.resources || []).filter((r) => r.label && r.url) : [];
+  const resources = active ? (active.resources || []).filter((r) => r.url) : [];
+  const imageResources = resources.filter((r) => r.type === "image");
+  const linkResources = resources.filter((r) => r.type !== "image" && r.label);
 
   return (
     <div className="lr-root" dir={rtl ? "rtl" : "ltr"}>
@@ -271,18 +273,26 @@ export default function Learn() {
 
               <div className="lr-lesson" dangerouslySetInnerHTML={{ __html: renderMarkdown(active.content) }} />
 
-              {resources.length > 0 && (
+              {(imageResources.length > 0 || linkResources.length > 0) && (
                 <>
                   <h2 className="lr-h2">{t.resources}</h2>
-                  <ul className="lr-res">
-                    {resources.map((r, i) => (
-                      <li key={i}>
-                        <a href={r.url} target="_blank" rel="noopener noreferrer">
-                          {r.label} ↗
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                  {imageResources.map((r, i) => (
+                    <figure key={`img-${i}`} className="lr-fig">
+                      <img src={r.url} alt={r.label || ""} />
+                      {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
+                    </figure>
+                  ))}
+                  {linkResources.length > 0 && (
+                    <ul className="lr-res">
+                      {linkResources.map((r, i) => (
+                        <li key={i}>
+                          <a href={r.url} target="_blank" rel="noopener noreferrer">
+                            {r.label} ↗
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </>
               )}
 
@@ -431,6 +441,10 @@ function LrStyle() {
       .lr-lesson p { line-height: 1.75; margin: 0.8rem 0; font-weight: 300; color: #ece6d4; }
       .lr-lesson ul { padding-left: 1.3rem; margin: 0.6rem 0; }
       .lr-lesson li { margin: 0.35rem 0; line-height: 1.6; font-weight: 300; }
+
+      .lr-fig { margin: 0 0 1rem; }
+      .lr-fig img { display: block; width: 100%; border-radius: 12px; }
+      .lr-fig figcaption { font-size: 0.82rem; opacity: 0.75; margin-top: 0.4rem; text-align: center; }
 
       .lr-res { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
       .lr-res a { color: #E0BC4A; text-decoration: underline; }
