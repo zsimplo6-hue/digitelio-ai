@@ -17,3 +17,5 @@ binding = "AI"
 
 [vars]
 ENVIRONMENT = "production"
+APP_URL = "https://digitelio.com"
+ALLOWED_ORIGINS = "https://digitelio.com,https://www.digitelio.com,https://digitelio-ai-frontend.zsimplo6.workers.dev"
