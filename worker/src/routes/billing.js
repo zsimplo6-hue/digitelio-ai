@@ -279,6 +279,28 @@ export async function checkLearners(request, env, formationId) {
   return null;
 }
 
+/* Journal des paiements d'abonnement (pour le tableau de bord admin) */
+let ledgerReady = false;
+async function logPayment(env, userId, email, planKey, nowMs) {
+  try {
+    if (!ledgerReady) {
+      await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS plan_payments (
+          id TEXT PRIMARY KEY, user_id TEXT, email TEXT, plan TEXT NOT NULL,
+          amount_xof INTEGER NOT NULL, created_at TEXT NOT NULL)`
+      ).run();
+      ledgerReady = true;
+    }
+    await env.DB.prepare(
+      "INSERT INTO plan_payments (id, user_id, email, plan, amount_xof, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+      .bind(crypto.randomUUID(), userId, email, planKey, PLANS[planKey].price_xof, toDb(nowMs))
+      .run();
+  } catch (err) {
+    console.error("Journal de paiement non enregistré", err.message);
+  }
+}
+
 export async function activatePlan(env, email, planKey) {
   if (!PLANS[planKey] || planKey === "free") throw new Error("Plan invalide.");
 
@@ -309,6 +331,8 @@ export async function activatePlan(env, email, planKey) {
   )
     .bind(planKey, toDb(startMs), toDb(untilMs), user.id)
     .run();
+
+  await logPayment(env, user.id, String(email || "").toLowerCase(), planKey, now);
 
   return { plan: planKey, started_at: toIso(startMs), until: toIso(untilMs) };
 }
@@ -365,4 +389,4 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-}
+             }
