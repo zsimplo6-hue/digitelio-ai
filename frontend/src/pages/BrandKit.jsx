@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import TemplatePreview from "../components/TemplatePreview.jsx";
 import { Card } from "../components/ui/Card.jsx";
@@ -16,6 +16,7 @@ export default function BrandKit() {
     brand_name: "", author_name: "", tagline: "",
     accent_color: "", cover_color: "", default_template: "finance",
   });
+  const [features, setFeatures] = useState(null);
   const [ebookTitle, setEbookTitle] = useState(() => {
     try {
       return localStorage.getItem(TITLE_KEY) || "";
@@ -34,7 +35,25 @@ export default function BrandKit() {
       .then((d) => d && setB(d.brand))
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch(`${API}/api/billing`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setFeatures(d.features || null))
+      .catch(() => {});
   }, []);
+
+  const allowed = (id) =>
+    !features || features.ebook_templates === "all" || features.ebook_templates.includes(id);
+  const hasLocks = features && features.ebook_templates !== "all";
+
+  /* Si le modèle enregistré n'est pas inclus dans le plan, on revient au modèle autorisé */
+  useEffect(() => {
+    if (!features || loading) return;
+    if (!allowed(b.default_template)) {
+      const first = Array.isArray(features.ebook_templates) ? features.ebook_templates[0] : "finance";
+      setB((x) => ({ ...x, default_template: first || "finance" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [features, loading]);
 
   const set = (k) => (e) => {
     setMsg("");
@@ -76,6 +95,17 @@ export default function BrandKit() {
       description: `${ebookTitle.trim()}. Par ${b.author_name.trim()}.`,
     });
     navigate(`/dashboard/ebooks/create?${q.toString()}`);
+  }
+
+  function pickTemplate(id) {
+    if (!allowed(id)) {
+      setMsg("");
+      setErr("Ce modèle est réservé aux plans Pro et Business. Passez à un plan supérieur pour le déverrouiller.");
+      return;
+    }
+    setErr("");
+    setMsg("");
+    setB((x) => ({ ...x, default_template: id }));
   }
 
   const tpl = TEMPLATES[b.default_template] || TEMPLATES.finance;
@@ -181,21 +211,34 @@ export default function BrandKit() {
 
             <Card title="Modèle par défaut">
               <div className="dg-cover-actions" style={{ flexWrap: "wrap", marginTop: 0 }}>
-                {TEMPLATE_ORDER.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className="dg-chip"
-                    style={b.default_template === id ? { borderColor: "#7C3AED", fontWeight: 700 } : undefined}
-                    onClick={() => {
-                      setMsg("");
-                      setB((x) => ({ ...x, default_template: id }));
-                    }}
-                  >
-                    {TEMPLATES[id].name}
-                  </button>
-                ))}
+                {TEMPLATE_ORDER.map((id) => {
+                  const ok = allowed(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className="dg-chip"
+                      style={{
+                        ...(b.default_template === id ? { borderColor: "#7C3AED", fontWeight: 700 } : {}),
+                        ...(ok ? {} : { opacity: 0.55 }),
+                      }}
+                      onClick={() => pickTemplate(id)}
+                    >
+                      {ok ? "" : "🔒 "}
+                      {TEMPLATES[id].name}
+                    </button>
+                  );
+                })}
               </div>
+              {hasLocks && (
+                <p className="dg-helper-text" style={{ marginTop: 10 }}>
+                  🔒 Votre plan <b>Gratuit</b> inclut un seul modèle. Passez au plan <b>Pro</b> ou <b>Business</b> pour
+                  déverrouiller automatiquement tous les autres.{" "}
+                  <Link to="/dashboard/abonnements" style={{ color: "#7C3AED", fontWeight: 700 }}>
+                    Voir les abonnements →
+                  </Link>
+                </p>
+              )}
             </Card>
 
             {err && <div className="dg-alert dg-alert--error">{err}</div>}
@@ -212,4 +255,4 @@ export default function BrandKit() {
       </div>
     </DashboardLayout>
   );
-                }
+  }
