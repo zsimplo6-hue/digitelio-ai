@@ -8,7 +8,7 @@ function generateId() {
 }
 
 function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export async function handleSignup(request, env) {
@@ -17,7 +17,9 @@ export async function handleSignup(request, env) {
     return Response.json({ error: "Corps de requête invalide." }, { status: 400 });
   }
 
-  const { fullName, email, password } = body;
+  const fullName = String(body.fullName || "").trim().slice(0, 80);
+  const email = String(body.email || "").trim();
+  const password = String(body.password || "");
 
   if (!fullName || !email || !password) {
     return Response.json(
@@ -33,6 +35,9 @@ export async function handleSignup(request, env) {
       { error: "Le mot de passe doit contenir au moins 8 caractères." },
       { status: 400 }
     );
+  }
+  if (password.length > 200) {
+    return Response.json({ error: "Mot de passe trop long." }, { status: 400 });
   }
 
   const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
@@ -73,8 +78,9 @@ export async function handleLogin(request, env) {
     return Response.json({ error: "Corps de requête invalide." }, { status: 400 });
   }
 
-  const { email, password } = body;
-  if (!email || !password) {
+  const email = String(body.email || "").trim();
+  const password = String(body.password || "");
+  if (!email || !password || password.length > 200) {
     return Response.json({ error: "Email et mot de passe sont requis." }, { status: 400 });
   }
 
@@ -84,7 +90,8 @@ export async function handleLogin(request, env) {
     .bind(email.toLowerCase())
     .first();
 
-  if (!user) {
+  // Compte Google sans mot de passe : jamais de connexion par mot de passe
+  if (!user || !user.password_hash) {
     return Response.json({ error: "Identifiants incorrects." }, { status: 401 });
   }
 
@@ -354,8 +361,13 @@ export async function handleResetPassword(request, env) {
 
 /* ===================== GOOGLE ===================== */
 
+const STATE_COOKIE = "dg_oauth_state";
+
 export async function handleGoogleLogin(request, env) {
   const redirectUri = `${new URL(request.url).origin}/api/auth/callback/google`;
+
+  // Jeton anti-CSRF : la connexion doit repartir du même navigateur
+  const state = randomToken();
 
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
@@ -364,20 +376,26 @@ export async function handleGoogleLogin(request, env) {
     scope: "openid email profile",
     access_type: "offline",
     prompt: "consent",
+    state,
   });
 
-  return Response.redirect(
-    `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-    302
-  );
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+      "Set-Cookie": `${STATE_COOKIE}=${state}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=600`,
+    },
+  });
 }
 
 export async function handleGoogleCallback(request, env) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state") || "";
 
-  if (!code) {
-    return Response.json({ error: "Code d'autorisation manquant." }, { status: 400 });
+  const cookieState = parseCookies(request)[STATE_COOKIE] || "";
+  if (!code || !state || !cookieState || state !== cookieState) {
+    return Response.json({ error: "Connexion Google invalide. Réessayez depuis la page de connexion." }, { status: 400 });
   }
 
   const redirectUri = `${url.origin}/api/auth/callback/google`;
@@ -394,7 +412,7 @@ export async function handleGoogleCallback(request, env) {
     }),
   });
 
-  const tokenData = await tokenResponse.json();
+  const tokenData = await tokenResponse.json().catch(() => ({}));
   if (!tokenData.access_token) {
     return Response.json({ error: "Échec de l'authentification Google." }, { status: 400 });
   }
@@ -402,13 +420,17 @@ export async function handleGoogleCallback(request, env) {
   const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   });
-  const googleUser = await userInfoResponse.json();
+  const googleUser = await userInfoResponse.json().catch(() => ({}));
 
   if (!googleUser.email) {
     return Response.json({ error: "Impossible de récupérer l'email Google." }, { status: 400 });
   }
+  // Un email non vérifié par Google ne doit jamais donner accès à un compte
+  if (googleUser.verified_email !== true) {
+    return Response.json({ error: "Votre email Google n'est pas vérifié." }, { status: 403 });
+  }
 
-  const email = googleUser.email.toLowerCase();
+  const email = String(googleUser.email).toLowerCase();
 
   let user = await env.DB.prepare(
     "SELECT id, full_name, email, plan FROM users WHERE email = ?"
@@ -418,7 +440,7 @@ export async function handleGoogleCallback(request, env) {
 
   if (!user) {
     const userId = generateId();
-    const fullName = googleUser.name || email.split("@")[0];
+    const fullName = String(googleUser.name || email.split("@")[0]).slice(0, 80);
 
     await env.DB.prepare(
       `INSERT INTO users (id, full_name, email, password_hash, plan, language)
@@ -432,11 +454,14 @@ export async function handleGoogleCallback(request, env) {
 
   const token = await signJWT({ sub: user.id, email: user.email }, env.JWT_SECRET);
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "Set-Cookie": buildAuthCookie(token),
-      Location: "https://digitelio-ai-frontend.zsimplo6.workers.dev/dashboard",
-    },
-  });
-  }
+  const appUrl = env.APP_URL ? String(env.APP_URL).replace(/\/$/, "") : "";
+  const location = appUrl
+    ? `${appUrl}/dashboard`
+    : "https://digitelio-ai-frontend.zsimplo6.workers.dev/dashboard";
+
+  const headers = new Headers({ Location: location });
+  headers.append("Set-Cookie", buildAuthCookie(token));
+  headers.append("Set-Cookie", `${STATE_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0`);
+
+  return new Response(null, { status: 302, headers });
+      }
