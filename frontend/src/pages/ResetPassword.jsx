@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle.jsx";
+import Logo from "../components/Logo.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -55,12 +56,9 @@ export default function ResetPassword() {
       </div>
 
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-2 text-xl font-bold">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-digi-gradient text-white">
-            D
-          </span>
-          Digitelio <span className="text-gradient">AI</span>
-        </div>
+        <Link to="/" aria-label="Digitelio AI" className="mb-8 flex justify-center">
+          <Logo height={64} />
+        </Link>
 
         <div className="card shadow-digi-glow">
           <h1 className="text-2xl font-bold">Nouveau mot de passe</h1>
@@ -146,4 +144,4 @@ export default function ResetPassword() {
       </div>
     </div>
   );
-              }
+}
