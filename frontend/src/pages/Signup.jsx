@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
+import Logo from "../components/Logo.jsx";
 
 export default function Signup() {
   const { signup } = useAuth();
@@ -39,12 +40,9 @@ export default function Signup() {
       </div>
 
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-2 text-xl font-bold">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-digi-gradient text-white">
-            D
-          </span>
-          Digitelio <span className="text-gradient">AI</span>
-        </div>
+        <Link to="/" aria-label="Digitelio AI" className="mb-8 flex justify-center">
+          <Logo height={64} />
+        </Link>
 
         <div className="card shadow-digi-glow">
           <h1 className="text-2xl font-bold">Bienvenue !</h1>
