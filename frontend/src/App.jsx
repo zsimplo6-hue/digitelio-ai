@@ -25,6 +25,7 @@ import EbookRead from "./pages/EbookRead.jsx";
 import Templates from "./pages/Templates.jsx";
 import Ideas from "./pages/Ideas.jsx";
 import BrandKit from "./pages/BrandKit.jsx";
+import Admin from "./pages/Admin.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
@@ -79,6 +80,16 @@ export default function App() {
       <Route path="/dashboard/wallet" element={salesGuard(<Wallet />)} />
       <Route path="/dashboard/parametres" element={guard(<Settings />)} />
 
+      {/* Admin : aucun lien dans l'application, le serveur vérifie ADMIN_EMAILS */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Toujours accessible, même expiré : c'est ici qu'on renouvelle */}
       <Route
         path="/dashboard/abonnements"
@@ -90,4 +101,4 @@ export default function App() {
       />
     </Routes>
   );
-  }
+}
