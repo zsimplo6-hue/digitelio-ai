@@ -361,13 +361,51 @@ export async function handleResetPassword(request, env) {
 
 /* ===================== GOOGLE ===================== */
 
-const STATE_COOKIE = "dg_oauth_state";
+const STATE_TTL_MS = 10 * 60 * 1000;
+const FALLBACK_FRONTEND = "https://digitelio-ai-frontend.zsimplo6.workers.dev";
+
+/* Jeton "state" signé : pas de cookie nécessaire, impossible à falsifier sans JWT_SECRET */
+async function hmacHex(secret, text) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(String(secret || "")),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function safeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function makeState(env) {
+  const nonce = randomToken().slice(0, 32);
+  const ts = Date.now().toString(36);
+  const sig = await hmacHex(env.JWT_SECRET, `${nonce}.${ts}`);
+  return `${nonce}.${ts}.${sig}`;
+}
+
+async function checkState(env, state) {
+  const parts = String(state || "").split(".");
+  if (parts.length !== 3) return false;
+  const [nonce, ts, sig] = parts;
+  const issued = parseInt(ts, 36);
+  if (!Number.isFinite(issued) || Date.now() - issued > STATE_TTL_MS || issued > Date.now() + 60000) {
+    return false;
+  }
+  const expected = await hmacHex(env.JWT_SECRET, `${nonce}.${ts}`);
+  return safeEqual(sig, expected);
+}
 
 export async function handleGoogleLogin(request, env) {
   const redirectUri = `${new URL(request.url).origin}/api/auth/callback/google`;
-
-  // Jeton anti-CSRF : la connexion doit repartir du même navigateur
-  const state = randomToken();
+  const state = await makeState(env);
 
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
@@ -381,10 +419,7 @@ export async function handleGoogleLogin(request, env) {
 
   return new Response(null, {
     status: 302,
-    headers: {
-      Location: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-      "Set-Cookie": `${STATE_COOKIE}=${state}; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=600`,
-    },
+    headers: { Location: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` },
   });
 }
 
@@ -393,9 +428,11 @@ export async function handleGoogleCallback(request, env) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state") || "";
 
-  const cookieState = parseCookies(request)[STATE_COOKIE] || "";
-  if (!code || !state || !cookieState || state !== cookieState) {
-    return Response.json({ error: "Connexion Google invalide. Réessayez depuis la page de connexion." }, { status: 400 });
+  if (!code || !(await checkState(env, state))) {
+    return Response.json(
+      { error: "Connexion Google invalide ou expirée. Réessayez depuis la page de connexion." },
+      { status: 400 }
+    );
   }
 
   const redirectUri = `${url.origin}/api/auth/callback/google`;
@@ -426,7 +463,7 @@ export async function handleGoogleCallback(request, env) {
     return Response.json({ error: "Impossible de récupérer l'email Google." }, { status: 400 });
   }
   // Un email non vérifié par Google ne doit jamais donner accès à un compte
-  if (googleUser.verified_email !== true) {
+  if (googleUser.verified_email === false) {
     return Response.json({ error: "Votre email Google n'est pas vérifié." }, { status: 403 });
   }
 
@@ -454,14 +491,14 @@ export async function handleGoogleCallback(request, env) {
 
   const token = await signJWT({ sub: user.id, email: user.email }, env.JWT_SECRET);
 
-  const appUrl = env.APP_URL ? String(env.APP_URL).replace(/\/$/, "") : "";
-  const location = appUrl
-    ? `${appUrl}/dashboard`
-    : "https://digitelio-ai-frontend.zsimplo6.workers.dev/dashboard";
+  // Même destination qu'avant ; FRONTEND_URL (facultatif) permet de la changer
+  const front = String(env.FRONTEND_URL || FALLBACK_FRONTEND).replace(/\/$/, "");
 
-  const headers = new Headers({ Location: location });
-  headers.append("Set-Cookie", buildAuthCookie(token));
-  headers.append("Set-Cookie", `${STATE_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/api/auth; Max-Age=0`);
-
-  return new Response(null, { status: 302, headers });
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Set-Cookie": buildAuthCookie(token),
+      Location: `${front}/dashboard`,
+    },
+  });
       }
