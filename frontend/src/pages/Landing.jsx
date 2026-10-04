@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
 
@@ -17,6 +18,53 @@ const pillars = [
   "7 langues",
   "Marketing digital",
 ];
+
+/* Témoignages : photos à placer dans frontend/public/avatars/ (initiales affichées si le fichier manque).
+   N'ajoutez que de vrais retours, avec l'accord de la personne. */
+const testimonials = [
+  {
+    name: "Aïcha K.",
+    photo: "/avatars/aicha.jpg",
+    text: "J'ai publié mon premier eBook en une soirée. Incroyable gain de temps.",
+  },
+  {
+    name: "Marc D.",
+    photo: "/avatars/marc.jpg",
+    text: "Les modèles premium donnent à mes eBooks un rendu vraiment professionnel.",
+  },
+  {
+    name: "Fatou S.",
+    photo: "/avatars/fatou.jpg",
+    text: "Simple, rapide, efficace. Exactement ce qu'il me fallait pour lancer ma formation.",
+  },
+];
+
+function Avatar({ src, name }) {
+  const [bad, setBad] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  if (bad || !src) {
+    return (
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-digi-gradient text-sm font-bold text-white">
+        {initials}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      onError={() => setBad(true)}
+      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-white/70 dark:ring-white/20"
+    />
+  );
+}
 
 /* Fonctionnalités des plans payants (tout est inclus) */
 const PAID_EXTRAS = [
@@ -377,29 +425,29 @@ export default function Landing() {
         </p>
       </section>
 
-      {/* TEMOIGNAGES */}
-      <section id="temoignages" className="mx-auto max-w-7xl px-6 py-16">
-        <h2 className="text-center text-2xl font-bold">
+      {/* TEMOIGNAGES — défilement continu de gauche à droite */}
+      <section id="temoignages" className="py-16">
+        <h2 className="px-6 text-center text-2xl font-bold">
           Ils créent déjà avec <span className="text-gradient">Digitelio AI</span>
         </h2>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="card">
-            <p className="text-sm text-digi-navy/70 dark:text-white/70">
-              "J'ai publié mon premier eBook en une soirée. Incroyable gain de temps."
-            </p>
-            <p className="mt-4 font-semibold">— Aïcha K.</p>
-          </div>
-          <div className="card">
-            <p className="text-sm text-digi-navy/70 dark:text-white/70">
-              "Les modèles premium donnent à mes eBooks un rendu vraiment professionnel."
-            </p>
-            <p className="mt-4 font-semibold">— Marc D.</p>
-          </div>
-          <div className="card">
-            <p className="text-sm text-digi-navy/70 dark:text-white/70">
-              "Simple, rapide, efficace. Exactement ce qu'il me fallait pour lancer ma formation."
-            </p>
-            <p className="mt-4 font-semibold">— Fatou S.</p>
+
+        <div className="marquee mt-10">
+          <div className="marquee-track">
+            {[0, 1, 2, 3].map((copy) =>
+              testimonials.map((t) => (
+                <div
+                  key={`${copy}-${t.name}`}
+                  aria-hidden={copy > 0 ? "true" : undefined}
+                  className="card mr-6 w-80 shrink-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar src={t.photo} name={t.name} />
+                    <p className="font-semibold">{t.name}</p>
+                  </div>
+                  <p className="mt-4 text-sm text-digi-navy/70 dark:text-white/70">"{t.text}"</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>
@@ -416,6 +464,16 @@ export default function Landing() {
             </summary>
             <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
               Non, Digitelio AI est conçu pour être utilisé sans aucune compétence technique.
+            </p>
+          </details>
+          <details className="card">
+            <summary className="cursor-pointer font-semibold">
+              Comment fonctionne l'abonnement ?
+            </summary>
+            <p className="mt-2 text-sm text-digi-navy/70 dark:text-white/70">
+              Votre abonnement démarre à l'instant de votre paiement et dure 30 jours, à la seconde
+              près. À l'échéance, il expire : vous le renouvelez pour continuer, sans engagement. Vos
+              contenus sont toujours conservés.
             </p>
           </details>
           <details className="card">
@@ -469,4 +527,4 @@ export default function Landing() {
       <Footer />
     </div>
   );
-        }
+          }
