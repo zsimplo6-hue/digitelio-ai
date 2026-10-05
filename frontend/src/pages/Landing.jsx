@@ -19,6 +19,31 @@ const pillars = [
   "Marketing digital",
 ];
 
+/* Réseaux officiels de Digitelio AI */
+const socials = [
+  {
+    name: "YouTube",
+    label: "Notre chaîne YouTube",
+    href: "https://youtube.com/@digitelioai",
+    color: "#FF0000",
+    path: "M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z",
+  },
+  {
+    name: "Telegram",
+    label: "Notre canal Telegram",
+    href: "https://t.me/DigitelioIA",
+    color: "#229ED9",
+    path: "M9.8 15.6l-.4 4.1c.6 0 .8-.3 1.1-.6l2.6-2.5 5.4 4c1 .5 1.7.3 2-.9L23.9 4c.3-1.4-.5-2-1.5-1.6L1.6 10.4c-1.4.6-1.4 1.4-.2 1.7l5.3 1.7L19 6.1c.6-.4 1.1-.2.7.2L9.8 15.6z",
+  },
+  {
+    name: "WhatsApp",
+    label: "Notre chaîne WhatsApp",
+    href: "https://whatsapp.com/channel/0029VbDkaeAHrDZj4TGFj92V",
+    color: "#25D366",
+    path: "M17.5 14.4c-.3-.1-1.8-.9-2-1s-.5-.1-.7.1-.8 1-1 1.2-.4.2-.7.1a8.2 8.2 0 0 1-4-3.5c-.3-.5.3-.5.9-1.6.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4S5 8.2 5 9.9s1.2 3.3 1.4 3.5 2.4 3.7 5.8 5.1c2.1.9 2.9.9 4 .8.6-.1 1.8-.7 2-1.4s.3-1.3.2-1.4-.3-.2-.6-.3zM12 21.8a9.8 9.8 0 0 1-5-1.4l-.4-.2-3.700 1 1-3.600-.2-.4A9.800 9.800 0 1 1 12 21.800zM12 0a12 12 0 0 0-10.300 18L0 24l6.200-1.600A12 12 0 1 0 12 0z",
+  },
+];
+
 /* Témoignages : photos à placer dans frontend/public/avatars/ (initiales affichées si le fichier manque).
    N'ajoutez que de vrais retours, avec l'accord de la personne. */
 const testimonials = [
@@ -178,6 +203,18 @@ const pricingCss = `
 .dark .dg-btn-free{color:#fff;background:transparent;border-color:rgba(255,255,255,.25)}
 @media (max-width:860px){.dg-grid{grid-template-columns:1fr;max-width:420px;gap:30px}.dg-pro{transform:none;order:-1}}
 @media (prefers-reduced-motion:reduce){.dg-btn,.dg-btn::after{animation:none!important;transition:none!important}.dg-btn:hover{transform:none}}
+
+.dg-social{display:flex;flex-wrap:wrap;justify-content:center;gap:14px}
+.dg-soc{display:flex;align-items:center;gap:12px;padding:12px 20px 12px 14px;border-radius:16px;text-decoration:none;
+  border:1.5px solid rgba(15,16,41,.1);background:#fff;color:#0F1029;font-weight:700;font-size:.9rem;
+  box-shadow:0 10px 24px -16px rgba(60,50,120,.4);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,border-color .3s ease}
+.dg-soc:hover{transform:translateY(-4px) scale(1.03);box-shadow:0 18px 32px -16px rgba(60,50,120,.55)}
+.dg-soc:focus-visible{outline:3px solid #8B5CF6;outline-offset:3px}
+.dg-soc-ico{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;color:#fff;flex:none}
+.dg-soc-ico svg{width:24px;height:24px;fill:currentColor}
+.dg-soc small{display:block;font-weight:500;font-size:.72rem;opacity:.65;margin-top:1px}
+.dark .dg-soc{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.14);color:#fff;box-shadow:none}
+@media (prefers-reduced-motion:reduce){.dg-soc{transition:none!important}.dg-soc:hover{transform:none}}
 `;
 
 const sidebarItems = [
@@ -499,8 +536,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* BANDEAU "Une seule plateforme" */}
-      <section className="mx-auto max-w-7xl px-6 pb-20">
+      {/* BANDEAU "Une seule plateforme" + RÉSEAUX SOCIAUX */}
+      <section className="dg-pricing mx-auto max-w-7xl px-6 pb-20">
         <div className="grid gap-8 rounded-2xl bg-digi-navy p-10 text-white shadow-digi-glow md:grid-cols-2">
           <div>
             <h2 className="text-2xl font-bold">
@@ -522,9 +559,41 @@ export default function Landing() {
             ))}
           </ul>
         </div>
+
+        <div className="mt-10 text-center">
+          <h3 className="text-lg font-bold">
+            Rejoignez la <span className="text-gradient">communauté Digitelio AI</span>
+          </h3>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-digi-navy/70 dark:text-white/70">
+            Astuces, nouveautés et idées de produits : suivez-nous sur YouTube, Telegram et WhatsApp.
+          </p>
+
+          <div className="dg-social mt-6">
+            {socials.map((s) => (
+              <a
+                key={s.name}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dg-soc"
+                aria-label={`${s.label} (s'ouvre dans un nouvel onglet)`}
+              >
+                <span className="dg-soc-ico" style={{ background: s.color }}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={s.path} />
+                  </svg>
+                </span>
+                <span>
+                  {s.name}
+                  <small>Rejoindre</small>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
       </section>
 
       <Footer />
     </div>
   );
-          }
+              }
