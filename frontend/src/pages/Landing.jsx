@@ -129,7 +129,7 @@ const plans = [
   {
     tone: "pro",
     name: "Pro",
-    price: "4 999",
+    price: "5 000",
     unit: "FCFA / mois",
     features: [
       "10 eBooks par mois",
@@ -145,7 +145,7 @@ const plans = [
   {
     tone: "biz",
     name: "Business",
-    price: "12 999",
+    price: "13 000",
     unit: "FCFA / mois",
     features: [
       "50 eBooks par mois",
@@ -597,3 +597,4 @@ export default function Landing() {
     </div>
   );
               }
+                
