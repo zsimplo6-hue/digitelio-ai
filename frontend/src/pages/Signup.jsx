@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 import Logo from "../components/Logo.jsx";
+import { getStoredRef } from "../utils/api.js";
 
 export default function Signup() {
   const { signup } = useAuth();
@@ -29,8 +30,13 @@ export default function Signup() {
     }
   }
 
+  const invited = !!getStoredRef();
+
   function handleGoogleLogin() {
-    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
+    const ref = getStoredRef();
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google${
+      ref ? `?ref=${encodeURIComponent(ref)}` : ""
+    }`;
   }
 
   return (
@@ -49,6 +55,12 @@ export default function Signup() {
           <p className="mt-1 text-sm text-digi-navy/60 dark:text-white/60">
             Créez votre compte pour continuer.
           </p>
+
+          {invited && (
+            <div className="mt-4 rounded-lg bg-digi-purple/10 px-4 py-2 text-sm font-medium text-digi-purple">
+              🎁 Vous avez été invité(e) par un membre de Digitelio AI.
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">
