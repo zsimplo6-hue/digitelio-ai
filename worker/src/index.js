@@ -91,6 +91,12 @@ import {
   handleSetFormationTemplate,
 } from "./routes/formation_styles.js";
 import { handleAdminStats } from "./routes/admin.js";
+import {
+  handleAffiliateSummary,
+  handleAffiliateNotice,
+  handleAffiliateSeen,
+  sweepAffiliateRewards,
+} from "./routes/affiliate.js";
 
 const GATED_EXACT = new Set([
   "/api/generate/ebook",
@@ -368,7 +374,31 @@ async function route(request, env, ctx) {
       return withCors(await handleVerifyPayment(request, env), request);
     }
     if (url.pathname === "/api/webhooks/saspay" && request.method === "POST") {
-      return withCors(await handleSaspayWebhook(request, env), request);
+      const res = await handleSaspayWebhook(request, env);
+      // Après un paiement, on vérifie aussi les récompenses d'affiliation arrivées à échéance
+      if (res.ok && ctx?.waitUntil) {
+        ctx.waitUntil(
+          sweepAffiliateRewards(env).catch((e) => console.error("Affiliation (webhook)", e?.message))
+        );
+      }
+      return withCors(res, request);
+    }
+
+    // ===== AFFILIATION (ouverte à tous les comptes, même abonnement expiré) =====
+    if (url.pathname === "/api/affiliate" && request.method === "GET") {
+      const rl = await limited(request, env, "affiliate", 60, 60);
+      if (rl) return withCors(rl, request);
+      return withCors(await handleAffiliateSummary(request, env), request);
+    }
+    if (url.pathname === "/api/affiliate/notice" && request.method === "GET") {
+      const rl = await limited(request, env, "affiliate-notice", 90, 60);
+      if (rl) return withCors(rl, request);
+      return withCors(await handleAffiliateNotice(request, env), request);
+    }
+    if (url.pathname === "/api/affiliate/seen" && request.method === "POST") {
+      const rl = await limited(request, env, "affiliate-seen", 30, 60);
+      if (rl) return withCors(rl, request);
+      return withCors(await handleAffiliateSeen(request, env), request);
     }
 
     if (url.pathname === "/api/shop" && request.method === "GET") {
@@ -539,5 +569,12 @@ export default {
   async fetch(request, env, ctx) {
     const res = await route(request, env, ctx);
     return secure(res);
+  },
+
+  // Tâche planifiée (voir [triggers] dans wrangler.toml) : accorde les récompenses d'affiliation arrivées à échéance
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      sweepAffiliateRewards(env).catch((e) => console.error("Affiliation (cron)", e?.message))
+    );
   },
 };
