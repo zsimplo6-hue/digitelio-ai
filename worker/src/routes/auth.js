@@ -2,6 +2,7 @@ import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signJWT, verifyJWT } from "../utils/jwt.js";
 import { parseCookies, buildAuthCookie, buildClearCookie } from "../utils/cookies.js";
 import { sendEmail } from "../utils/email.js";
+import { captureReferral } from "./affiliate.js";
 
 function generateId() {
   return crypto.randomUUID();
@@ -60,6 +61,9 @@ export async function handleSignup(request, env) {
   )
     .bind(userId, fullName, email.toLowerCase(), passwordHash)
     .run();
+
+  // Parrainage (affiliation) : ne bloque jamais l'inscription
+  await captureReferral(env, userId, email.toLowerCase(), body.ref);
 
   const token = await signJWT({ sub: userId, email: email.toLowerCase() }, env.JWT_SECRET);
 
@@ -417,10 +421,17 @@ export async function handleGoogleLogin(request, env) {
     state,
   });
 
-  return new Response(null, {
-    status: 302,
-    headers: { Location: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` },
+  const headers = new Headers({
+    Location: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
   });
+
+  // Code de parrainage : conservé 1 heure le temps de revenir de Google
+  const ref = String(new URL(request.url).searchParams.get("ref") || "").trim().toUpperCase();
+  if (/^[A-Z0-9]{6,12}$/.test(ref)) {
+    headers.append("Set-Cookie", `digitelio_ref=${ref}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600`);
+  }
+
+  return new Response(null, { status: 302, headers });
 }
 
 export async function handleGoogleCallback(request, env) {
@@ -487,6 +498,9 @@ export async function handleGoogleCallback(request, env) {
       .run();
 
     user = { id: userId, full_name: fullName, email, plan: "free" };
+
+    // Parrainage (affiliation) : seulement pour un nouveau compte
+    await captureReferral(env, userId, email, parseCookies(request)["digitelio_ref"]);
   }
 
   const token = await signJWT({ sub: user.id, email: user.email }, env.JWT_SECRET);
@@ -494,11 +508,9 @@ export async function handleGoogleCallback(request, env) {
   // Même destination qu'avant ; FRONTEND_URL (facultatif) permet de la changer
   const front = String(env.FRONTEND_URL || FALLBACK_FRONTEND).replace(/\/$/, "");
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "Set-Cookie": buildAuthCookie(token),
-      Location: `${front}/dashboard`,
-    },
-  });
+  const headers = new Headers({ Location: `${front}/dashboard` });
+  headers.append("Set-Cookie", buildAuthCookie(token));
+  headers.append("Set-Cookie", "digitelio_ref=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");
+
+  return new Response(null, { status: 302, headers });
       }
