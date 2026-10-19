@@ -1,7 +1,7 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 
-const PRICES = { pro: 4999, business: 12999 };
+const PRICES = { pro: 5000, business: 13000 };
 
 async function adminUser(request, env) {
   try {
@@ -97,4 +97,5 @@ export async function handleAdminStats(request, env) {
     recent_signups: recentSignups,
     recent_payments: recentPayments,
   });
-      }
+  }
+    
