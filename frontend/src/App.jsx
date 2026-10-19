@@ -13,6 +13,7 @@ import PagesVente from "./pages/PagesVente.jsx";
 import Marketing from "./pages/Marketing.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import Subscriptions from "./pages/Subscriptions.jsx";
+import Affiliation from "./pages/Affiliation.jsx";
 import Settings from "./pages/Settings.jsx";
 import Boutique from "./pages/Boutique.jsx";
 import Wallet from "./pages/Wallet.jsx";
@@ -86,6 +87,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Affiliation : ouverte à tous les comptes (gratuit, payant ou expiré) */}
+      <Route
+        path="/dashboard/affiliation"
+        element={
+          <ProtectedRoute>
+            <Affiliation />
           </ProtectedRoute>
         }
       />
