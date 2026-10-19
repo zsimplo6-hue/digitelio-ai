@@ -15,6 +15,10 @@ binding = "AI"
 # binding = "STORAGE"
 # bucket_name = "digitelio-storage"
 
+# Chaque heure : accorde les récompenses d'affiliation dont le délai de validation est passé
+[triggers]
+crons = ["0 * * * *"]
+
 [vars]
 ENVIRONMENT = "production"
 APP_URL = "https://digitelio.com"
