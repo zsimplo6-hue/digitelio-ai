@@ -41,15 +41,15 @@ export const PLANS = {
   },
   pro: {
     name: "Pro",
-    price_text: "4 999 FCFA / mois",
-    price_xof: 4999,
+    price_text: "5 000 FCFA / mois",
+    price_xof: 5000,
     limits: { ebook: 10, formation: 10, lesson: 200, marketing: 100, learners: 100 },
     features: PAID_FEATURES,
   },
   business: {
     name: "Business",
-    price_text: "12 999 FCFA / mois",
-    price_xof: 12999,
+    price_text: "13 000 FCFA / mois",
+    price_xof: 13000,
     limits: { ebook: 50, formation: 30, lesson: 600, marketing: 300, learners: 300 },
     features: PAID_FEATURES,
   },
@@ -389,4 +389,5 @@ export async function handleBilling(request, env) {
     })),
     contact: CONTACT,
   });
-             }
+    }
+                                       
