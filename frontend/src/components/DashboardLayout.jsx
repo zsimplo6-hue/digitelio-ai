@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle.jsx";
 import Sidebar from "./Sidebar.jsx";
 import Logo from "./Logo.jsx";
+import AffiliateCelebration from "./AffiliateCelebration.jsx";
 
 export default function DashboardLayout({ title, children }) {
   const { user, logout } = useAuth();
@@ -68,6 +69,9 @@ export default function DashboardLayout({ title, children }) {
           {children}
         </main>
       </div>
+
+      {/* Notification de félicitations quand une récompense d'affiliation vient d'être accordée */}
+      <AffiliateCelebration />
     </div>
   );
 }
