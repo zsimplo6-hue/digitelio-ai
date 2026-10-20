@@ -217,27 +217,6 @@ const pricingCss = `
 @media (prefers-reduced-motion:reduce){.dg-soc{transition:none!important}.dg-soc:hover{transform:none}}
 `;
 
-const sidebarItems = [
-  { icon: "🏠", label: "Tableau de bord", active: true },
-  { icon: "📘", label: "eBooks", active: false },
-  { icon: "🎓", label: "Formations", active: false },
-  { icon: "🎨", label: "Modèles", active: false },
-  { icon: "💡", label: "Idées", active: false },
-];
-
-const quickStats = [
-  { icon: "📘", value: "3", label: "eBooks" },
-  { icon: "🎓", value: "2", label: "Formations" },
-  { icon: "🎨", value: "12", label: "Modèles" },
-  { icon: "🌍", value: "7", label: "Langues" },
-];
-
-const previewStats = [
-  { value: "12", label: "Modèles premium" },
-  { value: "7", label: "Langues" },
-  { value: "PDF", label: "Export premium" },
-];
-
 export default function Landing() {
   const handleDemoClick = (e) => {
     e.preventDefault();
@@ -286,116 +265,34 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* DASHBOARD MOCKUP — animation premium à l'atterrissage */}
-          <div id="apercu" className="relative scroll-mt-24">
-            {/* Halo glow derrière la carte */}
+          {/* AFFICHE — remplace l'ancien aperçu du tableau de bord */}
+          <div id="apercu" className="relative mx-auto w-full max-w-md scroll-mt-24 md:max-w-none">
+            {/* Halo glow derrière l'affiche */}
             <div
               aria-hidden="true"
               className="digi-mockup-glow absolute -inset-6 rounded-[2rem] bg-digi-gradient blur-3xl opacity-50 -z-10"
             />
 
             <div
-              className="digi-mockup-card card relative overflow-hidden shadow-digi-glow
-                         bg-white/60 dark:bg-white/5 backdrop-blur-xl
-                         border border-white/50 dark:border-white/10"
+              className="digi-mockup-card relative mx-auto max-w-md overflow-hidden rounded-3xl shadow-digi-glow
+                         border border-white/60 dark:border-white/10"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between text-xs text-digi-navy/50 dark:text-white/50">
-                <span className="font-semibold text-digi-navy dark:text-white">Digitelio AI — Aperçu</span>
-                <span>●●●</span>
-              </div>
-
-              <p className="mt-3 text-sm font-semibold text-digi-navy dark:text-white">
-                Bonjour, Leader 👋
-              </p>
-
-              <div className="mt-4 grid grid-cols-[70px_1fr] gap-3 sm:grid-cols-[90px_1fr]">
-                {/* Sidebar */}
-                <div className="flex flex-col gap-1.5">
-                  {sidebarItems.map((item, i) => (
-                    <div
-                      key={item.label}
-                      style={{ animationDelay: `${1.5 + i * 0.08}s` }}
-                      className={`digi-row-in flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-center text-[9px] font-medium
-                        ${
-                          item.active
-                            ? "bg-digi-gradient text-white shadow-digi-glow"
-                            : "bg-digi-navy/5 text-digi-navy/70 dark:bg-white/10 dark:text-white/70"
-                        }`}
-                    >
-                      <span className="text-sm">{item.icon}</span>
-                      <span className="hidden sm:block leading-tight">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Contenu principal */}
-                <div className="flex flex-col gap-2.5">
-                  {/* Grille de stats 2x2 */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {quickStats.map((s, i) => (
-                      <div
-                        key={s.label}
-                        style={{ animationDelay: `${1.7 + i * 0.08}s` }}
-                        className="digi-row-in rounded-lg bg-white/70 dark:bg-white/10 border border-white/40 dark:border-white/10 px-2.5 py-2"
-                      >
-                        <p className="text-sm font-bold text-digi-navy dark:text-white">
-                          {s.icon} {s.value}
-                        </p>
-                        <p className="text-[9px] text-digi-navy/60 dark:text-white/60">{s.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Bandeau création */}
-                  <div
-                    style={{ animationDelay: "2s" }}
-                    className="digi-row-in rounded-lg bg-digi-gradient/10 border border-digi-blue/20 px-3 py-2"
-                  >
-                    <p className="text-[10px] font-semibold text-digi-navy dark:text-white">
-                      ✨ Dernière création
-                    </p>
-                    <p className="text-sm font-bold text-digi-blue">Prête à exporter en PDF</p>
-                  </div>
-
-                  {/* Actions rapides */}
-                  <div
-                    style={{ animationDelay: "2.1s" }}
-                    className="digi-row-in grid grid-cols-2 gap-2"
-                  >
-                    <button
-                      type="button"
-                      className="rounded-md bg-digi-gradient py-1.5 text-[10px] font-semibold text-white transition-transform hover:-translate-y-0.5"
-                    >
-                      📘 Créer eBook
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md bg-digi-navy/10 dark:bg-white/10 py-1.5 text-[10px] font-semibold text-digi-navy dark:text-white transition-transform hover:-translate-y-0.5"
-                    >
-                      🎓 Créer formation
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats globales bas de carte */}
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {previewStats.map((s, i) => (
-                  <div
-                    key={s.label}
-                    style={{ animationDelay: `${2.2 + i * 0.08}s` }}
-                    className="digi-row-in rounded-lg bg-white/70 dark:bg-white/10 backdrop-blur-md py-2 text-center shadow-sm"
-                  >
-                    <p className="text-sm font-bold text-digi-navy dark:text-white">{s.value}</p>
-                    <p className="text-[9px] text-digi-navy/60 dark:text-white/60">{s.label}</p>
-                  </div>
-                ))}
-              </div>
+              <picture>
+                <source srcSet="/hero-poster.webp" type="image/webp" />
+                <img
+                  src="/hero-poster.jpg"
+                  alt="Digitelio AI : l'IA au service de votre croissance. Créez vos eBooks et formations avec l'IA."
+                  width="1121"
+                  height="1403"
+                  fetchpriority="high"
+                  decoding="async"
+                  className="block h-auto w-full"
+                />
+              </picture>
             </div>
 
-            {/* Badge flottant */}
-            <div className="digi-badge-pop absolute -bottom-6 -left-6 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow">
+            {/* Badge flottant : placé en bas à droite pour ne pas cacher « Site officiel » de l'affiche */}
+            <div className="digi-badge-pop absolute -bottom-5 right-2 rounded-xl bg-digi-gradient px-5 py-3 text-sm font-semibold text-white shadow-digi-glow md:-right-4">
               7 langues <br /> disponibles
             </div>
           </div>
@@ -597,4 +494,3 @@ export default function Landing() {
     </div>
   );
               }
-                
