@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
+import heroPoster from "../utils/heroPoster.js";
 
 const categories = [
   { icon: "📚", title: "eBooks", desc: "Rédigez des eBooks professionnels, chapitre par chapitre" },
@@ -277,18 +278,15 @@ export default function Landing() {
               className="digi-mockup-card relative mx-auto max-w-md overflow-hidden rounded-3xl shadow-digi-glow
                          border border-white/60 dark:border-white/10"
             >
-              <picture>
-                <source srcSet="/hero-poster.webp" type="image/webp" />
-                <img
-                  src="/hero-poster.jpg"
-                  alt="Digitelio AI : l'IA au service de votre croissance. Créez vos eBooks et formations avec l'IA."
-                  width="1121"
-                  height="1403"
-                  fetchpriority="high"
-                  decoding="async"
-                  className="block h-auto w-full"
-                />
-              </picture>
+              <img
+                src={heroPoster}
+                alt="Digitelio AI : l'IA au service de votre croissance. Créez vos eBooks et formations avec l'IA."
+                width="900"
+                height="1127"
+                fetchpriority="high"
+                decoding="async"
+                className="block h-auto w-full"
+              />
             </div>
 
             {/* Badge flottant : placé en bas à droite pour ne pas cacher « Site officiel » de l'affiche */}
@@ -494,3 +492,4 @@ export default function Landing() {
     </div>
   );
               }
+                
