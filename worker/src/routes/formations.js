@@ -1,6 +1,13 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
-import { touchFormation, removeFormationMeta } from "./formation_manage.js";
+import {
+  touchFormation,
+  removeFormationMeta,
+  sanitizeBrief,
+  briefToPrompt,
+  ensurePlanTables,
+  getBrief,
+} from "./formation_manage.js";
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -138,17 +145,20 @@ export async function handleCreateFormation(request, env) {
 
   const L = langOf(language);
   const langLabel = L.name;
+  const brief = sanitizeBrief(body);
+  const briefText = briefToPrompt(brief);
+  const wanted = brief.modules_count; // "auto" ou un nombre
 
   try {
-    const prompt = `Tu conçois une formation en ligne sur le sujet : "${topic}". Rédige TOUT (titre, accroche, titres et résumés des modules) uniquement en ${langLabel}, même si ces consignes sont en français.
+    const countRule =
+      wanted === "auto"
+        ? "Choisis toi-même le nombre de modules (entre 4 et 8) selon l'ampleur du sujet, le niveau et la durée."
+        : `Crée exactement ${wanted} modules.`;
 
-Crée exactement 5 modules dans cet ordre logique (traduis les intitulés en ${langLabel}) :
-1. ${L.modules[0]}
-2. ${L.modules[1]}
-3. ${L.modules[2]}
-4. ${L.modules[3]}
-5. ${L.modules[4]}
-Adapte le contenu de chaque module au sujet.
+    const prompt = `Tu conçois une formation en ligne sur le sujet : "${topic}". Rédige TOUT (titre, accroche, titres, résumés, objectifs et compétences des modules) uniquement en ${langLabel}, même si ces consignes sont en français.
+${briefText ? `\nContexte fourni par le créateur de la formation (à respecter réellement) :\n${briefText}\n` : ""}
+${countRule}
+Construis une progression pédagogique logique, adaptée au sujet, au public et au niveau : chaque module prépare le suivant. Les titres de modules doivent être précis et propres au sujet (pas d'intitulés génériques). Le premier module pose le cadre et le parcours. Le DERNIER module s'intitule « ${L.modules[4]} » (vérification des acquis et plan d'action).
 
 Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs ##TITRE##, ##DESCRIPTION## et ##MODULES## restent tels quels) :
 
@@ -157,13 +167,11 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs #
 ##DESCRIPTION##
 (une accroche courte et percutante de 1 à 2 phrases, 200 caractères maximum, qui promet un bénéfice concret au lecteur et donne envie de suivre la formation. ${L.you} Ne répète pas le titre. N'invente ni chiffre, ni délai, ni résultat garanti. Aucun emoji.)
 ##MODULES##
-1. Titre du module | résumé en une phrase
-2. Titre du module | résumé en une phrase
-3. Titre du module | résumé en une phrase
-4. Titre du module | résumé en une phrase
-5. ${L.modules[4]} | résumé en une phrase`;
+1. Titre du module | résumé en une phrase | objectif pédagogique en une phrase | compétence 1, compétence 2, compétence 3
+2. Titre du module | résumé en une phrase | objectif pédagogique en une phrase | compétence 1, compétence 2, compétence 3
+(une ligne par module, numérotée, avec exactement 4 parties séparées par « | »)`;
 
-    const text = await askAI(env, prompt, 1000);
+    const text = await askAI(env, prompt, 2200);
 
     const titleMatch = text.match(/##TITRE##([\s\S]*?)##DESCRIPTION##/);
     const descMatch = text.match(/##DESCRIPTION##([\s\S]*?)##MODULES##/);
@@ -172,17 +180,29 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs #
     const title = (titleMatch ? titleMatch[1].trim() : "") || topic;
     const description = descMatch ? cleanHook(descMatch[1]) : "";
 
+    const strip = (v) => String(v || "").replace(/\*\*/g, "").trim();
+    const maxModules = wanted === "auto" ? 10 : wanted;
+
     let modules = [];
     if (modulesMatch) {
       modules = [...modulesMatch[1].matchAll(/^\s*\d+[.)]\s*(.+)$/gm)]
         .map((m) => {
-          const [t, ...rest] = m[1].split("|");
-          return { title: t.replace(/\*\*/g, "").trim(), summary: rest.join("|").replace(/\*\*/g, "").trim() };
+          const parts = m[1].split("|").map(strip);
+          return {
+            title: parts[0] || "",
+            summary: parts[1] || "",
+            objective: parts[2] || "",
+            skills: (parts[3] || "")
+              .split(/[,;،]/)
+              .map((x) => x.trim())
+              .filter(Boolean)
+              .slice(0, 6),
+          };
         })
         .filter((m) => m.title)
-        .slice(0, 8);
+        .slice(0, maxModules);
     }
-    if (modules.length < 3) modules = defaultModules(topic, L);
+    if (modules.length < 3) modules = defaultModules(topic, L).map((m) => ({ ...m, objective: "", skills: [] }));
 
     const formationId = crypto.randomUUID();
     const statements = [
@@ -196,6 +216,8 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs #
       id: crypto.randomUUID(),
       title: m.title,
       summary: m.summary,
+      objective: m.objective || "",
+      skills: m.skills || [],
       content: "",
       video_url: "",
       resources: [],
@@ -212,6 +234,29 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs #
 
     await env.DB.batch(statements);
 
+    /* Paramètres de création, objectifs et compétences : stockés à part (ne bloque jamais la création) */
+    let savedBrief = null;
+    try {
+      await ensurePlanTables(env);
+      const extra = [
+        env.DB.prepare(
+          "INSERT INTO formation_brief (formation_id, user_id, brief_json) VALUES (?, ?, ?)"
+        ).bind(formationId, payload.sub, JSON.stringify(brief)),
+      ];
+      savedModules.forEach((m) => {
+        extra.push(
+          env.DB.prepare(
+            "INSERT INTO formation_module_meta (module_id, formation_id, objective, skills) VALUES (?, ?, ?, ?)"
+          ).bind(m.id, formationId, m.objective, JSON.stringify(m.skills))
+        );
+      });
+      await env.DB.batch(extra);
+      savedBrief = brief;
+    } catch {
+      /* la formation existe et reste utilisable sans ces informations */
+    }
+    await touchFormation(env, formationId, payload.sub);
+
     return Response.json({
       formation: {
         id: formationId,
@@ -220,6 +265,7 @@ Réponds STRICTEMENT dans ce format, sans texte avant ou après (les marqueurs #
         topic,
         language,
         status: "draft",
+        brief: savedBrief,
         modules: savedModules,
       },
     });
@@ -406,10 +452,35 @@ export async function handleGenerateModule(request, env, formationId, moduleId) 
   const langLabel = L.name;
   const isQuiz = QUIZ_RE.test(mod.title);
 
+  /* Contexte de la formation (public, niveau, ton...) et objectif / compétences du module */
+  let context = "";
+  try {
+    await ensurePlanTables(env);
+    const brief = await getBrief(env, formationId);
+    const meta = await env.DB.prepare(
+      "SELECT objective, skills FROM formation_module_meta WHERE module_id = ?"
+    )
+      .bind(moduleId)
+      .first();
+    const lines = [];
+    const bt = briefToPrompt(brief);
+    if (bt) lines.push(bt);
+    if (meta?.objective) lines.push(`Objectif pédagogique du module : ${meta.objective}`);
+    try {
+      const sk = JSON.parse(meta?.skills || "[]");
+      if (Array.isArray(sk) && sk.length) lines.push(`Compétences à acquérir : ${sk.join(", ")}.`);
+    } catch {
+      /* ignoré */
+    }
+    if (lines.length) context = `\nContexte à respecter :\n${lines.join("\n")}\n`;
+  } catch {
+    /* sans contexte, la génération fonctionne comme avant */
+  }
+
   const prompt = isQuiz
     ? `Tu rédiges le dernier module d'une formation en ligne. Rédige TOUT le texte, titres compris, en ${langLabel}, même si ces consignes sont en français.
 Formation : "${mod.formation_title}". Sujet : ${mod.topic}. Module : "${mod.title}".
-
+${context}
 Rédige en Markdown, sans répéter le titre du module :
 - une courte introduction (2 à 3 phrases) ;
 - ### ${L.quiz} : 5 questions à choix multiples (A, B, C), puis ### ${L.answers} avec les bonnes réponses ;
@@ -418,7 +489,7 @@ Rédige en Markdown, sans répéter le titre du module :
     : `Tu rédiges la leçon d'un module de formation en ligne. Rédige TOUT le texte, titres compris, en ${langLabel}, même si ces consignes sont en français.
 Formation : "${mod.formation_title}". Sujet : ${mod.topic}.
 Module : "${mod.title}". Objectif du module : ${mod.summary || mod.title}.
-
+${context}
 Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter le titre du module :
 - une introduction de 2 à 3 phrases ;
 - 2 à 3 sous-parties avec des titres commençant par "### " et des paragraphes clairs, avec des exemples concrets ;
@@ -443,5 +514,4 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
       { status: 502 }
     );
   }
-}
-  
+  }
