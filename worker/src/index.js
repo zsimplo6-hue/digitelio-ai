@@ -46,6 +46,7 @@ import {
   handleRenameFormation,
   handleDuplicateFormation,
   handleArchiveFormation,
+  handleSavePlan,
 } from "./routes/formation_manage.js";
 import {
   handleListFormations,
@@ -525,6 +526,9 @@ async function route(request, env, ctx) {
         if (parts[3] === "archive") {
           return withCors(await handleArchiveFormation(request, env, formationId), request);
         }
+        if (parts[3] === "plan") {
+          return withCors(await handleSavePlan(request, env, formationId), request);
+        }
       }
 
       if (parts[3] === "modules" && parts[4]) {
@@ -592,4 +596,3 @@ export default {
     );
   },
 };
-          
