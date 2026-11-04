@@ -1,6 +1,12 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
-import { ensureMetaTable, touchFormation } from "./formation_manage.js";
+import {
+  ensureMetaTable,
+  touchFormation,
+  ensurePlanTables,
+  getBrief,
+  getModuleMetaMap,
+} from "./formation_manage.js";
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -192,11 +198,24 @@ export async function handleGetFormation(request, env, formationId) {
     .bind(formationId)
     .all();
 
+  /* Objectifs, compétences et paramètres de création (tables annexes, facultatives) */
+  let brief = null;
+  let metaMap = {};
+  try {
+    await ensurePlanTables(env);
+    brief = await getBrief(env, formationId);
+    metaMap = await getModuleMetaMap(env, formationId);
+  } catch {
+    /* le plan reste lisible sans ces informations */
+  }
+
   const modules = results.map((m) => ({
     ...m,
     content: m.content || "",
     video_url: m.video_url || "",
     resources: parseResources(m.resources),
+    objective: metaMap[m.id]?.objective || "",
+    skills: metaMap[m.id]?.skills || [],
   }));
 
   const payCode = await getPayCode(env, formationId);
@@ -208,6 +227,7 @@ export async function handleGetFormation(request, env, formationId) {
       currency: formation.currency || "EUR",
       certificate: !!formation.certificate,
       pay_code: payCode,
+      brief,
       modules,
     },
   });
