@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
 import { renderMarkdown } from "../utils/markdown.js";
@@ -67,6 +68,187 @@ function compressImage(file, maxW = 1000, quality = 0.8) {
   });
 }
 
+/* Paliers de compression : on garde la meilleure qualité qui tient dans la limite du serveur (400 Ko) */
+const IMAGE_STEPS = [
+  [1600, 0.85],
+  [1280, 0.78],
+  [1000, 0.7],
+  [800, 0.62],
+  [600, 0.55],
+];
+const IMAGE_MAX_CHARS = 380000;
+
+async function prepareImage(file) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Choisissez une image (JPG, PNG ou WebP).");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("Image trop lourde (10 Mo maximum).");
+  }
+  for (const [w, q] of IMAGE_STEPS) {
+    const data = await compressImage(file, w, q);
+    if (data.length <= IMAGE_MAX_CHARS) return data;
+  }
+  throw new Error("Image trop lourde, choisissez-en une plus légère.");
+}
+
+/* ---------- Image d'une ressource : pleine largeur, ratio conservé, clic = agrandir ---------- */
+function ResImage({ src, alt, onOpen }) {
+  const [state, setState] = useState("loading");
+  useEffect(() => {
+    setState("loading");
+  }, [src]);
+
+  return (
+    <button type="button" className="fm-img-open" onClick={onOpen} aria-label="Agrandir l'image">
+      {state === "loading" && <span className="fm-img-state">Chargement de l'image…</span>}
+      {state === "error" ? (
+        <span className="fm-img-state fm-img-err">Image illisible. Remplacez-la ou supprimez-la.</span>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          className="fm-res-img"
+          style={{ opacity: state === "ok" ? 1 : 0 }}
+          onLoad={() => setState("ok")}
+          onError={() => setState("error")}
+        />
+      )}
+      {state === "ok" && <span className="fm-img-zoom">🔍 Agrandir</span>}
+    </button>
+  );
+}
+
+/* ---------- Visionneuse plein écran : zoom, déplacement, légende, texte alternatif ---------- */
+function ImageViewer({ resource, onClose, onField, onRemove, onReplaceFile }) {
+  const [view, setView] = useState({ z: 1, x: 0, y: 0 });
+  const drag = useRef(null);
+
+  function zoomBy(d) {
+    setView((v) => {
+      const z = Math.min(4, Math.max(1, +(v.z + d).toFixed(2)));
+      return z === 1 ? { z: 1, x: 0, y: 0 } : { ...v, z };
+    });
+  }
+  function reset() {
+    setView({ z: 1, x: 0, y: 0 });
+  }
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (/INPUT|TEXTAREA/.test(e.target?.tagName || "")) return;
+      if (e.key === "+" || e.key === "=") zoomBy(0.5);
+      else if (e.key === "-") zoomBy(-0.5);
+      else if (e.key === "0") reset();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onPointerDown(e) {
+    if (view.z <= 1) return;
+    drag.current = { id: e.pointerId, x: e.clientX - view.x, y: e.clientY - view.y };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  function onPointerMove(e) {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    setView((v) => ({ ...v, x: e.clientX - d.x, y: e.clientY - d.y }));
+  }
+  function onPointerUp(e) {
+    if (drag.current && drag.current.id === e.pointerId) drag.current = null;
+  }
+
+  return createPortal(
+    <div className="fm-viewer" role="dialog" aria-modal="true" aria-label="Visionneuse d'image">
+      <div className="fm-vw-bar">
+        <button type="button" className="fm-vw-btn" onClick={() => zoomBy(-0.5)} aria-label="Dézoomer">−</button>
+        <span className="fm-vw-zoom">{Math.round(view.z * 100)}%</span>
+        <button type="button" className="fm-vw-btn" onClick={() => zoomBy(0.5)} aria-label="Zoomer">+</button>
+        <button type="button" className="fm-vw-btn" onClick={reset} aria-label="Taille normale">1:1</button>
+        <button type="button" className="fm-vw-btn fm-vw-close" onClick={onClose} autoFocus aria-label="Fermer">
+          ✕ Fermer
+        </button>
+      </div>
+
+      <div
+        className="fm-vw-stage"
+        style={{ cursor: view.z > 1 ? "grab" : "zoom-in" }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        onDoubleClick={() => setView((v) => (v.z > 1 ? { z: 1, x: 0, y: 0 } : { z: 2.5, x: 0, y: 0 }))}
+        onWheel={(e) => zoomBy(e.deltaY < 0 ? 0.25 : -0.25)}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <img
+          className="fm-vw-img"
+          src={resource.url}
+          alt={resource.alt || resource.label || "Image"}
+          draggable={false}
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})`,
+            transition: drag.current ? "none" : "transform 0.15s ease",
+          }}
+        />
+      </div>
+
+      <div className="fm-vw-panel">
+        <input
+          className="fm-vw-input"
+          value={resource.label || ""}
+          onChange={(e) => onField("label", e.target.value)}
+          placeholder="Légende (affichée sous l'image)"
+          maxLength={100}
+        />
+        <input
+          className="fm-vw-input"
+          value={resource.alt || ""}
+          onChange={(e) => onField("alt", e.target.value)}
+          placeholder="Texte alternatif (décrit l'image pour l'accessibilité)"
+          maxLength={200}
+        />
+        <div className="fm-vw-actions">
+          <label className="fm-vw-btn fm-vw-act" style={{ cursor: "pointer" }}>
+            🔄 Remplacer
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) onReplaceFile(f);
+              }}
+            />
+          </label>
+          <button type="button" className="fm-vw-btn fm-vw-act fm-vw-danger" onClick={onRemove}>
+            🗑 Supprimer
+          </button>
+        </div>
+        <div className="fm-vw-hint">
+          Double-clic ou double-tap pour zoomer. Glissez pour déplacer l'image agrandie. Les changements sont
+          enregistrés avec le bouton « Enregistrer » de la leçon.
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ---------- Éditeur d'une leçon ---------- */
 function LessonEditor({ formation, module, onChange }) {
   const [content, setContent] = useState(module.content || "");
@@ -78,6 +260,7 @@ function LessonEditor({ formation, module, onChange }) {
   const [generating, setGenerating] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [viewIndex, setViewIndex] = useState(null);
 
   const cleanVideo = videoUrl.trim();
   const embed = embedUrl(cleanVideo);
@@ -88,7 +271,14 @@ function LessonEditor({ formation, module, onChange }) {
     const url = (r.url || "").trim();
     const label = (r.label || "").trim();
     if (r.type === "image") {
-      if (url) acc.push({ type: "image", label: label || "Image", url });
+      if (url) {
+        acc.push({
+          type: "image",
+          label: label || "Image",
+          alt: (r.alt || "").trim().slice(0, 200),
+          url,
+        });
+      }
     } else if (r.type === "video") {
       if (url) acc.push({ type: "video", label: label || "Vidéo", url });
     } else if (label && url) {
@@ -150,31 +340,31 @@ function LessonEditor({ formation, module, onChange }) {
     if (!file) return;
     setErr("");
     setMsg("");
-    if (!file.type.startsWith("image/")) {
-      setErr("Choisissez une image (JPG, PNG ou WebP).");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setErr("Image trop lourde (10 Mo maximum).");
-      return;
-    }
     try {
-      let data = await compressImage(file, 1000, 0.8);
-      if (data.length > 380000) data = await compressImage(file, 800, 0.65);
-      if (data.length > 380000) data = await compressImage(file, 600, 0.55);
-      if (data.length > 400000) {
-        setErr("Image trop lourde, choisissez-en une plus légère.");
-        return;
-      }
-      setResources((l) => [...l, { type: "image", label: "", url: data }]);
+      const data = await prepareImage(file);
+      setResources((l) => [...l, { type: "image", label: "", alt: "", url: data }]);
       setAdding(false);
     } catch (e2) {
       setErr(e2.message);
     }
   }
 
+  async function replaceImage(i, file) {
+    setErr("");
+    setMsg("");
+    try {
+      const data = await prepareImage(file);
+      setResources((l) => l.map((r, idx) => (idx === i ? { ...r, url: data } : r)));
+    } catch (e2) {
+      setErr(e2.message);
+    }
+  }
+
   function removeResource(i) {
+    const r = resources[i];
+    if (r?.type === "image" && !window.confirm("Supprimer cette image ?")) return;
     setResources((l) => l.filter((_, idx) => idx !== i));
+    setViewIndex(null);
   }
 
   return (
@@ -237,7 +427,7 @@ function LessonEditor({ formation, module, onChange }) {
             if (r.type === "image") {
               return (
                 <div key={i} className="fm-res fm-res-image">
-                  <img src={r.url} alt={r.label || "Image"} className="fm-res-thumb" />
+                  <ResImage src={r.url} alt={r.alt || r.label || "Image"} onOpen={() => setViewIndex(i)} />
                   <input
                     className="fm-input"
                     value={r.label || ""}
@@ -330,6 +520,16 @@ function LessonEditor({ formation, module, onChange }) {
         </div>
       </div>
 
+      {viewIndex !== null && resources[viewIndex]?.type === "image" && (
+        <ImageViewer
+          resource={resources[viewIndex]}
+          onClose={() => setViewIndex(null)}
+          onField={(field, value) => updateResource(viewIndex, field, value)}
+          onRemove={() => removeResource(viewIndex)}
+          onReplaceFile={(f) => replaceImage(viewIndex, f)}
+        />
+      )}
+
       {/* Feuille imprimée (invisible à l'écran) */}
       <div className="fm-sheet" dir={rtl ? "rtl" : "ltr"}>
         <div className="fm-sheet-kicker">{formation.title}</div>
@@ -366,7 +566,7 @@ function LessonEditor({ formation, module, onChange }) {
               .filter((r) => r.type === "image")
               .map((r, i) => (
                 <figure key={`i${i}`} className="fm-sheet-img">
-                  <img src={r.url} alt={r.label} />
+                  <img src={r.url} alt={r.alt || r.label} />
                   {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
                 </figure>
               ))}
@@ -834,6 +1034,62 @@ export default function Formations() {
         .fm-res .fm-del { position: absolute; right: 0; top: 0.3rem; padding: 0.4rem; }
         .fm-res-image { grid-template-columns: 1fr; }
         .fm-res-thumb { width: 100%; max-width: 14rem; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); }
+        .fm-img-open {
+          position: relative; display: block; width: 100%; padding: 0; min-height: 6rem;
+          border: 1px solid rgba(128,128,128,0.3); border-radius: 10px; overflow: hidden;
+          background: rgba(128,128,128,0.08); cursor: zoom-in; color: inherit;
+        }
+        .fm-res-img {
+          display: block; width: 100%; height: auto; max-height: 70vh;
+          object-fit: contain; transition: opacity 0.2s ease;
+        }
+        .fm-img-state {
+          position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+          padding: 1rem; text-align: center; font-size: 0.85rem; opacity: 0.75;
+        }
+        .fm-img-err { color: #ef4444; opacity: 1; }
+        .fm-img-zoom {
+          position: absolute; right: 0.5rem; bottom: 0.5rem; padding: 0.3rem 0.6rem;
+          border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+          background: rgba(11,11,11,0.7); color: #fff;
+        }
+
+        .fm-viewer {
+          position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column;
+          background: rgba(0,0,0,0.94); color: #fff;
+        }
+        .fm-vw-bar {
+          display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem;
+          padding-top: max(0.6rem, env(safe-area-inset-top));
+        }
+        .fm-vw-zoom { min-width: 3rem; text-align: center; font-size: 0.85rem; }
+        .fm-vw-btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
+          min-width: 44px; height: 44px; padding: 0 0.8rem; border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.08);
+          color: #fff; font-size: 1rem;
+        }
+        .fm-vw-close { margin-left: auto; background: #D4AF37; border-color: #D4AF37; color: #0B0B0B; font-weight: 700; }
+        .fm-vw-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+        .fm-vw-img {
+          position: absolute; inset: 0; width: 100%; height: 100%;
+          object-fit: contain; user-select: none; -webkit-user-drag: none;
+        }
+        .fm-vw-panel {
+          display: grid; gap: 0.5rem; padding: 0.8rem; max-height: 42vh; overflow: auto;
+          padding-bottom: max(0.8rem, env(safe-area-inset-bottom));
+          background: #111; border-top: 1px solid rgba(255,255,255,0.15);
+        }
+        .fm-vw-input {
+          width: 100%; padding: 0.7rem 0.9rem; border-radius: 10px; font-size: 1rem;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25);
+          color: #fff; outline: none;
+        }
+        .fm-vw-input:focus { border-color: #D4AF37; }
+        .fm-vw-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .fm-vw-act { width: 100%; }
+        .fm-vw-danger { color: #fca5a5; border-color: rgba(239,68,68,0.5); }
+        .fm-vw-hint { font-size: 0.75rem; opacity: 0.6; }
         .fm-addbox {
           padding: 0.8rem; border-radius: 12px;
           border: 1px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
@@ -856,7 +1112,7 @@ export default function Formations() {
         @media print {
           @page { size: A4; margin: 15mm; }
           html, body { background: #fff !important; }
-          .no-print, .fm-screen, header, aside { display: none !important; }
+          .no-print, .fm-screen, .fm-viewer, header, aside { display: none !important; }
           .fm-page { max-width: none; }
           .fm-sheet {
             display: block; color: #111; background: #fff; font-family: 'Inter', sans-serif;
@@ -904,4 +1160,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-              }
+}
