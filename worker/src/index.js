@@ -43,6 +43,11 @@ import {
   handleGenerateModule,
 } from "./routes/formations.js";
 import {
+  handleRenameFormation,
+  handleDuplicateFormation,
+  handleArchiveFormation,
+} from "./routes/formation_manage.js";
+import {
   handleListFormations,
   handleGetFormation,
   handleUpdateSettings,
@@ -511,6 +516,15 @@ async function route(request, env, ctx) {
         if (parts[3] === "unpublish") {
           return withCors(await handleUnpublish(request, env, formationId), request);
         }
+        if (parts[3] === "rename") {
+          return withCors(await handleRenameFormation(request, env, formationId), request);
+        }
+        if (parts[3] === "duplicate") {
+          return withCors(await handleDuplicateFormation(request, env, formationId), request);
+        }
+        if (parts[3] === "archive") {
+          return withCors(await handleArchiveFormation(request, env, formationId), request);
+        }
       }
 
       if (parts[3] === "modules" && parts[4]) {
@@ -578,3 +592,4 @@ export default {
     );
   },
 };
+          
