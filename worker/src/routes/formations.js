@@ -1,5 +1,6 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
+import { touchFormation, removeFormationMeta } from "./formation_manage.js";
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -297,6 +298,7 @@ export async function handleDeleteFormation(request, env, formationId) {
     env.DB.prepare("DELETE FROM formation_modules WHERE formation_id = ?").bind(formationId),
     env.DB.prepare("DELETE FROM formations WHERE id = ?").bind(formationId),
   ]);
+  await removeFormationMeta(env, formationId);
 
   return Response.json({ success: true });
 }
@@ -376,6 +378,7 @@ export async function handleUpdateModule(request, env, formationId, moduleId) {
   )
     .bind(content, videoUrl, JSON.stringify(resources), moduleId)
     .run();
+  await touchFormation(env, formationId, payload.sub);
 
   return Response.json({
     module: { id: moduleId, content, video_url: videoUrl, resources },
@@ -431,6 +434,7 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
     await env.DB.prepare("UPDATE formation_modules SET content = ? WHERE id = ?")
       .bind(content, moduleId)
       .run();
+    await touchFormation(env, formationId, payload.sub);
 
     return Response.json({ module: { id: moduleId, content } });
   } catch (err) {
@@ -439,4 +443,5 @@ Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter l
       { status: 502 }
     );
   }
-  }
+}
+  
