@@ -28,6 +28,60 @@ const EXAMPLES = {
   ar: ["إنشاء متجر شوبيفاي مربح", "إطلاق قناتك على يوتيوب", "إتقان التسويق على تيك توك"],
 };
 
+/* Paramètres de création (envoyés au serveur, qui les valide) */
+const OPT_NONE = ["", "Non précisé"];
+const LEVEL_OPTIONS = [OPT_NONE, ["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]];
+const TYPE_OPTIONS = [
+  OPT_NONE, ["pratique", "Pratique"], ["theorique", "Théorique"], ["professionnelle", "Professionnelle"],
+  ["tutoriel", "Tutoriel pas à pas"], ["business", "Business"], ["technique", "Technique"], ["autre", "Autre"],
+];
+const TONE_OPTIONS = [
+  OPT_NONE, ["professionnel", "Professionnel"], ["academique", "Académique"], ["accessible", "Accessible"],
+  ["inspirant", "Inspirant"], ["specialise", "Spécialisé"],
+];
+const DETAIL_OPTIONS = [OPT_NONE, ["concis", "Concis"], ["standard", "Standard"], ["approfondi", "Approfondi"]];
+const STYLE_OPTIONS = [
+  OPT_NONE, ["conversationnel", "Conversationnel"], ["didactique", "Didactique et structuré"],
+  ["narratif", "Narratif (histoires)"], ["actionnable", "Direct et actionnable"],
+];
+const MODULE_COUNT_OPTIONS = [
+  ["auto", "Automatique"],
+  ...Array.from({ length: 10 }, (_, i) => [String(i + 3), `${i + 3} modules`]),
+];
+const EMPTY_BRIEF = {
+  audience: "", level: "", modules_count: "auto", objectives: "", prerequisites: "",
+  duration: "", type: "", tone: "", detail: "", style: "",
+};
+const MAX_PLAN_MODULES = 20;
+
+const labelOf = (options, value) => (options.find((o) => o[0] === value) || [])[1] || "";
+
+function briefSummary(b) {
+  if (!b) return "";
+  const parts = [];
+  if (b.audience) parts.push(`Public : ${b.audience}`);
+  if (b.level) parts.push(`Niveau : ${labelOf(LEVEL_OPTIONS, b.level)}`);
+  if (b.duration) parts.push(`Durée : ${b.duration}`);
+  if (b.type) parts.push(`Type : ${labelOf(TYPE_OPTIONS, b.type)}`);
+  if (b.tone) parts.push(`Ton : ${labelOf(TONE_OPTIONS, b.tone)}`);
+  return parts.join(" · ");
+}
+
+function SelectField({ label, value, onChange, options, disabled }) {
+  return (
+    <label className="fm-field">
+      <span className="fm-flabel">{label}</span>
+      <select className="fm-input" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function youtubeId(url) {
   const m = (url || "").match(
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/
@@ -546,7 +600,7 @@ function LessonEditor({ formation, module, onChange }) {
             {ytId && (
               <a className="fm-sheet-thumb" href={cleanVideo} target="_blank" rel="noreferrer">
                 <img
-        src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
                   alt="Miniature de la vidéo"
                   loading="eager"
                 />
@@ -605,6 +659,14 @@ export default function Formations() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [brief, setBrief] = useState(EMPTY_BRIEF);
+  const [planEdit, setPlanEdit] = useState(false);
+  const [draft, setDraft] = useState([]);
+  const [planDirty, setPlanDirty] = useState(false);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planErr, setPlanErr] = useState("");
+  const [planMsg, setPlanMsg] = useState("");
+  const draftKey = useRef(0);
   const [gen, setGen] = useState({
     running: false,
     done: 0,
@@ -646,16 +708,21 @@ export default function Formations() {
   async function createFormation(e) {
     e?.preventDefault();
     if (topic.trim().length < 5 || creating || gen.running) return;
+    if (planEdit && planDirty && !window.confirm("Abandonner les modifications non enregistrées du plan ?")) return;
     setCreating(true);
     setError("");
     try {
       const data = await api("/formations", {
         method: "POST",
-        body: JSON.stringify({ topic: topic.trim(), language }),
+        body: JSON.stringify({ topic: topic.trim(), language, ...brief }),
       });
       setCurrent(data.formation);
       setActiveId(null);
+      setPlanEdit(false);
+      setPlanDirty(false);
+      setPlanMsg("");
       setTopic("");
+      setBrief(EMPTY_BRIEF);
       resetGen();
       loadList();
     } catch (err) {
@@ -667,12 +734,16 @@ export default function Formations() {
 
   async function openFormation(id) {
     if (gen.running) return;
+    if (planEdit && planDirty && !window.confirm("Abandonner les modifications non enregistrées du plan ?")) return;
     setError("");
     setNotice("");
     try {
       const data = await api(`/formations/${id}`);
       setCurrent(data.formation);
       setActiveId(null);
+      setPlanEdit(false);
+      setPlanDirty(false);
+      setPlanMsg("");
       resetGen();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -692,11 +763,154 @@ export default function Formations() {
       if (current?.id === id) {
         setCurrent(null);
         setActiveId(null);
+        setPlanEdit(false);
+        setPlanDirty(false);
         resetGen();
       }
       loadList();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  /* ----- Plan modifiable : tout se fait sur un brouillon, enregistré en une seule fois ----- */
+  function startPlanEdit() {
+    if (gen.running || !current) return;
+    draftKey.current = 0;
+    setDraft(
+      (current.modules || []).map((m) => ({
+        key: m.id,
+        id: m.id,
+        copy_from: null,
+        title: m.title || "",
+        summary: m.summary || "",
+        objective: m.objective || "",
+        skills: (m.skills || []).join(", "),
+        hasContent: !!(m.content || "").trim(),
+      }))
+    );
+    setPlanDirty(false);
+    setPlanErr("");
+    setPlanMsg("");
+    setPlanEdit(true);
+  }
+
+  function cancelPlanEdit() {
+    if (planDirty && !window.confirm("Abandonner les modifications du plan ?")) return;
+    setPlanEdit(false);
+    setPlanDirty(false);
+    setPlanErr("");
+  }
+
+  function editDraft(key, field, value) {
+    setDraft((l) => l.map((d) => (d.key === key ? { ...d, [field]: value } : d)));
+    setPlanDirty(true);
+  }
+
+  function moveDraft(key, dir) {
+    setDraft((l) => {
+      const i = l.findIndex((d) => d.key === key);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= l.length) return l;
+      const copy = [...l];
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
+    setPlanDirty(true);
+  }
+
+  function removeDraft(key) {
+    const d = draft.find((x) => x.key === key);
+    if (draft.length <= 1) {
+      setPlanErr("Un plan doit garder au moins un module.");
+      return;
+    }
+    if (
+      d?.hasContent &&
+      !window.confirm(
+        `La leçon rédigée de « ${d.title || "ce module"} » sera supprimée quand vous enregistrerez le plan. Continuer ?`
+      )
+    ) {
+      return;
+    }
+    setPlanErr("");
+    setDraft((l) => l.filter((x) => x.key !== key));
+    setPlanDirty(true);
+  }
+
+  function duplicateDraft(key) {
+    if (draft.length >= MAX_PLAN_MODULES) {
+      setPlanErr(`Un plan peut contenir ${MAX_PLAN_MODULES} modules au maximum.`);
+      return;
+    }
+    setPlanErr("");
+    draftKey.current += 1;
+    const newKey = `new-${draftKey.current}`;
+    setDraft((l) => {
+      const i = l.findIndex((d) => d.key === key);
+      if (i < 0) return l;
+      const src = l[i];
+      const copy = {
+        ...src,
+        key: newKey,
+        id: null,
+        copy_from: src.id || src.copy_from || null,
+        title: `${src.title} (copie)`.slice(0, 150),
+      };
+      return [...l.slice(0, i + 1), copy, ...l.slice(i + 1)];
+    });
+    setPlanDirty(true);
+  }
+
+  function addDraft() {
+    if (draft.length >= MAX_PLAN_MODULES) {
+      setPlanErr(`Un plan peut contenir ${MAX_PLAN_MODULES} modules au maximum.`);
+      return;
+    }
+    setPlanErr("");
+    draftKey.current += 1;
+    setDraft((l) => [
+      ...l,
+      {
+        key: `new-${draftKey.current}`, id: null, copy_from: null,
+        title: "", summary: "", objective: "", skills: "", hasContent: false,
+      },
+    ]);
+    setPlanDirty(true);
+  }
+
+  async function savePlan() {
+    if (!current || planSaving) return;
+    if (draft.some((d) => !d.title.trim())) {
+      setPlanErr("Donnez un titre à chaque module.");
+      return;
+    }
+    setPlanSaving(true);
+    setPlanErr("");
+    try {
+      const data = await api(`/formations/${current.id}/plan`, {
+        method: "POST",
+        body: JSON.stringify({
+          modules: draft.map((d) => ({
+            id: d.id || undefined,
+            copy_from: d.id ? undefined : d.copy_from || undefined,
+            title: d.title.trim(),
+            summary: d.summary.trim(),
+            objective: d.objective.trim(),
+            skills: d.skills.split(/[,;،]/).map((x) => x.trim()).filter(Boolean),
+          })),
+        }),
+      });
+      setCurrent((f) => ({ ...f, modules: data.modules }));
+      if (activeId && !data.modules.some((m) => m.id === activeId)) setActiveId(null);
+      setPlanEdit(false);
+      setPlanDirty(false);
+      setPlanMsg("Plan enregistré ✓");
+      loadList();
+    } catch (err) {
+      setPlanErr(err.message);
+    } finally {
+      setPlanSaving(false);
     }
   }
 
@@ -924,6 +1138,104 @@ export default function Formations() {
               </p>
             )}
 
+            <label className="fm-field">
+              <span className="fm-flabel">Public cible (facultatif)</span>
+              <input
+                className="fm-input"
+                value={brief.audience}
+                onChange={(e) => setBrief((b) => ({ ...b, audience: e.target.value }))}
+                placeholder="Ex : entrepreneurs débutants, étudiants, coachs..."
+                maxLength={200}
+                disabled={creating || gen.running}
+              />
+            </label>
+            <div className="fm-grid2">
+              <SelectField
+                label="Niveau"
+                value={brief.level}
+                options={LEVEL_OPTIONS}
+                onChange={(v) => setBrief((b) => ({ ...b, level: v }))}
+                disabled={creating || gen.running}
+              />
+              <SelectField
+                label="Nombre de modules"
+                value={String(brief.modules_count)}
+                options={MODULE_COUNT_OPTIONS}
+                onChange={(v) => setBrief((b) => ({ ...b, modules_count: v }))}
+                disabled={creating || gen.running}
+              />
+            </div>
+
+            <details className="fm-adv">
+              <summary>Options avancées</summary>
+              <div className="fm-adv-body">
+                <label className="fm-field">
+                  <span className="fm-flabel">Objectifs pédagogiques</span>
+                  <textarea
+                    className="fm-input fm-pe-area"
+                    rows={3}
+                    value={brief.objectives}
+                    onChange={(e) => setBrief((b) => ({ ...b, objectives: e.target.value }))}
+                    placeholder="Ce que l'apprenant saura faire à la fin"
+                    maxLength={500}
+                    disabled={creating || gen.running}
+                  />
+                </label>
+                <label className="fm-field">
+                  <span className="fm-flabel">Prérequis</span>
+                  <input
+                    className="fm-input"
+                    value={brief.prerequisites}
+                    onChange={(e) => setBrief((b) => ({ ...b, prerequisites: e.target.value }))}
+                    placeholder="Ex : savoir utiliser un smartphone"
+                    maxLength={300}
+                    disabled={creating || gen.running}
+                  />
+                </label>
+                <label className="fm-field">
+                  <span className="fm-flabel">Durée estimée</span>
+                  <input
+                    className="fm-input"
+                    value={brief.duration}
+                    onChange={(e) => setBrief((b) => ({ ...b, duration: e.target.value }))}
+                    placeholder="Ex : 4 semaines, 6 heures"
+                    maxLength={60}
+                    disabled={creating || gen.running}
+                  />
+                </label>
+                <div className="fm-grid2">
+                  <SelectField
+                    label="Type de formation"
+                    value={brief.type}
+                    options={TYPE_OPTIONS}
+                    onChange={(v) => setBrief((b) => ({ ...b, type: v }))}
+                    disabled={creating || gen.running}
+                  />
+                  <SelectField
+                    label="Ton"
+                    value={brief.tone}
+                    options={TONE_OPTIONS}
+                    onChange={(v) => setBrief((b) => ({ ...b, tone: v }))}
+                    disabled={creating || gen.running}
+                  />
+                  <SelectField
+                    label="Niveau de détail"
+                    value={brief.detail}
+                    options={DETAIL_OPTIONS}
+                    onChange={(v) => setBrief((b) => ({ ...b, detail: v }))}
+                    disabled={creating || gen.running}
+                  />
+                  <SelectField
+                    label="Style rédactionnel"
+                    value={brief.style}
+                    options={STYLE_OPTIONS}
+                    onChange={(v) => setBrief((b) => ({ ...b, style: v }))}
+                    disabled={creating || gen.running}
+                  />
+                </div>
+              </div>
+            </details>
+
             <button
               type="submit"
               className="btn-primary fm-btn"
@@ -944,7 +1256,89 @@ export default function Formations() {
                   {current.description}
                 </p>
               )}
+              {briefSummary(current.brief) && <p className="fm-muted fm-small">{briefSummary(current.brief)}</p>}
+              {planMsg && !planEdit && <div className="fm-ok" style={{ marginTop: "0.6rem" }}>{planMsg}</div>}
 
+              {planEdit ? (
+                <div>
+                  <p className="fm-muted fm-small" style={{ marginTop: "0.8rem" }}>
+                    Modifiez, ajoutez, dupliquez, supprimez ou réordonnez les modules. Rien n'est enregistré tant que
+                    vous n'appuyez pas sur « Enregistrer le plan ».
+                  </p>
+                  <ol className="fm-modules">
+                    {draft.map((d, i) => (
+                      <li key={d.key} className="fm-pe">
+                        <div className="fm-pe-head">
+                          <span className="fm-num">{i + 1}</span>
+                          <div className="fm-pe-tools">
+                            <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, -1)} disabled={i === 0} aria-label="Monter le module">↑</button>
+                            <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, 1)} disabled={i === draft.length - 1} aria-label="Descendre le module">↓</button>
+                            <button type="button" className="fm-pe-btn" onClick={() => duplicateDraft(d.key)} aria-label="Dupliquer le module">⧉</button>
+                            <button type="button" className="fm-pe-btn fm-pe-del" onClick={() => removeDraft(d.key)} aria-label="Supprimer le module">🗑</button>
+                          </div>
+                        </div>
+                        <input
+                          className="fm-input"
+                          value={d.title}
+                          onChange={(e) => editDraft(d.key, "title", e.target.value)}
+                          placeholder="Titre du module"
+                          maxLength={150}
+                          aria-label="Titre du module"
+                        />
+                        <textarea
+                          className="fm-input fm-pe-area"
+                          rows={2}
+                          value={d.summary}
+                          onChange={(e) => editDraft(d.key, "summary", e.target.value)}
+                          placeholder="Description du module"
+                          maxLength={400}
+                          aria-label="Description du module"
+                        />
+                        <input
+                          className="fm-input"
+                          value={d.objective}
+                          onChange={(e) => editDraft(d.key, "objective", e.target.value)}
+                          placeholder="Objectif pédagogique"
+                          maxLength={400}
+                          aria-label="Objectif pédagogique"
+                        />
+                        <input
+                          className="fm-input"
+                          value={d.skills}
+                          onChange={(e) => editDraft(d.key, "skills", e.target.value)}
+                          placeholder="Compétences à acquérir (séparées par des virgules)"
+                          aria-label="Compétences à acquérir"
+                        />
+                        {!d.id && (
+                          <div className="fm-muted fm-small">
+                            {d.copy_from
+                              ? "Copie : le texte, la vidéo et les ressources de la leçon sont repris."
+                              : "Nouveau module : leçon à rédiger."}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                  <button
+                    type="button"
+                    className="fm-btn fm-btn-outline"
+                    style={{ marginTop: "0.8rem" }}
+                    onClick={addDraft}
+                    disabled={planSaving}
+                  >
+                    + Ajouter un module
+                  </button>
+                  {planErr && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{planErr}</div>}
+                  <div className="fm-rename-actions" style={{ marginTop: "1rem" }}>
+                    <button type="button" className="fm-btn fm-btn-gold" style={{ marginBottom: 0 }} onClick={savePlan} disabled={planSaving}>
+                      {planSaving ? "Enregistrement..." : "💾 Enregistrer le plan"}
+                    </button>
+                    <button type="button" className="fm-btn fm-btn-outline" onClick={cancelPlanEdit} disabled={planSaving}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <ol className="fm-modules">
                 {(current.modules || []).map((m, i) => {
                   const isCurrent = gen.running && gen.currentTitle === m.title;
@@ -959,6 +1353,10 @@ export default function Formations() {
                         <div style={{ flex: 1, textAlign: "left" }}>
                           <div className="fm-module-title">{m.title}</div>
                           {m.summary && <div className="fm-muted fm-small">{m.summary}</div>}
+                          {m.objective && <div className="fm-muted fm-small">🎯 {m.objective}</div>}
+                          {m.skills && m.skills.length > 0 && (
+                            <div className="fm-muted fm-small">Compétences : {m.skills.join(", ")}</div>
+                          )}
                         </div>
                         <span className="fm-state">
                           {isCurrent ? "⏳ En cours..." : m.content ? "✓ Rédigée" : "À rédiger"}
@@ -968,8 +1366,9 @@ export default function Formations() {
                   );
                 })}
               </ol>
+              )}
 
-              {gen.running ? (
+              {planEdit ? null : gen.running ? (
                 <div className="fm-progress-box">
                   <div className="fm-progress-top">
                     <span>
@@ -989,7 +1388,13 @@ export default function Formations() {
                 </div>
               ) : (
                 <>
-                  <button className="fm-btn fm-btn-gold" style={{ marginTop: "1.2rem", marginBottom: 0 }} onClick={generateAll}>
+                  <p className="fm-muted fm-small" style={{ marginTop: "1rem" }}>
+                    Relisez le plan : vous pouvez le modifier avant de générer les leçons.
+                  </p>
+                  <button className="fm-btn fm-btn-outline" style={{ marginTop: "0.6rem" }} onClick={startPlanEdit}>
+                    ✏️ Modifier le plan
+                  </button>
+                  <button className="fm-btn fm-btn-gold" style={{ marginTop: "0.8rem", marginBottom: 0 }} onClick={generateAll}>
                     {emptyCount > 0
                       ? `✨ Générer toute la formation (${emptyCount} ${emptyCount > 1 ? "leçons" : "leçon"})`
                       : "🔁 Tout régénérer"}
@@ -1120,7 +1525,7 @@ export default function Formations() {
                           </form>
                         ) : (
                           <button className="fm-item-main" onClick={() => openFormation(f.id)}>
-                    <span className="fm-module-title">{f.title}</span>
+                            <span className="fm-module-title">{f.title}</span>
                             <span className="fm-muted fm-small">
                               {total} module{total > 1 ? "s" : ""}
                               {written !== undefined ? ` · ${written}/${total} rédigées` : ""}
@@ -1180,7 +1585,7 @@ export default function Formations() {
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
         }
         .fm-input {
-          width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
+          box-sizing: border-box; width: 100%; padding: 0.8rem 1rem; border-radius: 10px; font-size: 1rem;
           background: rgba(128,128,128,0.12); border: 1px solid rgba(128,128,128,0.3);
           color: inherit; outline: none;
         }
@@ -1317,6 +1722,26 @@ export default function Formations() {
           display: flex; flex-wrap: wrap; align-items: center; border-radius: 12px;
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
         }
+        .fm-field { display: block; margin-bottom: 0.8rem; }
+        .fm-flabel { display: block; font-size: 0.8rem; font-weight: 600; opacity: 0.75; margin-bottom: 0.3rem; }
+        .fm-grid2 { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 0.8rem; }
+        .fm-grid2 .fm-field { margin-bottom: 0; }
+        .fm-adv { margin: 0.2rem 0 1rem; border: 1px dashed rgba(128,128,128,0.4); border-radius: 12px; padding: 0.6rem 0.8rem; }
+        .fm-adv summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 0.3rem 0; list-style-position: inside; }
+        .fm-adv-body { margin-top: 0.8rem; }
+        .fm-pe {
+          display: grid; gap: 0.5rem; padding: 0.8rem; border-radius: 12px;
+          border: 1px solid rgba(128,128,128,0.3); background: rgba(128,128,128,0.06);
+        }
+        .fm-pe-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .fm-pe-tools { display: flex; gap: 0.35rem; }
+        .fm-pe-btn {
+          min-width: 44px; height: 44px; border-radius: 10px; font-size: 1.05rem;
+          border: 1px solid rgba(128,128,128,0.4); background: transparent; color: inherit;
+        }
+        .fm-pe-btn:disabled { opacity: 0.35; }
+        .fm-pe-del { border-color: rgba(239,68,68,0.5); }
+        .fm-pe-area { min-height: 3.2rem; line-height: 1.5; resize: vertical; font-family: inherit; }
         .fm-toolbar { display: grid; gap: 0.6rem; margin-bottom: 1rem; }
         @media (min-width: 560px) { .fm-toolbar { grid-template-columns: 1fr 14rem; } }
         .fm-item-actions {
@@ -1391,5 +1816,4 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-                              }
-        
+}
