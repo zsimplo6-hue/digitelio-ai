@@ -1,5 +1,6 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
+import { ensureMetaTable, touchFormation } from "./formation_manage.js";
 
 async function getAuthenticatedUser(request, env) {
   const cookies = parseCookies(request);
@@ -134,17 +135,37 @@ export async function handleListFormations(request, env) {
   const payload = await getAuthenticatedUser(request, env);
   if (!payload) return unauthorized();
 
-  const { results } = await env.DB.prepare(
-    `SELECT f.id, f.title, f.description, f.language, f.status, f.price, f.currency, f.created_at,
-            (SELECT COUNT(*) FROM formation_modules m WHERE m.formation_id = f.id) AS modules_count
-     FROM formations f
-     WHERE f.user_id = ?
-     ORDER BY f.created_at DESC`
-  )
-    .bind(payload.sub)
-    .all();
-
-  return Response.json({ formations: results });
+  /* Version enrichie : date de dernière modification, archivage, leçons rédigées.
+     Si la table annexe est indisponible, on retombe sur la requête d'origine. */
+  try {
+    await ensureMetaTable(env);
+    const { results } = await env.DB.prepare(
+      `SELECT f.id, f.title, f.description, f.language, f.status, f.price, f.currency, f.created_at,
+              COALESCE(fm.updated_at, f.created_at) AS updated_at,
+              COALESCE(fm.archived, 0) AS archived,
+              (SELECT COUNT(*) FROM formation_modules m WHERE m.formation_id = f.id) AS modules_count,
+              (SELECT COUNT(*) FROM formation_modules m
+                 WHERE m.formation_id = f.id AND COALESCE(m.content, '') <> '') AS written_count
+       FROM formations f
+       LEFT JOIN formation_meta fm ON fm.formation_id = f.id
+       WHERE f.user_id = ?
+       ORDER BY COALESCE(fm.updated_at, f.created_at) DESC`
+    )
+      .bind(payload.sub)
+      .all();
+    return Response.json({ formations: results });
+  } catch {
+    const { results } = await env.DB.prepare(
+      `SELECT f.id, f.title, f.description, f.language, f.status, f.price, f.currency, f.created_at,
+              (SELECT COUNT(*) FROM formation_modules m WHERE m.formation_id = f.id) AS modules_count
+       FROM formations f
+       WHERE f.user_id = ?
+       ORDER BY f.created_at DESC`
+    )
+      .bind(payload.sub)
+      .all();
+    return Response.json({ formations: results });
+  }
 }
 
 /* Lecture d'une formation */
@@ -250,6 +271,7 @@ export async function handleUpdateSettings(request, env, formationId) {
   )
     .bind(price, cover, certificate, currency, formationId, payload.sub)
     .run();
+  await touchFormation(env, formationId, payload.sub);
 
   const finalCurrency = currency || owned.currency || "EUR";
   const finalPrice = price !== null ? price : owned.price;
