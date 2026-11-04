@@ -348,7 +348,8 @@ export async function handleUpdateModule(request, env, formationId, moduleId) {
             { status: 400 }
           );
         }
-        resources.push({ type: "image", label: label || "Image", url });
+        const alt = String(r?.alt || "").trim().slice(0, 200);
+        resources.push({ type: "image", label: label || "Image", alt, url });
         continue;
       }
 
