@@ -546,7 +546,7 @@ function LessonEditor({ formation, module, onChange }) {
             {ytId && (
               <a className="fm-sheet-thumb" href={cleanVideo} target="_blank" rel="noreferrer">
                 <img
-                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+        src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
                   alt="Miniature de la vidéo"
                   loading="eager"
                 />
@@ -598,6 +598,13 @@ export default function Formations() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [showArchived, setShowArchived] = useState(false);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [busyId, setBusyId] = useState(null);
   const [gen, setGen] = useState({
     running: false,
     done: 0,
@@ -661,6 +668,7 @@ export default function Formations() {
   async function openFormation(id) {
     if (gen.running) return;
     setError("");
+    setNotice("");
     try {
       const data = await api(`/formations/${id}`);
       setCurrent(data.formation);
@@ -674,7 +682,11 @@ export default function Formations() {
 
   async function removeFormation(id) {
     if (gen.running) return;
-    if (!window.confirm("Supprimer cette formation ?")) return;
+    const f = formations.find((x) => x.id === id);
+    const label = f?.title ? `« ${f.title} »` : "cette formation";
+    if (!window.confirm(`Supprimer ${label} ? Cette action est définitive.`)) return;
+    setError("");
+    setNotice("");
     try {
       await api(`/formations/${id}`, { method: "DELETE" });
       if (current?.id === id) {
@@ -687,6 +699,93 @@ export default function Formations() {
       setError(err.message);
     }
   }
+
+  function startRename(f) {
+    if (gen.running) return;
+    setRenamingId(f.id);
+    setRenameValue(f.title || "");
+  }
+
+  async function submitRename(id) {
+    const title = renameValue.trim();
+    if (title.length < 3) {
+      setError("Le titre doit contenir au moins 3 caractères.");
+      return;
+    }
+    setBusyId(id);
+    setError("");
+    setNotice("");
+    try {
+      const data = await api(`/formations/${id}/rename`, {
+        method: "POST",
+        body: JSON.stringify({ title }),
+      });
+      setRenamingId(null);
+      if (current?.id === id) setCurrent((f) => ({ ...f, title: data.title }));
+      await loadList();
+      setNotice("Formation renommée ✓");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function duplicateFormation(id) {
+    if (gen.running || busyId) return;
+    setBusyId(id);
+    setError("");
+    setNotice("");
+    try {
+      const data = await api(`/formations/${id}/duplicate`, { method: "POST" });
+      await loadList();
+      setNotice(`Copie créée : « ${data.title} » ✓`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function archiveFormation(id, archived) {
+    if (gen.running || busyId) return;
+    setBusyId(id);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/formations/${id}/archive`, {
+        method: "POST",
+        body: JSON.stringify({ archived }),
+      });
+      await loadList();
+      setNotice(archived ? "Formation archivée ✓ (retrouvez-la dans « Archivées »)" : "Formation restaurée ✓");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function fmtDate(value) {
+    if (!value) return "";
+    const d = new Date(String(value).includes("T") ? value : `${String(value).replace(" ", "T")}Z`);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  const activeCount = formations.filter((f) => !f.archived).length;
+  const archivedCount = formations.length - activeCount;
+  const q = search.trim().toLowerCase();
+  const visibleFormations = formations
+    .filter((f) => (showArchived ? !!f.archived : !f.archived))
+    .filter((f) => !q || String(f.title || "").toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (sort === "az") return String(a.title).localeCompare(String(b.title), "fr", { sensitivity: "base" });
+      if (sort === "za") return String(b.title).localeCompare(String(a.title), "fr", { sensitivity: "base" });
+      const da = String(a.updated_at || a.created_at || "");
+      const db = String(b.updated_at || b.created_at || "");
+      return sort === "old" ? da.localeCompare(db) : db.localeCompare(da);
+    });
 
   function patchModule(patch) {
     setCurrent((f) => ({
@@ -926,26 +1025,144 @@ export default function Formations() {
 
         <div className="fm-screen no-print">
           <div className="fm-label" style={{ marginTop: "2rem" }}>Mes formations</div>
+          {notice && <div className="fm-ok" style={{ marginTop: 0, marginBottom: "0.8rem" }}>{notice}</div>}
           {loading ? (
             <p className="fm-muted">Chargement...</p>
           ) : formations.length === 0 ? (
             <p className="fm-muted">Aucune formation pour le moment.</p>
           ) : (
-            <div className="fm-list">
-              {formations.map((f) => (
-                <div key={f.id} className="fm-item">
-                  <button className="fm-item-main" onClick={() => openFormation(f.id)}>
+            <>
+              <div className="fm-tabs">
+                <button
+                  type="button"
+                  className={!showArchived ? "fm-tab on" : "fm-tab"}
+                  onClick={() => setShowArchived(false)}
+                >
+                  Actives ({activeCount})
+                </button>
+                <button
+                  type="button"
+                  className={showArchived ? "fm-tab on" : "fm-tab"}
+                  onClick={() => setShowArchived(true)}
+                >
+                  Archivées ({archivedCount})
+                </button>
+              </div>
+
+              <div className="fm-toolbar">
+                <input
+                  className="fm-input"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="🔎 Rechercher une formation"
+                  aria-label="Rechercher une formation"
+                />
+                <select
+                  className="fm-input"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Trier les formations"
+                >
+                  <option value="recent">Modifiées récemment</option>
+                  <option value="old">Plus anciennes d'abord</option>
+                  <option value="az">Titre A → Z</option>
+                  <option value="za">Titre Z → A</option>
+                </select>
+              </div>
+
+              {visibleFormations.length === 0 ? (
+                <p className="fm-muted">
+                  {q
+                    ? "Aucune formation ne correspond à votre recherche."
+                    : showArchived
+                    ? "Aucune formation archivée."
+                    : "Aucune formation active."}
+                </p>
+              ) : (
+                <div className="fm-list">
+                  {visibleFormations.map((f) => {
+                    const total = f.modules_count ?? 0;
+                    const written = f.written_count;
+                    const busy = busyId === f.id;
+                    const date = fmtDate(f.updated_at || f.created_at);
+                    return (
+                      <div key={f.id} className="fm-item">
+                        {renamingId === f.id ? (
+                          <form
+                            className="fm-rename"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              submitRename(f.id);
+                            }}
+                          >
+                            <input
+                              className="fm-input"
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              maxLength={200}
+                              autoFocus
+                              aria-label="Nouveau titre"
+                            />
+                            <div className="fm-rename-actions">
+                              <button type="submit" className="fm-btn fm-btn-gold" style={{ marginBottom: 0 }} disabled={busy}>
+                                {busy ? "..." : "Valider"}
+                              </button>
+                              <button
+                                type="button"
+                                className="fm-btn fm-btn-outline"
+                                onClick={() => setRenamingId(null)}
+                                disabled={busy}
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button className="fm-item-main" onClick={() => openFormation(f.id)}>
                     <span className="fm-module-title">{f.title}</span>
-                    <span className="fm-muted fm-small">
-                      {f.modules_count ?? 0} modules
-                    </span>
-                  </button>
-                  <button className="fm-del" onClick={() => removeFormation(f.id)} aria-label="Supprimer">
-                    ✕
-                  </button>
+                            <span className="fm-muted fm-small">
+                              {total} module{total > 1 ? "s" : ""}
+                              {written !== undefined ? ` · ${written}/${total} rédigées` : ""}
+                              {" · "}
+                              {f.status === "published" ? "Publiée" : "Brouillon"}
+                              {date ? ` · Modifiée le ${date}` : ""}
+                            </span>
+                          </button>
+                        )}
+                        {renamingId !== f.id && (
+                          <div className="fm-item-actions">
+                            <button type="button" className="fm-act" onClick={() => startRename(f)} disabled={busy || gen.running}>
+                              ✏️ Renommer
+                            </button>
+                            <button type="button" className="fm-act" onClick={() => duplicateFormation(f.id)} disabled={busy || gen.running}>
+                              {busy ? "…" : "⧉ Dupliquer"}
+                            </button>
+                            <button
+                              type="button"
+                              className="fm-act"
+                              onClick={() => archiveFormation(f.id, !f.archived)}
+                              disabled={busy || gen.running}
+                            >
+                              {f.archived ? "♻️ Restaurer" : "🗄 Archiver"}
+                            </button>
+                            <button
+                              type="button"
+                              className="fm-act fm-act-danger"
+                              onClick={() => removeFormation(f.id)}
+                              disabled={busy || gen.running}
+                              aria-label="Supprimer"
+                            >
+                              ✕ Supprimer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1097,9 +1314,23 @@ export default function Formations() {
         .fm-addrow { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         .fm-list { display: grid; gap: 0.6rem; }
         .fm-item {
-          display: flex; align-items: center; border-radius: 12px;
+          display: flex; flex-wrap: wrap; align-items: center; border-radius: 12px;
           background: rgba(128,128,128,0.10); border: 1px solid rgba(128,128,128,0.25);
         }
+        .fm-toolbar { display: grid; gap: 0.6rem; margin-bottom: 1rem; }
+        @media (min-width: 560px) { .fm-toolbar { grid-template-columns: 1fr 14rem; } }
+        .fm-item-actions {
+          display: flex; flex-wrap: wrap; gap: 0.4rem; width: 100%;
+          padding: 0.5rem 0.8rem 0.7rem; border-top: 1px solid rgba(128,128,128,0.2);
+        }
+        .fm-act {
+          font-size: 0.78rem; padding: 0.45rem 0.7rem; min-height: 40px; border-radius: 999px;
+          border: 1px solid rgba(128,128,128,0.35); background: transparent; color: inherit;
+        }
+        .fm-act:disabled { opacity: 0.5; }
+        .fm-act-danger { color: #ef4444; border-color: rgba(239,68,68,0.45); }
+        .fm-rename { width: 100%; display: grid; gap: 0.6rem; padding: 0.8rem; }
+        .fm-rename-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
         .fm-item-main {
           flex: 1; text-align: left; padding: 0.9rem 1rem; display: flex;
           flex-direction: column; background: transparent; color: inherit; border: 0;
@@ -1160,4 +1391,5 @@ export default function Formations() {
       `}</style>
     </DashboardLayout>
   );
-}
+                              }
+        
