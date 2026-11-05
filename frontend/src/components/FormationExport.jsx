@@ -69,7 +69,58 @@ export async function printFormation(template = "academy", language = "fr") {
   window.addEventListener("afterprint", cleanup);
   document.addEventListener("pointerdown", cleanup);
 
+  await waitForImages(document.querySelector(".fx-doc"));
   setTimeout(() => window.print(), 300);
+}
+
+/* Attend que les images (miniatures de vidéos incluses) soient chargées avant d'imprimer */
+async function waitForImages(root, timeoutMs = 6000) {
+  if (!root) return;
+  const pending = [...root.querySelectorAll("img")].filter((img) => !img.complete);
+  if (!pending.length) return;
+  await Promise.race([
+    Promise.all(
+      pending.map(
+        (img) =>
+          new Promise((resolve) => {
+            img.addEventListener("load", resolve, { once: true });
+            img.addEventListener("error", resolve, { once: true });
+          })
+      )
+    ),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+/* Carte vidéo : vignette (YouTube) ou fond neutre, titre éventuel, bouton et lien cliquable */
+function VideoCard({ url, title, T }) {
+  const yt = youtubeId(url);
+  return (
+    <div className="fx-vcard">
+      <a className="fx-thumb" href={url} target="_blank" rel="noreferrer">
+        {yt && (
+          <img
+            src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`}
+            alt={T.thumb}
+            loading="eager"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+        <span className="fx-play">▶</span>
+      </a>
+      <div className="fx-vbody">
+        {title && <div className="fx-vtitle">{title}</div>}
+        <a className="fx-btn" href={url} target="_blank" rel="noreferrer">
+          {T.watch}
+        </a>
+        <a className="fx-vurl" href={url} target="_blank" rel="noreferrer">
+          {url}
+        </a>
+      </div>
+    </div>
+  );
 }
 
 export default function FormationDoc({ formation, language = "fr", template = "academy", brand = {} }) {
@@ -151,10 +202,15 @@ export default function FormationDoc({ formation, language = "fr", template = "a
       {/* MODULES */}
       {all.map((m, i) => {
         if (!(m.content || "").trim()) return null;
-        const yt = youtubeId(m.video_url);
         const res = (m.resources || []).filter((r) => r.label && r.url);
         const imgs = res.filter((r) => r.type === "image");
-        const links = res.filter((r) => r.type !== "image");
+        const links = res.filter((r) => r.type !== "image" && r.type !== "video");
+        const videos = [
+          ...(m.video_url ? [{ url: m.video_url, title: "" }] : []),
+          ...res
+            .filter((r) => r.type === "video")
+            .map((r) => ({ url: r.url, title: r.label && r.label !== "Vidéo" ? r.label : "" })),
+        ];
         return (
           <section key={m.id} className={`fx-module${MODULE_PER_PAGE ? " fx-newpage" : ""}`}>
             <div className="fx-head">
@@ -163,22 +219,16 @@ export default function FormationDoc({ formation, language = "fr", template = "a
             </div>
             <div className="fx-lesson" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
 
-            {m.video_url && (
+            {videos.length > 0 && (
               <div className="fx-video">
                 <h3 className="fx-h3">{T.video}</h3>
-                {yt && (
-                  <a className="fx-thumb" href={m.video_url} target="_blank" rel="noreferrer">
-                    <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt={T.thumb} />
-                    <span className="fx-play">▶</span>
-                  </a>
-                )}
-                <a className="fx-btn" href={m.video_url} target="_blank" rel="noreferrer">
-                  {T.watch}
-                </a>
+                {videos.map((v, k) => (
+                  <VideoCard key={k} url={v.url} title={v.title} T={T} />
+                ))}
               </div>
             )}
 
-            {res.length > 0 && (
+            {(imgs.length > 0 || links.length > 0) && (
               <div className="fx-res">
                 <h3 className="fx-h3">{T.res}</h3>
                 {imgs.map((r, k) => (
@@ -480,36 +530,42 @@ export default function FormationDoc({ formation, language = "fr", template = "a
             color: var(--ink);
             break-after: avoid;
           }
-          .fx-video { break-inside: avoid; }
+          .fx-video { margin-top: 0.4rem; }
+          .fx-vcard {
+            break-inside: avoid;
+            margin: 0 0 6mm;
+            overflow: hidden;
+            border: 0.3mm solid rgba(0,0,0,0.14);
+            border-radius: 3mm;
+            background: rgba(0,0,0,0.03);
+          }
           .fx-thumb {
             position: relative;
             display: block;
             width: 100%;
-            max-width: 68mm;
             aspect-ratio: 16 / 9;
-            border-radius: 6px;
-            overflow: hidden;
+            background: linear-gradient(135deg, #15110a, #3d3010);
             text-decoration: none !important;
           }
           .fx-thumb img {
-            display: block;
-            width: 100%;
-            height: 100%;
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
             object-fit: cover;
           }
           .fx-play {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 12mm; height: 12mm; border-radius: 50%;
-            background: rgba(11,11,11,0.75);
+            width: 14mm; height: 14mm; border-radius: 50%;
+            background: rgba(11,11,11,0.78);
             color: #fff;
             display: flex; align-items: center; justify-content: center;
-            font-size: 1rem; padding-left: 1mm;
+            font-size: 1.2rem; padding-left: 1mm;
           }
+          .fx-vbody { padding: 4mm 5mm 5mm; }
+          .fx-vtitle { font-family: var(--b-font); font-weight: 700; font-size: 1rem; margin-bottom: 2mm; color: var(--ink); }
           .fx-btn {
             display: inline-block;
-            margin-top: 0.5rem;
             padding: 0.5rem 0.95rem;
             border-radius: 6px;
             background: var(--accent);
@@ -519,15 +575,20 @@ export default function FormationDoc({ formation, language = "fr", template = "a
             font-size: 0.9rem;
             text-decoration: none !important;
           }
-          .fx-res-img { margin: 0 0 5mm; break-inside: avoid; }
+          .fx-vurl {
+            display: block; margin-top: 2.5mm; font-size: 0.78rem; opacity: 0.75;
+            color: var(--ink) !important; word-break: break-all; overflow-wrap: anywhere;
+          }
+          .fx-res-img { margin: 0 0 6mm; break-inside: avoid; text-align: center; }
           .fx-res-img img {
             display: block;
-            max-width: 100%;
-            max-height: 110mm;
+            width: 100%;
+            height: auto;
+            max-height: 225mm;
             object-fit: contain;
-            border-radius: 4px;
+            border-radius: 3mm;
           }
-          .fx-res-img figcaption { font-size: 0.8rem; color: #666; margin-top: 1.5mm; }
+          .fx-res-img figcaption { font-size: 0.82rem; color: #666; margin-top: 2mm; text-align: center; }
           .fx-res ul { padding-left: 1.3rem; margin: 0; break-inside: avoid; }
           .fx-res li { margin: 0.25rem 0; }
           .fx-res a { color: var(--ink); text-decoration: underline; }
