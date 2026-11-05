@@ -119,8 +119,21 @@ export default function CreateEbook() {
   }
 
   return (
-    <DashboardLayout title="Créer un eBook">
-      <form onSubmit={handleGenerate} style={{ maxWidth: "42rem" }}>
+    <DashboardLayout>
+      <div className="eb-wrap">
+        <section className="eb-hero eb-hero--create">
+          <div className="eb-kicker">Studio d'eBooks</div>
+          <h1 className="eb-hero-title">Créer un eBook</h1>
+          <p className="eb-hero-sub">Donnez un titre et une idée : l'IA construit le plan, rédige chaque chapitre et prépare un PDF premium.</p>
+          <ol className="eb-steps">
+            <li className={phase === "idle" ? "on" : "done"}><i>1</i>Idée</li>
+            <li className={phase === "plan" ? "on" : phase === "idle" ? "" : "done"}><i>2</i>Plan</li>
+            <li className={phase === "writing" ? "on" : phase === "done" ? "done" : ""}><i>3</i>Rédaction</li>
+            <li className={phase === "done" ? "on" : ""}><i>4</i>PDF</li>
+          </ol>
+        </section>
+      </div>
+      <form onSubmit={handleGenerate} className="eb-form">
         <Card>
           <Input
             label="Titre de votre eBook *"
@@ -156,11 +169,17 @@ export default function CreateEbook() {
             </p>
           )}
 
-          <Select label="Longueur" value={chapters} onChange={(e) => setChapters(e.target.value)} disabled={busy}>
-            <option value="5">Court : 5 chapitres</option>
-            <option value="8">Standard : 8 chapitres</option>
-            <option value="12">Complet : 12 chapitres</option>
-          </Select>
+          <div className="dg-field">
+            <label className="dg-field__label">Longueur</label>
+            <div className="eb-lengths" role="radiogroup" aria-label="Longueur">
+              {[["5", "Court", "5 chapitres"], ["8", "Standard", "8 chapitres"], ["12", "Complet", "12 chapitres"]].map(([v, t, d]) => (
+                <button key={v} type="button" role="radio" aria-checked={chapters === v} className={chapters === v ? "on" : ""} onClick={() => setChapters(v)} disabled={busy}>
+                  <b>{t}</b>
+                  <span>{d}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {error && <div className="dg-alert dg-alert--error">{error}</div>}
 
@@ -175,7 +194,7 @@ export default function CreateEbook() {
       </form>
 
       {phase === "writing" && (
-        <Card className="dg-mt-6" style={{ maxWidth: "42rem" }}>
+        <Card className="dg-mt-6 eb-form-card">
           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
             <span>
               Partie {Math.min(progress.done + 1, progress.total)} sur {progress.total}
@@ -204,7 +223,7 @@ export default function CreateEbook() {
       )}
 
       {ebook && (phase === "writing" || phase === "done") && (
-        <Card className="dg-mt-6" style={{ maxWidth: "42rem" }}>
+        <Card className="dg-mt-6 eb-form-card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <h2 className="dg-card__title" style={{ fontSize: 20 }}>{ebook.title}</h2>
             {phase === "done" && (
