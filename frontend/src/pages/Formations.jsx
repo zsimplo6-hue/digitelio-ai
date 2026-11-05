@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
+import FormationPreview from "../components/FormationPreview.jsx";
+import { formationThemeVars } from "../utils/formationTemplates.js";
 import { renderMarkdown } from "../utils/markdown.js";
 import { LANGUAGES } from "../utils/templates.js";
 
@@ -65,6 +67,18 @@ function briefSummary(b) {
   if (b.type) parts.push(`Type : ${labelOf(TYPE_OPTIONS, b.type)}`);
   if (b.tone) parts.push(`Ton : ${labelOf(TONE_OPTIONS, b.tone)}`);
   return parts.join(" · ");
+}
+
+/* Informations du brief sous forme de pastilles lisibles (au lieu d'une longue phrase) */
+function briefChips(b) {
+  if (!b) return [];
+  const out = [];
+  if (b.audience) out.push(["Public cible", b.audience]);
+  if (b.level) out.push(["Niveau", labelOf(LEVEL_OPTIONS, b.level)]);
+  if (b.duration) out.push(["Durée", b.duration]);
+  if (b.type) out.push(["Type", labelOf(TYPE_OPTIONS, b.type)]);
+  if (b.tone) out.push(["Ton", labelOf(TONE_OPTIONS, b.tone)]);
+  return out;
 }
 
 function SelectField({ label, value, onChange, options, disabled }) {
@@ -213,6 +227,47 @@ function PreviewVideo({ url, title }) {
         </a>
       )}
     </figure>
+  );
+}
+
+/* Médias d'un module dans l'aperçu réel de la formation : vidéos intégrées, images pleine largeur, liens */
+function ModuleMedia({ module }) {
+  const res = (module.resources || []).filter((r) => r && r.url);
+  const media = buildMedia((module.video_url || "").trim(), res);
+  if (!media.videos.length && !media.images.length && !media.links.length) return null;
+  return (
+    <div className="fp-media">
+      {media.videos.map((v, i) => {
+        const emb = embedUrl(v.url);
+        return (
+          <figure key={`v${i}`}>
+            {v.title && <figcaption className="fp-vtitle">▶ {v.title}</figcaption>}
+            {emb ? (
+              <div className="fm-video">
+                <iframe src={emb} title={v.title || "Vidéo"} allowFullScreen loading="lazy" />
+              </div>
+            ) : (
+              <a href={v.url} target="_blank" rel="noreferrer">▶ Ouvrir la vidéo ↗</a>
+            )}
+          </figure>
+        );
+      })}
+      {media.images.map((r, i) => (
+        <figure key={`i${i}`}>
+          <img src={r.url} alt={r.alt || r.label || ""} decoding="async" loading="lazy" />
+          {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
+        </figure>
+      ))}
+      {media.links.length > 0 && (
+        <ul className="fp-links">
+          {media.links.map((r, i) => (
+            <li key={`l${i}`}>
+              <a href={r.url} target="_blank" rel="noreferrer">{r.label || r.url}</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -562,7 +617,7 @@ function LibraryDrawer({ title, onClose, children }) {
 }
 
 /* ---------- Éditeur d'une leçon ---------- */
-function LessonEditor({ formation, module, onChange }) {
+function LessonEditor({ formation, module, onChange, themeVars }) {
   const [content, setContent] = useState(module.content || "");
   const [videoUrl, setVideoUrl] = useState(module.video_url || "");
   const [resources, setResources] = useState(module.resources || []);
@@ -829,7 +884,7 @@ function LessonEditor({ formation, module, onChange }) {
 
             </>
           ) : (
-            <article className="fm-paper" dir={rtl ? "rtl" : "ltr"}>
+            <article className="fm-paper" dir={rtl ? "rtl" : "ltr"} style={themeVars}>
               <div className="fm-paper-kicker">{formation.title}</div>
               <h2 className="fm-paper-title">{module.title}</h2>
               <div
@@ -977,6 +1032,7 @@ export default function Formations() {
   const [openKey, setOpenKey] = useState(null);
   const planRef = useRef(null);
   const scrollToPlan = useRef(false);
+  const [style, setStyle] = useState({ template: "noir", brand: {} });
   const [gen, setGen] = useState({
     running: false,
     done: 0,
@@ -1002,6 +1058,40 @@ export default function Formations() {
   useEffect(() => {
     loadList();
   }, []);
+
+  /* Modèle (couleurs, polices) et style de marque : partagés par l'aperçu réel et le panneau de finalisation */
+  useEffect(() => {
+    if (!current?.id) return undefined;
+    let alive = true;
+    api(`/formations/${current.id}/style`)
+      .then((d) => alive && d.template && setStyle((s) => ({ ...s, template: d.template })))
+      .catch(() => {});
+    api("/brand")
+      .then((d) => alive && setStyle((s) => ({ ...s, brand: d.brand || {} })))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [current?.id]);
+
+  async function chooseTemplate(id) {
+    const previous = style.template;
+    setStyle((s) => ({ ...s, template: id }));
+    try {
+      await api(`/formations/${current.id}/style`, { method: "PUT", body: JSON.stringify({ template: id }) });
+    } catch (e) {
+      setStyle((s) => ({ ...s, template: previous }));
+      throw e;
+    }
+  }
+
+  function editFromPreview(m) {
+    setActiveId(m.id);
+    setTimeout(() => {
+      const el = document.getElementById("fm-lesson-editor");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }
 
   function resetGen() {
     setGen({
@@ -1627,16 +1717,31 @@ export default function Formations() {
 
           {current && (
             <div className="fm-card fm-plan" ref={planRef}>
-              <div className="fm-label">Plan de la formation</div>
-              <h2 className="fm-title" dir={current.language === "ar" ? "rtl" : "ltr"}>
-                {current.title}
-              </h2>
-              {current.description && (
-                <p className="fm-muted" dir={current.language === "ar" ? "rtl" : "ltr"}>
-                  {current.description}
-                </p>
-              )}
-              {briefSummary(current.brief) && <p className="fm-muted fm-small">{briefSummary(current.brief)}</p>}
+              <div className="fm-plan-hero">
+                <div className="fm-plan-kicker">Plan de la formation</div>
+                <h2 className="fm-plan-title" dir={current.language === "ar" ? "rtl" : "ltr"}>
+                  {current.title}
+                </h2>
+                {current.description && (
+                  <p className="fm-plan-desc" dir={current.language === "ar" ? "rtl" : "ltr"}>
+                    {current.description}
+                  </p>
+                )}
+                <div className="fm-plan-stats">
+                  <span><b>{(current.modules || []).length}</b> modules</span>
+                  <span><b>{(current.modules || []).filter((m) => (m.content || "").trim()).length}</b> leçons rédigées</span>
+                </div>
+                {briefChips(current.brief).length > 0 && (
+                  <div className="fm-plan-chips">
+                    {briefChips(current.brief).map(([k, v]) => (
+                      <div key={k} className={`fm-plan-chip${k === "Public cible" || k === "Durée" ? " wide" : ""}`}>
+                        <span>{k}</span>
+                        <b>{v}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {planMsg && !planEdit && <div className="fm-ok" style={{ marginTop: "0.6rem" }}>{planMsg}</div>}
 
               {planEdit ? (
@@ -1818,17 +1923,40 @@ export default function Formations() {
           )}
         </div>
 
-        {current && activeModule && !gen.running && (
-          <LessonEditor
-            key={activeModule.id}
+        {current && !planEdit && !gen.running && (current.modules || []).length > 0 && (
+          <FormationPreview
             formation={current}
-            module={activeModule}
-            onChange={patchModule}
+            language={current.language || "fr"}
+            template={style.template}
+            brand={style.brand}
+            onTemplate={chooseTemplate}
+            renderMedia={(m) => <ModuleMedia module={m} />}
+            onEdit={editFromPreview}
+            activeId={activeId}
           />
         )}
 
+        {current && activeModule && !gen.running && (
+          <div id="fm-lesson-editor">
+            <LessonEditor
+              key={activeModule.id}
+              formation={current}
+              module={activeModule}
+              onChange={patchModule}
+              themeVars={formationThemeVars(style.template, style.brand)}
+            />
+          </div>
+        )}
+
         {current && !gen.running && (
-          <PublishPanel key={current.id} formation={current} onChange={patchFormation} />
+          <PublishPanel
+            key={current.id}
+            formation={current}
+            onChange={patchFormation}
+            template={style.template}
+            brand={style.brand}
+            onTemplate={chooseTemplate}
+          />
         )}
 
         <div className="fm-screen no-print">
@@ -2166,6 +2294,31 @@ export default function Formations() {
         .fm-num { background: linear-gradient(135deg, #f3d777, #c9a227); box-shadow: 0 6px 14px -8px rgba(201,162,39,0.9); }
         .fm-state { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; border: 1px solid rgba(128,128,128,0.35); opacity: 0.85; white-space: nowrap; }
         .fm-state.ok { color: #15803d; border-color: rgba(22,163,74,0.4); background: rgba(22,163,74,0.1); opacity: 1; }
+
+
+        /* ===== En-tête du plan : premium ===== */
+        .fm-plan-hero { position: relative; margin: -0.2rem 0 0.4rem; padding: 1.3rem 1.1rem 1.1rem; border-radius: 18px; color: #F6F1E4; overflow: hidden;
+          background: radial-gradient(circle at 85% 0%, rgba(212,175,55,0.28), transparent 55%), linear-gradient(160deg, #15110a, #0b0b0b 70%); box-shadow: 0 18px 36px -24px rgba(0,0,0,0.8); }
+        .fm-plan-kicker { font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 800; color: #D9B95B; }
+        .fm-plan-title { margin: 0.5rem 0 0; font-size: clamp(1.25rem, 5.6vw, 1.7rem); line-height: 1.22; font-weight: 800; color: #fff; overflow-wrap: anywhere; }
+        .fm-plan-desc { margin: 0.7rem 0 0; font-size: 0.93rem; line-height: 1.65; color: rgba(246,241,228,0.78); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+        .fm-plan-stats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .fm-plan-stats span { padding: 0.35rem 0.75rem; border-radius: 999px; background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.14); font-size: 0.8rem; color: rgba(246,241,228,0.85); }
+        .fm-plan-stats b { color: #F3D777; margin-right: 0.2rem; }
+        .fm-plan-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.9rem; }
+        .fm-plan-chip.wide { grid-column: 1 / -1; }
+        .fm-plan-chip { padding: 0.55rem 0.75rem; border-radius: 12px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); min-width: 0; }
+        .fm-plan-chip span { display: block; font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: #D9B95B; font-weight: 700; }
+        .fm-plan-chip b { display: block; margin-top: 0.15rem; font-size: 0.84rem; font-weight: 600; line-height: 1.4; color: #fff; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Modules du plan : texte sur toute la largeur, état sous le titre (pas de colonne étroite sur mobile) */
+        .fm-module-btn { display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 0.8rem; row-gap: 0.55rem; align-items: start; text-align: left; }
+        .fm-module-btn > div { min-width: 0; overflow-wrap: anywhere; }
+        .fm-module-btn .fm-state { grid-column: 2; justify-self: start; margin: 0; }
+        @media (min-width: 560px) {
+          .fm-module-btn { grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; }
+          .fm-module-btn .fm-state { grid-column: 3; }
+        }
 
         /* Plan : éditeur en accordéon */
         .fm-pe { display: block; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(128,128,128,0.28); background: rgba(128,128,128,0.07); }
