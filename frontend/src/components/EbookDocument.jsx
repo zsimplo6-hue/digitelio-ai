@@ -235,11 +235,10 @@ function DocStyle({ template, ar }) {
       /* ----- Couverture (aperçu : format page de livre, pas trop longue) ----- */
       .ebook-cover {
         position: relative;
-        overflow: hidden;
+        overflow: clip;
         aspect-ratio: 3 / 4;
         width: 100%;
         max-width: 26rem;
-        max-height: 36rem;
         margin: 0 auto;
         border-radius: 10px;
         background: var(--cover-bg);
@@ -328,9 +327,12 @@ function DocStyle({ template, ar }) {
       .cv-title {
         font-family: var(--h-font);
         font-weight: 700;
-        font-size: 2rem;
+        font-size: clamp(1.15rem, 5.8vw, 2rem);
         line-height: 1.12;
         margin: 1rem 0 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        hyphens: auto;
         background: var(--title-bg);
         -webkit-background-clip: text;
         background-clip: text;
