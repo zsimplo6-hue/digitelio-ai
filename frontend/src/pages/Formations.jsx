@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
 import PublishPanel from "../components/PublishPanel.jsx";
@@ -98,29 +98,43 @@ function embedUrl(url) {
   return null;
 }
 
-function compressImage(file, maxW = 1000, quality = 0.8) {
+/* Décode l'image UNE seule fois (en arrière-plan quand le navigateur sait le faire) */
+async function loadBitmap(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      /* repli ci-dessous */
+    }
+  }
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Impossible de lire l'image."));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Image illisible."));
-      img.onload = () => {
-        const scale = Math.min(1, maxW / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = reader.result;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image illisible. Essayez un fichier JPG ou PNG."));
+    };
+    img.src = url;
   });
 }
+
+function bitmapToJpeg(bmp, maxW, quality) {
+  const scale = Math.min(1, maxW / bmp.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bmp.width * scale));
+  canvas.height = Math.max(1, Math.round(bmp.height * scale));
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /* Paliers de compression : on garde la meilleure qualité qui tient dans la limite du serveur (400 Ko) */
 const IMAGE_STEPS = [
@@ -139,38 +153,117 @@ async function prepareImage(file) {
   if (file.size > 10 * 1024 * 1024) {
     throw new Error("Image trop lourde (10 Mo maximum).");
   }
-  for (const [w, q] of IMAGE_STEPS) {
-    const data = await compressImage(file, w, q);
-    if (data.length <= IMAGE_MAX_CHARS) return data;
+  const bmp = await loadBitmap(file);
+  try {
+    for (const [w, q] of IMAGE_STEPS) {
+      await pause(); // laisse l'écran se mettre à jour entre deux essais
+      const data = bitmapToJpeg(bmp, w, q);
+      if (data.length <= IMAGE_MAX_CHARS) return data;
+    }
+  } finally {
+    if (typeof bmp.close === "function") bmp.close();
   }
   throw new Error("Image trop lourde, choisissez-en une plus légère.");
 }
 
-/* ---------- Image d'une ressource : pleine largeur, ratio conservé, clic = agrandir ---------- */
+/* ---------- Image d'une ressource : pleine largeur, ratio conservé, clic = agrandir ----------
+   L'image est affichée directement (elle est déjà en mémoire) : aucun état intermédiaire ne peut rester bloqué.
+   Le composant est recréé quand l'image change (clé côté appelant), donc l'erreur est remise à zéro. */
 function ResImage({ src, alt, onOpen }) {
-  const [state, setState] = useState("loading");
-  useEffect(() => {
-    setState("loading");
-  }, [src]);
-
+  const [failed, setFailed] = useState(false);
   return (
     <button type="button" className="fm-img-open" onClick={onOpen} aria-label="Agrandir l'image">
-      {state === "loading" && <span className="fm-img-state">Chargement de l'image…</span>}
-      {state === "error" ? (
+      {failed ? (
         <span className="fm-img-state fm-img-err">Image illisible. Remplacez-la ou supprimez-la.</span>
       ) : (
-        <img
-          src={src}
-          alt={alt}
-          className="fm-res-img"
-          style={{ opacity: state === "ok" ? 1 : 0 }}
-          onLoad={() => setState("ok")}
-          onError={() => setState("error")}
-        />
+        <img src={src} alt={alt} className="fm-res-img" decoding="async" onError={() => setFailed(true)} />
       )}
-      {state === "ok" && <span className="fm-img-zoom">🔍 Agrandir</span>}
+      {!failed && <span className="fm-img-zoom">🔍 Agrandir</span>}
     </button>
   );
+}
+
+/* ---------- Modèle commun des médias d'une leçon (aperçu écran ET PDF) ---------- */
+function buildMedia(mainVideo, resources) {
+  const videos = [];
+  if (mainVideo) videos.push({ url: mainVideo, title: "" });
+  const images = [];
+  const links = [];
+  for (const r of resources) {
+    if (r.type === "image") images.push(r);
+    else if (r.type === "video") videos.push({ url: r.url, title: r.label && r.label !== "Vidéo" ? r.label : "" });
+    else links.push(r);
+  }
+  return { videos, images, links };
+}
+
+/* Carte vidéo pour l'aperçu à l'écran : lecteur intégré, ou lien si l'intégration est impossible */
+function PreviewVideo({ url, title }) {
+  const emb = embedUrl(url);
+  return (
+    <figure className="fm-paper-video">
+      {title && <figcaption className="fm-paper-vtitle">▶ {title}</figcaption>}
+      {emb ? (
+        <div className="fm-video" style={{ marginTop: 0 }}>
+          <iframe src={emb} title={title || "Vidéo de la leçon"} allowFullScreen loading="lazy" />
+        </div>
+      ) : (
+        <a className="fm-link" href={url} target="_blank" rel="noreferrer">
+          Ouvrir la vidéo ↗
+        </a>
+      )}
+    </figure>
+  );
+}
+
+/* Carte vidéo pour le PDF : vignette (YouTube), titre et lien cliquable bien visible */
+function PrintVideo({ url, title }) {
+  const yt = youtubeId(url);
+  return (
+    <div className="fm-sheet-vcard">
+      <a className="fm-sheet-thumb" href={url} target="_blank" rel="noreferrer">
+        {yt && (
+          <img
+            src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`}
+            alt="Miniature de la vidéo"
+            loading="eager"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+        <span className="fm-play">▶</span>
+      </a>
+      <div className="fm-sheet-vbody">
+        {title && <div className="fm-sheet-vtitle">{title}</div>}
+        <a className="fm-sheet-btn" href={url} target="_blank" rel="noreferrer">
+          ▶ Regarder la vidéo
+        </a>
+        <a className="fm-sheet-vurl" href={url} target="_blank" rel="noreferrer">
+          {url}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* Attend que les images (miniatures incluses) soient chargées avant d'imprimer */
+async function waitForImages(root, timeoutMs = 6000) {
+  if (!root) return;
+  const pending = [...root.querySelectorAll("img")].filter((img) => !img.complete);
+  if (!pending.length) return;
+  await Promise.race([
+    Promise.all(
+      pending.map(
+        (img) =>
+          new Promise((resolve) => {
+            img.addEventListener("load", resolve, { once: true });
+            img.addEventListener("error", resolve, { once: true });
+          })
+      )
+    ),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 /* ---------- Visionneuse plein écran : zoom, déplacement, légende, texte alternatif ---------- */
@@ -303,6 +396,171 @@ function ImageViewer({ resource, onClose, onField, onRemove, onReplaceFile }) {
   );
 }
 
+/* Zone de texte qui grandit avec son contenu : un titre ou un objectif long reste lisible en entier */
+function AutoTextarea({ value, onChange, minRows = 1, ...props }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+  return (
+    <textarea ref={ref} rows={minRows} value={value} onChange={onChange} className="fm-input fm-auto" {...props} />
+  );
+}
+
+const COVERS = [
+  "linear-gradient(135deg,#3a2a08,#8a6a12)",
+  "linear-gradient(135deg,#1b1840,#5a3fb4)",
+  "linear-gradient(135deg,#0d2e2b,#1f8a7a)",
+  "linear-gradient(135deg,#3b1020,#a33a5a)",
+  "linear-gradient(135deg,#10213a,#2f6fb4)",
+];
+function coverFor(id) {
+  let h = 0;
+  for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return COVERS[h % COVERS.length];
+}
+
+/* ---------- Carte d'une formation (bibliothèque) ---------- */
+function FormationCard({
+  f, date, busy, disabled, renaming, renameValue, onRenameValue,
+  onOpen, onStartRename, onSubmitRename, onCancelRename, onDuplicate, onArchive, onDelete,
+}) {
+  const [menu, setMenu] = useState(false);
+  const total = f.modules_count ?? 0;
+  const written = f.written_count;
+  const pct = total && written !== undefined ? Math.round((written / total) * 100) : null;
+  return (
+    <article className="fm-fcard">
+      <div className="fm-fcover" style={{ background: coverFor(f.id) }}>
+        <span className="fm-fico" aria-hidden="true">🎓</span>
+        <span className="fm-badges">
+          {f.archived ? <span className="fm-badge">Archivée</span> : null}
+          <span className={f.status === "published" ? "fm-badge fm-badge-pub" : "fm-badge"}>
+            {f.status === "published" ? "Publiée" : "Brouillon"}
+          </span>
+        </span>
+      </div>
+      <div className="fm-fbody">
+        {renaming ? (
+          <form
+            className="fm-rename"
+            style={{ padding: 0 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSubmitRename();
+            }}
+          >
+            <AutoTextarea
+              value={renameValue}
+              onChange={(e) => onRenameValue(e.target.value)}
+              maxLength={200}
+              autoFocus
+              aria-label="Nouveau titre"
+            />
+            <div className="fm-rename-actions">
+              <button type="submit" className="fm-btn fm-btn-gold" style={{ marginBottom: 0 }} disabled={busy}>
+                {busy ? "..." : "Valider"}
+              </button>
+              <button type="button" className="fm-btn fm-btn-outline" onClick={onCancelRename} disabled={busy}>
+                Annuler
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <h3 className="fm-ftitle">{f.title}</h3>
+            <div className="fm-fmeta">
+              {total} module{total > 1 ? "s" : ""}
+              {written !== undefined ? ` · ${written}/${total} rédigées` : ""}
+              {date ? ` · ${date}` : ""}
+            </div>
+            {pct !== null && (
+              <div className="fm-fbar" aria-label={`${pct}% rédigé`}>
+                <i style={{ width: `${Math.max(pct, 3)}%` }} />
+              </div>
+            )}
+            <div className="fm-factions">
+              <button type="button" className="fm-fopen" onClick={onOpen} disabled={disabled}>
+                Ouvrir
+              </button>
+              <button
+                type="button"
+                className="fm-fmore"
+                onClick={() => setMenu((v) => !v)}
+                aria-expanded={menu}
+                aria-label="Plus d'actions"
+              >
+                ⋯
+              </button>
+            </div>
+            {menu && (
+              <div className="fm-fmenu">
+                <button type="button" className="fm-act" onClick={onStartRename} disabled={busy || disabled}>✏️ Renommer</button>
+                <button type="button" className="fm-act" onClick={onDuplicate} disabled={busy || disabled}>{busy ? "…" : "⧉ Dupliquer"}</button>
+                <button type="button" className="fm-act" onClick={onArchive} disabled={busy || disabled}>
+                  {f.archived ? "♻️ Restaurer" : "🗄 Archiver"}
+                </button>
+                <button type="button" className="fm-act fm-act-danger" onClick={onDelete} disabled={busy || disabled} aria-label="Supprimer">
+                  ✕ Supprimer
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/* ---------- Bibliothèque : fenêtre plein écran sur mobile, centrée sur ordinateur ---------- */
+function LibraryDrawer({ title, onClose, children }) {
+  const [theme] = useState(() => {
+    let el = document.body;
+    while (el) {
+      const cs = getComputedStyle(el);
+      if (cs.backgroundColor && !/rgba?\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor)) {
+        return { background: cs.backgroundColor, color: cs.color };
+      }
+      el = el.parentElement;
+    }
+    return { background: "#ffffff", color: "#111111" };
+  });
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return createPortal(
+    <div
+      className="fm-drawer-bg no-print"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="fm-drawer" style={theme}>
+        <div className="fm-drawer-head">
+          <h2 className="fm-drawer-title">{title}</h2>
+          <button type="button" className="fm-drawer-close" onClick={onClose} aria-label="Fermer">
+            ✕
+          </button>
+        </div>
+        <div className="fm-drawer-body">{children}</div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 /* ---------- Éditeur d'une leçon ---------- */
 function LessonEditor({ formation, module, onChange }) {
   const [content, setContent] = useState(module.content || "");
@@ -315,6 +573,7 @@ function LessonEditor({ formation, module, onChange }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [viewIndex, setViewIndex] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
   const cleanVideo = videoUrl.trim();
   const embed = embedUrl(cleanVideo);
@@ -340,6 +599,12 @@ function LessonEditor({ formation, module, onChange }) {
     }
     return acc;
   }, []);
+  const media = buildMedia(cleanVideo, cleanResources);
+
+  async function printLesson() {
+    await waitForImages(document.querySelector(".fm-sheet"));
+    window.print();
+  }
 
   async function save() {
     setSaving(true);
@@ -394,23 +659,29 @@ function LessonEditor({ formation, module, onChange }) {
     if (!file) return;
     setErr("");
     setMsg("");
+    setAdding(false);
+    setProcessing(true);
     try {
       const data = await prepareImage(file);
       setResources((l) => [...l, { type: "image", label: "", alt: "", url: data }]);
-      setAdding(false);
     } catch (e2) {
       setErr(e2.message);
+    } finally {
+      setProcessing(false);
     }
   }
 
   async function replaceImage(i, file) {
     setErr("");
     setMsg("");
+    setProcessing(true);
     try {
       const data = await prepareImage(file);
       setResources((l) => l.map((r, idx) => (idx === i ? { ...r, url: data } : r)));
     } catch (e2) {
       setErr(e2.message);
+    } finally {
+      setProcessing(false);
     }
   }
 
@@ -441,22 +712,14 @@ function LessonEditor({ formation, module, onChange }) {
           </div>
 
           {tab === "edit" ? (
-            <textarea
-              className="fm-input fm-textarea"
-              dir={rtl ? "rtl" : "ltr"}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Texte de la leçon (Markdown : ### Titre, - puce)..."
-            />
-          ) : (
-            <div
-              className="fm-lesson"
-              dir={rtl ? "rtl" : "ltr"}
-              dangerouslySetInnerHTML={{
-                __html: content.trim() ? renderMarkdown(content) : "<p>Aucun texte pour le moment.</p>",
-              }}
-            />
-          )}
+            <>
+              <textarea
+                className="fm-input fm-textarea"
+                dir={rtl ? "rtl" : "ltr"}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Texte de la leçon (Markdown : ### Titre, - puce)..."
+              />
 
           <div className="fm-label" style={{ marginTop: "1.2rem" }}>Vidéo</div>
           <input
@@ -481,7 +744,7 @@ function LessonEditor({ formation, module, onChange }) {
             if (r.type === "image") {
               return (
                 <div key={i} className="fm-res fm-res-image">
-                  <ResImage src={r.url} alt={r.alt || r.label || "Image"} onOpen={() => setViewIndex(i)} />
+                  <ResImage key={`${i}-${r.url.length}`} src={r.url} alt={r.alt || r.label || "Image"} onOpen={() => setViewIndex(i)} />
                   <input
                     className="fm-input"
                     value={r.label || ""}
@@ -554,10 +817,61 @@ function LessonEditor({ formation, module, onChange }) {
                 </button>
               </div>
             </div>
+          ) : processing ? (
+            <div className="fm-processing" role="status">
+              <span className="fm-spin" /> Traitement de l'image en cours…
+            </div>
           ) : (
             <button className="fm-chip" onClick={() => setAdding(true)}>
               + Ajouter une ressource
             </button>
+          )}
+
+            </>
+          ) : (
+            <article className="fm-paper" dir={rtl ? "rtl" : "ltr"}>
+              <div className="fm-paper-kicker">{formation.title}</div>
+              <h2 className="fm-paper-title">{module.title}</h2>
+              <div
+                className="fm-lesson"
+                dangerouslySetInnerHTML={{
+                  __html: content.trim() ? renderMarkdown(content) : "<p>Aucun texte pour le moment.</p>",
+                }}
+              />
+              {media.videos.length > 0 && (
+                <section className="fm-paper-sec">
+                  <h3 className="fm-paper-h">{media.videos.length > 1 ? "Vidéos de la leçon" : "Vidéo de la leçon"}</h3>
+                  {media.videos.map((v, i) => (
+                    <PreviewVideo key={i} url={v.url} title={v.title} />
+                  ))}
+                </section>
+              )}
+              {media.images.length > 0 && (
+                <section className="fm-paper-sec">
+                  <h3 className="fm-paper-h">Illustrations</h3>
+                  {media.images.map((r, i) => (
+                    <figure key={i} className="fm-paper-fig">
+                      <img src={r.url} alt={r.alt || r.label} decoding="async" />
+                      {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
+                    </figure>
+                  ))}
+                </section>
+              )}
+              {media.links.length > 0 && (
+                <section className="fm-paper-sec">
+                  <h3 className="fm-paper-h">Ressources</h3>
+                  <ul className="fm-paper-links">
+                    {media.links.map((r, i) => (
+                      <li key={i}>
+                        <a href={r.url} target="_blank" rel="noreferrer">
+                          {r.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </article>
           )}
 
           {err && <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{err}</div>}
@@ -567,7 +881,7 @@ function LessonEditor({ formation, module, onChange }) {
             <button className="btn-primary fm-btn" onClick={save} disabled={saving || generating}>
               {saving ? "Enregistrement..." : "💾 Enregistrer"}
             </button>
-            <button className="fm-btn fm-btn-outline" onClick={() => window.print()} disabled={!content.trim()}>
+            <button className="fm-btn fm-btn-outline" onClick={printLesson} disabled={!content.trim()}>
               📄 Télécharger en PDF
             </button>
           </div>
@@ -594,46 +908,38 @@ function LessonEditor({ formation, module, onChange }) {
           dangerouslySetInnerHTML={{ __html: renderMarkdown(content || "") }}
         />
 
-        {cleanVideo && (
+        {media.videos.length > 0 && (
           <div className="fm-sheet-videobox">
-            <h2 className="fm-sheet-h2">Vidéo de la leçon</h2>
-            {ytId && (
-              <a className="fm-sheet-thumb" href={cleanVideo} target="_blank" rel="noreferrer">
-                <img
-                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                  alt="Miniature de la vidéo"
-                  loading="eager"
-                />
-                <span className="fm-play">▶</span>
-              </a>
-            )}
-            <a className="fm-sheet-btn" href={cleanVideo} target="_blank" rel="noreferrer">
-              ▶ Regarder la vidéo de la leçon
-            </a>
+            <h2 className="fm-sheet-h2">{media.videos.length > 1 ? "Vidéos de la leçon" : "Vidéo de la leçon"}</h2>
+            {media.videos.map((v, i) => (
+              <PrintVideo key={i} url={v.url} title={v.title} />
+            ))}
           </div>
         )}
 
-        {cleanResources.length > 0 && (
+        {media.images.length > 0 && (
+          <div className="fm-sheet-res">
+            <h2 className="fm-sheet-h2">Illustrations</h2>
+            {media.images.map((r, i) => (
+              <figure key={i} className="fm-sheet-img">
+                <img src={r.url} alt={r.alt || r.label} />
+                {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        )}
+
+        {media.links.length > 0 && (
           <div className="fm-sheet-res">
             <h2 className="fm-sheet-h2">Ressources</h2>
-            {cleanResources
-              .filter((r) => r.type === "image")
-              .map((r, i) => (
-                <figure key={`i${i}`} className="fm-sheet-img">
-                  <img src={r.url} alt={r.alt || r.label} />
-                  {r.label && r.label !== "Image" && <figcaption>{r.label}</figcaption>}
-                </figure>
-              ))}
             <ul>
-              {cleanResources
-                .filter((r) => r.type !== "image")
-                .map((r, i) => (
-                  <li key={i}>
-                    <a href={r.url} target="_blank" rel="noreferrer">
-                      {r.type === "video" ? `▶ ${r.label}` : r.label}
-                    </a>
-                  </li>
-                ))}
+              {media.links.map((r, i) => (
+                <li key={i}>
+                  <a href={r.url} target="_blank" rel="noreferrer">
+                    {r.label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -667,6 +973,10 @@ export default function Formations() {
   const [planErr, setPlanErr] = useState("");
   const [planMsg, setPlanMsg] = useState("");
   const draftKey = useRef(0);
+  const [libOpen, setLibOpen] = useState(false);
+  const [openKey, setOpenKey] = useState(null);
+  const planRef = useRef(null);
+  const scrollToPlan = useRef(false);
   const [gen, setGen] = useState({
     running: false,
     done: 0,
@@ -792,6 +1102,7 @@ export default function Formations() {
     setPlanDirty(false);
     setPlanErr("");
     setPlanMsg("");
+    setOpenKey(null);
     setPlanEdit(true);
   }
 
@@ -846,6 +1157,7 @@ export default function Formations() {
     setPlanErr("");
     draftKey.current += 1;
     const newKey = `new-${draftKey.current}`;
+    setOpenKey(newKey);
     setDraft((l) => {
       const i = l.findIndex((d) => d.key === key);
       if (i < 0) return l;
@@ -869,13 +1181,15 @@ export default function Formations() {
     }
     setPlanErr("");
     draftKey.current += 1;
+    const newKey = `new-${draftKey.current}`;
     setDraft((l) => [
       ...l,
       {
-        key: `new-${draftKey.current}`, id: null, copy_from: null,
+        key: newKey, id: null, copy_from: null,
         title: "", summary: "", objective: "", skills: "", hasContent: false,
       },
     ]);
+    setOpenKey(newKey);
     setPlanDirty(true);
   }
 
@@ -912,6 +1226,19 @@ export default function Formations() {
     } finally {
       setPlanSaving(false);
     }
+  }
+
+  useEffect(() => {
+    if (current && scrollToPlan.current) {
+      scrollToPlan.current = false;
+      planRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [current?.id]);
+
+  async function openFromLibrary(id) {
+    scrollToPlan.current = true;
+    setLibOpen(false);
+    await openFormation(id);
   }
 
   function startRename(f) {
@@ -1085,24 +1412,77 @@ export default function Formations() {
     : 0;
   const percent = gen.total ? Math.round((gen.done / gen.total) * 100) : 0;
   const examples = EXAMPLES[language] || EXAMPLES.fr;
+  const totalWritten = formations.reduce((n, f) => n + (f.written_count || 0), 0);
+  const stage = !current ? 0 : planEdit ? 1 : emptyCount > 0 ? 2 : 3;
+  const recent = [...formations]
+    .filter((f) => !f.archived)
+    .sort((a, b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")))
+    .slice(0, 3);
+
+  function renderCard(f) {
+    return (
+      <FormationCard
+        key={f.id}
+        f={f}
+        date={fmtDate(f.updated_at || f.created_at) ? `Modifiée le ${fmtDate(f.updated_at || f.created_at)}` : ""}
+        busy={busyId === f.id}
+        disabled={gen.running}
+        renaming={renamingId === f.id}
+        renameValue={renameValue}
+        onRenameValue={setRenameValue}
+        onOpen={() => openFromLibrary(f.id)}
+        onStartRename={() => startRename(f)}
+        onSubmitRename={() => submitRename(f.id)}
+        onCancelRename={() => setRenamingId(null)}
+        onDuplicate={() => duplicateFormation(f.id)}
+        onArchive={() => archiveFormation(f.id, !f.archived)}
+        onDelete={() => removeFormation(f.id)}
+      />
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className="fm-page">
         <div className="fm-screen no-print">
-          <h1 className="text-2xl font-bold">Formations</h1>
-          <p className="fm-muted">
-            Saisissez un sujet : l'IA construit le plan complet de votre formation.
-          </p>
+          <header className="fm-hero">
+            <div className="fm-hero-glow" aria-hidden="true" />
+            <div className="fm-eyebrow">Studio de formations</div>
+            <h1 className="fm-hero-title">Transformez votre expertise en formation premium</h1>
+            <p className="fm-hero-sub">
+              Donnez un sujet : l'IA construit le plan, rédige les leçons et prépare un PDF professionnel prêt à
+              vendre.
+            </p>
+            {formations.length > 0 && (
+              <div className="fm-hero-stats">
+                <div><b>{formations.filter((f) => !f.archived).length}</b><span>formation(s)</span></div>
+                <div><b>{totalWritten}</b><span>leçons rédigées</span></div>
+              </div>
+            )}
+            <ol className="fm-steps" aria-label="Étapes de création">
+              {["Sujet", "Plan", "Leçons", "Export"].map((label, i) => (
+                <li key={label} className={i < stage ? "fm-step done" : i === stage ? "fm-step on" : "fm-step"}>
+                  <b>0{i + 1}</b>
+                  {label}
+                </li>
+              ))}
+            </ol>
+          </header>
 
           {error && (
             <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>
           )}
 
-          <form onSubmit={createFormation} className="fm-card">
-            <div className="fm-label">Nouvelle formation</div>
+          <form onSubmit={createFormation} className="fm-card fm-card-create">
+            <div className="fm-card-head">
+              <span className="fm-card-ico" aria-hidden="true">✨</span>
+              <div>
+                <div className="fm-card-title">Nouvelle formation</div>
+                <div className="fm-card-sub">Un sujet suffit. Affinez ensuite si vous le souhaitez.</div>
+              </div>
+            </div>
             <input
-              className="fm-input"
+              className="fm-input fm-topic"
               dir={language === "ar" ? "rtl" : "ltr"}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -1246,7 +1626,7 @@ export default function Formations() {
           </form>
 
           {current && (
-            <div className="fm-card">
+            <div className="fm-card fm-plan" ref={planRef}>
               <div className="fm-label">Plan de la formation</div>
               <h2 className="fm-title" dir={current.language === "ar" ? "rtl" : "ltr"}>
                 {current.title}
@@ -1266,58 +1646,81 @@ export default function Formations() {
                     vous n'appuyez pas sur « Enregistrer le plan ».
                   </p>
                   <ol className="fm-modules">
-                    {draft.map((d, i) => (
-                      <li key={d.key} className="fm-pe">
-                        <div className="fm-pe-head">
-                          <span className="fm-num">{i + 1}</span>
-                          <div className="fm-pe-tools">
-                            <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, -1)} disabled={i === 0} aria-label="Monter le module">↑</button>
-                            <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, 1)} disabled={i === draft.length - 1} aria-label="Descendre le module">↓</button>
-                            <button type="button" className="fm-pe-btn" onClick={() => duplicateDraft(d.key)} aria-label="Dupliquer le module">⧉</button>
-                            <button type="button" className="fm-pe-btn fm-pe-del" onClick={() => removeDraft(d.key)} aria-label="Supprimer le module">🗑</button>
-                          </div>
-                        </div>
-                        <input
-                          className="fm-input"
-                          value={d.title}
-                          onChange={(e) => editDraft(d.key, "title", e.target.value)}
-                          placeholder="Titre du module"
-                          maxLength={150}
-                          aria-label="Titre du module"
-                        />
-                        <textarea
-                          className="fm-input fm-pe-area"
-                          rows={2}
-                          value={d.summary}
-                          onChange={(e) => editDraft(d.key, "summary", e.target.value)}
-                          placeholder="Description du module"
-                          maxLength={400}
-                          aria-label="Description du module"
-                        />
-                        <input
-                          className="fm-input"
-                          value={d.objective}
-                          onChange={(e) => editDraft(d.key, "objective", e.target.value)}
-                          placeholder="Objectif pédagogique"
-                          maxLength={400}
-                          aria-label="Objectif pédagogique"
-                        />
-                        <input
-                          className="fm-input"
-                          value={d.skills}
-                          onChange={(e) => editDraft(d.key, "skills", e.target.value)}
-                          placeholder="Compétences à acquérir (séparées par des virgules)"
-                          aria-label="Compétences à acquérir"
-                        />
-                        {!d.id && (
-                          <div className="fm-muted fm-small">
-                            {d.copy_from
-                              ? "Copie : le texte, la vidéo et les ressources de la leçon sont repris."
-                              : "Nouveau module : leçon à rédiger."}
-                          </div>
-                        )}
-                      </li>
-                    ))}
+                    {draft.map((d, i) => {
+                      const open = openKey === d.key;
+                      return (
+                        <li key={d.key} className={open ? "fm-pe open" : "fm-pe"}>
+                          <button
+                            type="button"
+                            className="fm-pe-top"
+                            onClick={() => setOpenKey(open ? null : d.key)}
+                            aria-expanded={open}
+                          >
+                            <span className="fm-num">{i + 1}</span>
+                            <span className="fm-pe-main">
+                              <span className="fm-pe-title">{d.title || "Module sans titre"}</span>
+                              {!open && d.summary && <span className="fm-pe-sum">{d.summary}</span>}
+                              {!d.id && <span className="fm-pe-new">{d.copy_from ? "Copie" : "Nouveau"}</span>}
+                            </span>
+                            <span className="fm-pe-chev" aria-hidden="true">⌄</span>
+                          </button>
+                          {open && (
+                            <div className="fm-pe-body">
+                              <div className="fm-pe-tools">
+                                <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, -1)} disabled={i === 0} aria-label="Monter le module">↑ Monter</button>
+                                <button type="button" className="fm-pe-btn" onClick={() => moveDraft(d.key, 1)} disabled={i === draft.length - 1} aria-label="Descendre le module">↓ Descendre</button>
+                                <button type="button" className="fm-pe-btn" onClick={() => duplicateDraft(d.key)} aria-label="Dupliquer le module">⧉ Dupliquer</button>
+                                <button type="button" className="fm-pe-btn fm-pe-del" onClick={() => removeDraft(d.key)} aria-label="Supprimer le module">🗑 Supprimer</button>
+                              </div>
+                              <label className="fm-field">
+                                <span className="fm-flabel">Titre du module</span>
+                                <AutoTextarea
+                                  value={d.title}
+                                  onChange={(e) => editDraft(d.key, "title", e.target.value)}
+                                  placeholder="Titre du module"
+                                  maxLength={150}
+                                />
+                              </label>
+                              <label className="fm-field">
+                                <span className="fm-flabel">Description</span>
+                                <AutoTextarea
+                                  minRows={2}
+                                  value={d.summary}
+                                  onChange={(e) => editDraft(d.key, "summary", e.target.value)}
+                                  placeholder="De quoi parle ce module ?"
+                                  maxLength={400}
+                                />
+                              </label>
+                              <label className="fm-field">
+                                <span className="fm-flabel">Objectif pédagogique</span>
+                                <AutoTextarea
+                                  minRows={2}
+                                  value={d.objective}
+                                  onChange={(e) => editDraft(d.key, "objective", e.target.value)}
+                                  placeholder="Ce que l'apprenant saura faire à la fin du module"
+                                  maxLength={400}
+                                />
+                              </label>
+                              <label className="fm-field">
+                                <span className="fm-flabel">Compétences à acquérir</span>
+                                <AutoTextarea
+                                  value={d.skills}
+                                  onChange={(e) => editDraft(d.key, "skills", e.target.value)}
+                                  placeholder="Séparées par des virgules"
+                                />
+                              </label>
+                              {!d.id && (
+                                <div className="fm-muted fm-small">
+                                  {d.copy_from
+                                    ? "Copie : le texte, la vidéo et les ressources de la leçon sont repris."
+                                    : "Nouveau module : leçon à rédiger."}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ol>
                   <button
                     type="button"
@@ -1358,7 +1761,7 @@ export default function Formations() {
                             <div className="fm-muted fm-small">Compétences : {m.skills.join(", ")}</div>
                           )}
                         </div>
-                        <span className="fm-state">
+                        <span className={m.content ? "fm-state ok" : "fm-state"}>
                           {isCurrent ? "⏳ En cours..." : m.content ? "✓ Rédigée" : "À rédiger"}
                         </span>
                       </button>
@@ -1429,147 +1832,82 @@ export default function Formations() {
         )}
 
         <div className="fm-screen no-print">
-          <div className="fm-label" style={{ marginTop: "2rem" }}>Mes formations</div>
-          {notice && <div className="fm-ok" style={{ marginTop: 0, marginBottom: "0.8rem" }}>{notice}</div>}
-          {loading ? (
-            <p className="fm-muted">Chargement...</p>
-          ) : formations.length === 0 ? (
-            <p className="fm-muted">Aucune formation pour le moment.</p>
-          ) : (
-            <>
-              <div className="fm-tabs">
-                <button
-                  type="button"
-                  className={!showArchived ? "fm-tab on" : "fm-tab"}
-                  onClick={() => setShowArchived(false)}
-                >
-                  Actives ({activeCount})
-                </button>
-                <button
-                  type="button"
-                  className={showArchived ? "fm-tab on" : "fm-tab"}
-                  onClick={() => setShowArchived(true)}
-                >
-                  Archivées ({archivedCount})
-                </button>
-              </div>
-
-              <div className="fm-toolbar">
-                <input
-                  className="fm-input"
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="🔎 Rechercher une formation"
-                  aria-label="Rechercher une formation"
-                />
-                <select
-                  className="fm-input"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                  aria-label="Trier les formations"
-                >
-                  <option value="recent">Modifiées récemment</option>
-                  <option value="old">Plus anciennes d'abord</option>
-                  <option value="az">Titre A → Z</option>
-                  <option value="za">Titre Z → A</option>
-                </select>
-              </div>
-
-              {visibleFormations.length === 0 ? (
-                <p className="fm-muted">
-                  {q
-                    ? "Aucune formation ne correspond à votre recherche."
-                    : showArchived
-                    ? "Aucune formation archivée."
-                    : "Aucune formation active."}
-                </p>
-              ) : (
-                <div className="fm-list">
-                  {visibleFormations.map((f) => {
-                    const total = f.modules_count ?? 0;
-                    const written = f.written_count;
-                    const busy = busyId === f.id;
-                    const date = fmtDate(f.updated_at || f.created_at);
-                    return (
-                      <div key={f.id} className="fm-item">
-                        {renamingId === f.id ? (
-                          <form
-                            className="fm-rename"
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              submitRename(f.id);
-                            }}
-                          >
-                            <input
-                              className="fm-input"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              maxLength={200}
-                              autoFocus
-                              aria-label="Nouveau titre"
-                            />
-                            <div className="fm-rename-actions">
-                              <button type="submit" className="fm-btn fm-btn-gold" style={{ marginBottom: 0 }} disabled={busy}>
-                                {busy ? "..." : "Valider"}
-                              </button>
-                              <button
-                                type="button"
-                                className="fm-btn fm-btn-outline"
-                                onClick={() => setRenamingId(null)}
-                                disabled={busy}
-                              >
-                                Annuler
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <button className="fm-item-main" onClick={() => openFormation(f.id)}>
-                            <span className="fm-module-title">{f.title}</span>
-                            <span className="fm-muted fm-small">
-                              {total} module{total > 1 ? "s" : ""}
-                              {written !== undefined ? ` · ${written}/${total} rédigées` : ""}
-                              {" · "}
-                              {f.status === "published" ? "Publiée" : "Brouillon"}
-                              {date ? ` · Modifiée le ${date}` : ""}
-                            </span>
-                          </button>
-                        )}
-                        {renamingId !== f.id && (
-                          <div className="fm-item-actions">
-                            <button type="button" className="fm-act" onClick={() => startRename(f)} disabled={busy || gen.running}>
-                              ✏️ Renommer
-                            </button>
-                            <button type="button" className="fm-act" onClick={() => duplicateFormation(f.id)} disabled={busy || gen.running}>
-                              {busy ? "…" : "⧉ Dupliquer"}
-                            </button>
-                            <button
-                              type="button"
-                              className="fm-act"
-                              onClick={() => archiveFormation(f.id, !f.archived)}
-                              disabled={busy || gen.running}
-                            >
-                              {f.archived ? "♻️ Restaurer" : "🗄 Archiver"}
-                            </button>
-                            <button
-                              type="button"
-                              className="fm-act fm-act-danger"
-                              onClick={() => removeFormation(f.id)}
-                              disabled={busy || gen.running}
-                              aria-label="Supprimer"
-                            >
-                              ✕ Supprimer
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+          <section className="fm-library">
+            <div className="fm-library-head">
+              <div>
+                <div className="fm-label" style={{ marginBottom: "0.2rem" }}>Mes formations</div>
+                <div className="fm-muted fm-small" style={{ marginTop: 0 }}>
+                  {formations.length > 0 ? "Reprenez là où vous vous êtes arrêté." : "Vos formations apparaîtront ici."}
                 </div>
+              </div>
+              {formations.length > 0 && (
+                <button type="button" className="fm-btn-lib" onClick={() => setLibOpen(true)}>
+                  📚 Voir tout ({formations.length})
+                </button>
               )}
-            </>
-          )}
+            </div>
+            {notice && !libOpen && <div className="fm-ok" style={{ marginTop: 0, marginBottom: "0.8rem" }}>{notice}</div>}
+            {loading ? (
+              <div className="fm-cards">
+                <div className="fm-skel" />
+                <div className="fm-skel" />
+              </div>
+            ) : formations.length === 0 ? (
+              <div className="fm-empty">
+                <div className="fm-empty-ico" aria-hidden="true">🎓</div>
+                <div className="fm-empty-title">Créez votre première formation</div>
+                <div className="fm-muted fm-small">Saisissez un sujet ci-dessus : le plan est prêt en quelques secondes.</div>
+              </div>
+            ) : (
+              <>
+                <div className="fm-cards">{recent.map((f) => renderCard(f))}</div>
+                {formations.length > recent.length && (
+                  <button type="button" className="fm-more" onClick={() => setLibOpen(true)}>
+                    Voir toutes les formations ({formations.length})
+                  </button>
+                )}
+              </>
+            )}
+          </section>
         </div>
+
+        {libOpen && (
+          <LibraryDrawer title={`Mes formations (${formations.length})`} onClose={() => setLibOpen(false)}>
+            {notice && <div className="fm-ok" style={{ marginTop: 0, marginBottom: "0.8rem" }}>{notice}</div>}
+            {error && <div className="mb-3 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>}
+            <div className="fm-tabs">
+              <button type="button" className={!showArchived ? "fm-tab on" : "fm-tab"} onClick={() => setShowArchived(false)}>
+                Actives ({activeCount})
+              </button>
+              <button type="button" className={showArchived ? "fm-tab on" : "fm-tab"} onClick={() => setShowArchived(true)}>
+                Archivées ({archivedCount})
+              </button>
+            </div>
+            <div className="fm-toolbar">
+              <input
+                className="fm-input"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="🔎 Rechercher une formation"
+                aria-label="Rechercher une formation"
+              />
+              <select className="fm-input" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Trier les formations">
+                <option value="recent">Modifiées récemment</option>
+                <option value="old">Plus anciennes d'abord</option>
+                <option value="az">Titre A → Z</option>
+                <option value="za">Titre Z → A</option>
+              </select>
+            </div>
+            {visibleFormations.length === 0 ? (
+              <p className="fm-muted">
+                {q ? "Aucune formation ne correspond à votre recherche." : showArchived ? "Aucune formation archivée." : "Aucune formation active."}
+              </p>
+            ) : (
+              <div className="fm-cards">{visibleFormations.map((f) => renderCard(f))}</div>
+            )}
+          </LibraryDrawer>
+        )}
       </div>
 
       <style>{`
@@ -1762,6 +2100,152 @@ export default function Formations() {
         }
         .fm-del { padding: 0.9rem 1rem; background: transparent; border: 0; color: #ef4444; }
 
+        /* ================= THÈME PREMIUM ================= */
+        .fm-page { max-width: 58rem; }
+        .fm-hero {
+          position: relative; overflow: hidden; color: #fff; border-radius: 22px;
+          padding: 1.6rem 1.3rem 1.2rem; border: 1px solid rgba(212,175,55,0.4);
+          background: radial-gradient(120% 140% at 0% 0%, #2f2411 0%, #15110a 48%, #0b0b0b 100%);
+          box-shadow: 0 22px 44px -24px rgba(0,0,0,0.7);
+        }
+        .fm-hero-glow {
+          position: absolute; right: -28%; top: -70%; width: 90%; aspect-ratio: 1; pointer-events: none;
+          background: radial-gradient(circle, rgba(212,175,55,0.38), transparent 62%);
+        }
+        .fm-eyebrow { position: relative; font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; color: #D4AF37; font-weight: 700; }
+        .fm-hero-title { position: relative; font-size: clamp(1.45rem, 5.4vw, 2.15rem); line-height: 1.15; font-weight: 800; margin: 0.55rem 0 0.6rem; }
+        .fm-hero-sub { position: relative; opacity: 0.78; max-width: 38rem; line-height: 1.55; font-size: 0.95rem; margin: 0; }
+        .fm-hero-stats { position: relative; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+        .fm-hero-stats > div { padding: 0.45rem 0.85rem; border-radius: 12px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
+        .fm-hero-stats b { font-size: 1.15rem; margin-right: 0.4rem; color: #D4AF37; }
+        .fm-hero-stats span { font-size: 0.78rem; opacity: 0.8; }
+        .fm-steps { position: relative; list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; margin: 1.3rem 0 0; padding: 0; }
+        .fm-step { position: relative; padding-top: 0.7rem; font-size: 0.74rem; opacity: 0.5; }
+        .fm-step::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.22); }
+        .fm-step.done, .fm-step.on { opacity: 1; }
+        .fm-step.done::before { background: rgba(212,175,55,0.55); }
+        .fm-step.on::before { background: #D4AF37; box-shadow: 0 0 12px rgba(212,175,55,0.7); }
+        .fm-step b { display: block; font-size: 0.6rem; letter-spacing: 0.16em; color: #D4AF37; margin-bottom: 0.1rem; }
+
+        .fm-card {
+          margin-top: 1.4rem; padding: 1.3rem; border-radius: 20px;
+          background: linear-gradient(180deg, rgba(128,128,128,0.13), rgba(128,128,128,0.07));
+          border: 1px solid rgba(128,128,128,0.22); box-shadow: 0 14px 32px -22px rgba(0,0,0,0.55);
+        }
+        .fm-card-head { display: flex; gap: 0.8rem; align-items: center; margin-bottom: 1rem; }
+        .fm-card-ico {
+          flex: none; width: 2.7rem; height: 2.7rem; border-radius: 14px; display: grid; place-items: center;
+          font-size: 1.25rem; color: #0b0b0b; background: linear-gradient(135deg, #f3d777, #c9a227);
+          box-shadow: 0 8px 18px -8px rgba(201,162,39,0.8);
+        }
+        .fm-card-title { font-weight: 800; font-size: 1.12rem; }
+        .fm-card-sub { font-size: 0.82rem; opacity: 0.65; }
+        .fm-input { border-radius: 12px; transition: border-color 0.15s, box-shadow 0.15s; }
+        .fm-input:focus { border-color: #D4AF37; box-shadow: 0 0 0 3px rgba(212,175,55,0.25); }
+        .fm-topic { font-size: 1.05rem; padding: 1rem 1.1rem; }
+        .fm-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 0.2rem; }
+        .fm-chips::-webkit-scrollbar { display: none; }
+        .fm-chip { white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+        .fm-chip:hover { background: rgba(212,175,55,0.12); border-color: rgba(212,175,55,0.6); }
+        .fm-btn { border-radius: 14px; padding: 0.95rem; transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s; }
+        .fm-btn:not(:disabled):active { transform: scale(0.985); }
+        .fm-btn-gold { background: linear-gradient(135deg, #f3d777, #d4af37 55%, #b8931f); box-shadow: 0 10px 22px -12px rgba(201,162,39,0.9); }
+        .fm-card-create .btn-primary { box-shadow: 0 12px 26px -14px rgba(99,102,241,0.9); }
+        .fm-tabs { padding: 0.25rem; border-radius: 999px; background: rgba(128,128,128,0.14); width: fit-content; gap: 0.2rem; }
+        .fm-tab { border: 0; padding: 0.5rem 1.05rem; font-weight: 600; transition: background 0.15s; }
+        .fm-tab.on { background: linear-gradient(135deg, #f3d777, #d4af37); box-shadow: 0 6px 14px -8px rgba(201,162,39,0.9); }
+
+        /* Plan : modules */
+        .fm-modules { gap: 0.6rem; }
+        .fm-module-btn {
+          padding: 0.85rem; border-radius: 16px; border: 1px solid rgba(128,128,128,0.25);
+          background: rgba(128,128,128,0.07); transition: border-color 0.15s, background 0.15s, transform 0.12s;
+        }
+        .fm-module-btn:not(:disabled):hover { border-color: rgba(212,175,55,0.6); background: rgba(212,175,55,0.07); }
+        .fm-module-btn.active { border-color: #D4AF37; background: rgba(212,175,55,0.12); box-shadow: 0 0 0 3px rgba(212,175,55,0.18); }
+        .fm-num { background: linear-gradient(135deg, #f3d777, #c9a227); box-shadow: 0 6px 14px -8px rgba(201,162,39,0.9); }
+        .fm-state { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; border: 1px solid rgba(128,128,128,0.35); opacity: 0.85; white-space: nowrap; }
+        .fm-state.ok { color: #15803d; border-color: rgba(22,163,74,0.4); background: rgba(22,163,74,0.1); opacity: 1; }
+
+        /* Plan : éditeur en accordéon */
+        .fm-pe { display: block; padding: 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(128,128,128,0.28); background: rgba(128,128,128,0.07); }
+        .fm-pe.open { border-color: rgba(212,175,55,0.7); box-shadow: 0 0 0 3px rgba(212,175,55,0.16); }
+        .fm-pe-top { width: 100%; display: flex; align-items: flex-start; gap: 0.8rem; padding: 0.85rem; text-align: left; background: transparent; border: 0; color: inherit; }
+        .fm-pe-main { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
+        .fm-pe-title { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+        .fm-pe-sum { font-size: 0.8rem; opacity: 0.65; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .fm-pe-new { justify-self: start; font-size: 0.68rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px; background: rgba(212,175,55,0.2); color: #9a7a14; }
+        .fm-pe-chev { flex: none; font-size: 1.3rem; line-height: 1; opacity: 0.6; transition: transform 0.2s; }
+        .fm-pe.open .fm-pe-chev { transform: rotate(180deg); }
+        .fm-pe-body { display: grid; gap: 0.2rem; padding: 0.9rem 0.85rem 1rem; border-top: 1px dashed rgba(128,128,128,0.35); }
+        .fm-pe-tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; margin-bottom: 0.7rem; }
+        .fm-pe-btn { width: auto; min-width: 0; height: auto; min-height: 44px; padding: 0.5rem 0.6rem; font-size: 0.82rem; font-weight: 600; border-radius: 12px; }
+        .fm-auto { resize: none; overflow: hidden; line-height: 1.5; min-height: 2.9rem; font-family: inherit; }
+
+        /* Bibliothèque */
+        .fm-library { margin-top: 2.2rem; }
+        .fm-library-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+        .fm-btn-lib { flex: none; padding: 0.6rem 1rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem; white-space: nowrap; color: inherit; border: 1px solid rgba(212,175,55,0.65); background: rgba(212,175,55,0.1); }
+        .fm-cards { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+        .fm-fcard { display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; border: 1px solid rgba(128,128,128,0.25); background: rgba(128,128,128,0.08); transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; }
+        .fm-fcard:hover { transform: translateY(-2px); border-color: rgba(212,175,55,0.55); box-shadow: 0 16px 30px -20px rgba(0,0,0,0.7); }
+        .fm-fcover { position: relative; display: flex; align-items: flex-end; justify-content: space-between; min-height: 4.4rem; padding: 0.7rem 0.85rem; color: #fff; }
+        .fm-fico { font-size: 1.6rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+        .fm-badges { display: flex; gap: 0.3rem; flex-wrap: wrap; justify-content: flex-end; }
+        .fm-badge { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.18rem 0.55rem; border-radius: 999px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25); }
+        .fm-badge-pub { background: rgba(22,163,74,0.85); border-color: rgba(255,255,255,0.35); }
+        .fm-fbody { display: grid; gap: 0.55rem; padding: 0.9rem 1rem 1rem; }
+        .fm-ftitle { margin: 0; font-weight: 700; line-height: 1.3; font-size: 1rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+        .fm-fmeta { font-size: 0.76rem; opacity: 0.65; }
+        .fm-fbar { height: 6px; border-radius: 99px; background: rgba(128,128,128,0.25); overflow: hidden; }
+        .fm-fbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #c9a227, #f3d777); }
+        .fm-factions { display: flex; gap: 0.5rem; }
+        .fm-fopen { flex: 1; min-height: 44px; border-radius: 12px; font-weight: 700; color: #0b0b0b; background: linear-gradient(135deg, #f3d777, #d4af37); border: 0; }
+        .fm-fopen:disabled { opacity: 0.5; }
+        .fm-fmore { flex: none; min-width: 44px; min-height: 44px; border-radius: 12px; font-size: 1.2rem; color: inherit; background: transparent; border: 1px solid rgba(128,128,128,0.4); }
+        .fm-fmenu { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .fm-more { width: 100%; margin-top: 0.9rem; padding: 0.8rem; border-radius: 14px; font-weight: 600; color: inherit; border: 1px dashed rgba(128,128,128,0.5); background: transparent; }
+        .fm-skel { height: 11rem; border-radius: 18px; background: linear-gradient(90deg, rgba(128,128,128,0.1), rgba(128,128,128,0.2), rgba(128,128,128,0.1)); background-size: 200% 100%; animation: fmshimmer 1.4s linear infinite; }
+        @keyframes fmshimmer { to { background-position: -200% 0; } }
+        .fm-empty { text-align: center; padding: 2rem 1rem; border-radius: 18px; border: 1px dashed rgba(212,175,55,0.55); background: rgba(212,175,55,0.06); }
+        .fm-empty-ico { font-size: 2rem; }
+        .fm-empty-title { font-weight: 800; margin-top: 0.3rem; }
+
+        /* Fenêtre « Mes formations » */
+        .fm-drawer-bg { position: fixed; inset: 0; z-index: 900; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.62); backdrop-filter: blur(3px); }
+        .fm-drawer { width: 100%; max-width: 62rem; height: 94vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 24px 24px 0 0; box-shadow: 0 -20px 60px rgba(0,0,0,0.5); }
+        .fm-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; border-bottom: 1px solid rgba(128,128,128,0.25); }
+        .fm-drawer-title { margin: 0; font-size: 1.15rem; font-weight: 800; }
+        .fm-drawer-close { min-width: 44px; min-height: 44px; border-radius: 12px; font-size: 1rem; color: inherit; background: transparent; border: 1px solid rgba(128,128,128,0.4); }
+        .fm-drawer-body { flex: 1; overflow-y: auto; padding: 1rem 1.2rem 2rem; -webkit-overflow-scrolling: touch; }
+        @media (min-width: 720px) {
+          .fm-drawer-bg { align-items: center; padding: 1.5rem; }
+          .fm-drawer { height: auto; max-height: 88vh; border-radius: 24px; }
+        }
+
+        /* Éditeur de leçon, ressources et aperçu */
+        .fm-textarea { border-radius: 14px; min-height: 22rem; line-height: 1.7; font-size: 0.95rem; }
+        .fm-res { padding: 0.8rem 2.4rem 0.8rem 0.8rem; border-radius: 14px; border: 1px solid rgba(128,128,128,0.25); background: rgba(128,128,128,0.06); }
+        .fm-res .fm-del { top: 0.5rem; right: 0.3rem; }
+        .fm-img-open { border-radius: 14px; background: linear-gradient(135deg, rgba(128,128,128,0.12), rgba(128,128,128,0.22)); }
+        .fm-processing { display: flex; align-items: center; gap: 0.7rem; padding: 0.85rem 1rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600; border: 1px dashed rgba(212,175,55,0.65); background: rgba(212,175,55,0.08); }
+        .fm-spin { flex: none; width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 2px solid rgba(212,175,55,0.35); border-top-color: #D4AF37; animation: fmspin 0.8s linear infinite; }
+        @keyframes fmspin { to { transform: rotate(360deg); } }
+        .fm-paper { margin-top: 0.4rem; padding: 1.5rem 1.2rem; border-radius: 18px; color: #1a1a1a; background: #fff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 14px 34px -20px rgba(0,0,0,0.55); }
+        .fm-paper-kicker { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: #b8931f; font-weight: 700; }
+        .fm-paper-title { font-size: 1.55rem; line-height: 1.2; font-weight: 800; margin: 0.35rem 0 1rem; color: #0b0b0b; }
+        .fm-paper .fm-lesson h2, .fm-paper .fm-lesson h3 { color: #0b0b0b; }
+        .fm-paper .fm-lesson p, .fm-paper .fm-lesson li { color: #262626; }
+        .fm-paper-sec { margin-top: 1.7rem; padding-top: 1.1rem; border-top: 1px solid rgba(0,0,0,0.08); }
+        .fm-paper-h { font-size: 1.05rem; font-weight: 800; margin: 0 0 0.8rem; color: #0b0b0b; }
+        .fm-paper-fig { margin: 0 0 1.2rem; }
+        .fm-paper-fig img { display: block; width: 100%; height: auto; border-radius: 12px; }
+        .fm-paper-fig figcaption { text-align: center; font-size: 0.82rem; color: #666; margin-top: 0.45rem; }
+        .fm-paper-video { margin: 0 0 1.2rem; }
+        .fm-paper-vtitle { font-weight: 700; margin-bottom: 0.45rem; color: #0b0b0b; }
+        .fm-paper-links { padding-left: 1.2rem; }
+        .fm-paper-links a, .fm-paper .fm-link { color: #9a7a14; }
+
         /* Feuille PDF : invisible à l'écran */
         .fm-sheet { display: none; }
 
@@ -1783,35 +2267,48 @@ export default function Formations() {
             color: #b8931f; font-weight: 700; margin-bottom: 0.4rem;
           }
           .fm-sheet-title { font-size: 1.8rem; font-weight: 700; margin: 0 0 1rem; color: #0B0B0B; }
-          .fm-sheet-h2 { font-size: 1.2rem; font-weight: 700; margin: 1.5rem 0 0.6rem; color: #0B0B0B; }
+          .fm-sheet-h2 { font-size: 1.2rem; font-weight: 700; margin: 1.5rem 0 0.6rem; color: #0B0B0B; break-after: avoid; page-break-after: avoid; }
           .fm-sheet .fm-lesson p { font-size: 0.95rem; line-height: 1.7; text-align: justify; color: #222; }
           .fm-sheet .fm-lesson h3 { break-after: avoid; color: #0B0B0B; }
 
-          .fm-sheet-videobox { break-inside: avoid; margin-top: 1.5rem; }
-          .fm-sheet-thumb {
-            position: relative; display: block; width: 100%; max-width: 110mm;
-            border-radius: 6px; overflow: hidden; text-decoration: none !important;
+          .fm-sheet-videobox { margin-top: 1.5rem; }
+          .fm-sheet-vcard {
+            break-inside: avoid; margin: 0 0 6mm; overflow: hidden;
+            border: 0.3mm solid #e4d9b0; border-radius: 3mm; background: #fbf8ee;
           }
-          .fm-sheet-thumb img { display: block; width: 100%; height: auto; }
+          .fm-sheet-thumb {
+            position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
+            background: linear-gradient(135deg, #15110a, #4a3a0c); text-decoration: none !important;
+          }
+          .fm-sheet-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
           .fm-play {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             width: 16mm; height: 16mm; border-radius: 50%;
-            background: rgba(11,11,11,0.75); color: #D4AF37;
+            background: rgba(11,11,11,0.78); color: #D4AF37;
             display: flex; align-items: center; justify-content: center;
             font-size: 1.4rem; padding-left: 1mm;
           }
+          .fm-sheet-vbody { padding: 4mm 5mm 5mm; }
+          .fm-sheet-vtitle { font-weight: 700; font-size: 1rem; color: #0B0B0B; margin-bottom: 2mm; }
           .fm-sheet-btn {
-            display: inline-block; margin-top: 0.8rem; padding: 0.6rem 1.1rem;
+            display: inline-block; padding: 0.5rem 1rem;
             border-radius: 6px; background: #D4AF37; color: #0B0B0B !important;
             font-weight: 700; text-decoration: none !important;
           }
-          .fm-sheet-res { break-inside: avoid; }
+          .fm-sheet-vurl {
+            display: block; margin-top: 2.5mm; font-size: 0.78rem; color: #7a6417 !important;
+            word-break: break-all; overflow-wrap: anywhere;
+          }
+          .fm-sheet-res { margin-top: 1rem; }
           .fm-sheet-res ul { padding-left: 1.3rem; }
           .fm-sheet-res li { margin: 0.3rem 0; }
-          .fm-sheet-img { margin: 0 0 5mm; break-inside: avoid; }
-          .fm-sheet-img img { display: block; max-width: 100%; max-height: 110mm; object-fit: contain; border-radius: 4px; }
-          .fm-sheet-img figcaption { font-size: 0.8rem; color: #666; margin-top: 1.5mm; }
+          .fm-sheet-img { margin: 0 0 6mm; break-inside: avoid; text-align: center; }
+          .fm-sheet-img img {
+            display: block; width: 100%; height: auto; max-height: 232mm;
+            object-fit: contain; border-radius: 3mm;
+          }
+          .fm-sheet-img figcaption { font-size: 0.82rem; color: #666; margin-top: 2mm; text-align: center; }
         }
       `}</style>
     </DashboardLayout>
