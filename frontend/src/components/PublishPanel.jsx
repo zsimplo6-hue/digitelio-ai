@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import FormationDoc, { printFormation } from "./FormationExport.jsx";
@@ -29,13 +29,11 @@ const LANG_LABELS = {
   de: "Deutsch", it: "Italiano", ar: "العربية",
 };
 
-export default function PublishPanel({ formation, onChange }) {
+export default function PublishPanel({ formation, onChange, template, brand = {}, onTemplate }) {
   const { user } = useAuth();
   const cover = formation.cover_url || ""; // conservé tel quel, non modifiable ici
   const [certificate, setCertificate] = useState(!!formation.certificate);
   const [learner, setLearner] = useState("");
-  const [template, setTemplate] = useState("noir");
-  const [brand, setBrand] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -45,26 +43,11 @@ export default function PublishPanel({ formation, onChange }) {
   const written = modules.filter((m) => (m.content || "").trim()).length;
   const allWritten = modules.length > 0 && written === modules.length;
 
-  useEffect(() => {
-    api(`/formations/${formation.id}/style`)
-      .then((d) => d.template && setTemplate(d.template))
-      .catch(() => {});
-    api("/brand")
-      .then((d) => setBrand(d.brand || {}))
-      .catch(() => {});
-  }, [formation.id]);
-
   async function chooseTemplate(id) {
-    const previous = template;
-    setTemplate(id);
     setErr("");
     try {
-      await api(`/formations/${formation.id}/style`, {
-        method: "PUT",
-        body: JSON.stringify({ template: id }),
-      });
+      await onTemplate(id);
     } catch (e) {
-      setTemplate(previous);
       setErr(e.message);
     }
   }
