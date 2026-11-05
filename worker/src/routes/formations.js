@@ -33,6 +33,12 @@ async function askAI(env, prompt, maxTokens) {
   return response.response || "";
 }
 
+/* Intitulé de l'encadré « À retenir » selon la langue (même principe que les e-books) */
+const TAKEAWAY = {
+  fr: "À retenir", en: "Key takeaway", es: "Para recordar", pt: "Para lembrar",
+  de: "Das Wichtigste", it: "Da ricordare", ar: "للتذكير",
+};
+
 /* ===== Langues prises en charge ===== */
 const LANGS = {
   fr: {
@@ -451,6 +457,7 @@ export async function handleGenerateModule(request, env, formationId, moduleId) 
   const L = langOf(mod.language);
   const langLabel = L.name;
   const isQuiz = QUIZ_RE.test(mod.title);
+  const takeLbl = TAKEAWAY[mod.language] || TAKEAWAY.fr;
 
   /* Contexte de la formation (public, niveau, ton...) et objectif / compétences du module */
   let context = "";
@@ -490,14 +497,19 @@ Rédige en Markdown, sans répéter le titre du module :
 Formation : "${mod.formation_title}". Sujet : ${mod.topic}.
 Module : "${mod.title}". Objectif du module : ${mod.summary || mod.title}.
 ${context}
-Rédige la leçon complète en Markdown, entre 400 et 600 mots, sans répéter le titre du module :
+Rédige la leçon complète en Markdown, entre 450 et 650 mots, sans répéter le titre du module :
 - une introduction de 2 à 3 phrases ;
 - 2 à 3 sous-parties avec des titres commençant par "### " et des paragraphes clairs, avec des exemples concrets ;
+- un encadré clé : une ligne qui commence exactement par "> **${takeLbl} :** " suivie d'une idée forte ;
+- un tableau récapitulatif de 3 à 5 lignes quand c'est utile, au format :
+| Colonne A | Colonne B |
+| --- | --- |
+| valeur | valeur |
 - ### ${L.exercise} : un exercice réalisable par l'apprenant ;
-- ### ${L.summary} : 3 à 4 puces qui reprennent l'essentiel.`;
+- pour terminer, un encadré de résumé : une première ligne "> **${L.summary} :**" puis 3 à 4 lignes qui commencent chacune par "> - " et reprennent l'essentiel.`;
 
   try {
-    const content = (await askAI(env, prompt, 1500)).trim();
+    const content = (await askAI(env, prompt, isQuiz ? 1500 : 2200)).trim();
     if (!content) {
       return Response.json({ error: "L'IA n'a rien renvoyé, réessayez." }, { status: 502 });
     }
