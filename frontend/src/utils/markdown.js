@@ -22,8 +22,13 @@ export function renderMarkdown(text) {
     "padding:0.55rem 0.7rem;vertical-align:top;border:1px solid rgba(128,128,128,0.35);background:var(--accent-soft,rgba(212,175,55,0.12));" +
     PRINT;
   const CALLOUT =
-    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid var(--accent,#D4AF37);background:var(--accent-soft,rgba(212,175,55,0.17));border-radius:0 8px 8px 0;line-height:1.7;" +
+    "margin:1.3rem 0;padding:0.9rem 1.1rem;border-left:4px solid var(--accent,#D4AF37);background:var(--accent-soft,rgba(212,175,55,0.17));border-radius:0 8px 8px 0;line-height:1.7;break-inside:avoid;page-break-inside:avoid;" +
     PRINT;
+
+  const SUMMARY =
+    "margin:1.3rem 0;padding:1rem 1.2rem;border:1px solid var(--accent,#D4AF37);border-left:6px solid var(--accent,#D4AF37);background:var(--accent-head,rgba(212,175,55,0.3));border-radius:0 10px 10px 0;line-height:1.7;break-inside:avoid;page-break-inside:avoid;" +
+    PRINT;
+  const SUMMARY_RE = /^\*{0,2}\s*(r[ée]sum[ée]|summary|resumen|resumo|zusammenfassung|riepilogo|ملخص)(?![\p{L}])/iu;
 
   const lines = String(text).replace(/\r/g, "").split("\n");
   let html = "";
@@ -91,7 +96,13 @@ export function renderMarkdown(text) {
         i++;
       }
       i--;
-      html += `<blockquote style="${CALLOUT}">${parts.map((p) => inline(p)).join("<br>")}</blockquote>`;
+      // « Résumé » : encadré plus marqué ; les lignes "- " de l'encadré deviennent des puces
+      const isSummary = SUMMARY_RE.test(parts[0] || "");
+      const body = parts
+        .map((p) => (/^[-*]\s+/.test(p) ? `<span style="display:block;padding-left:1.1rem;text-indent:-0.9rem">• ${inline(p.replace(/^[-*]\s+/, ""))}</span>` : inline(p)))
+        .join("<br>")
+        .replace(/<br>(<span style="display:block)/g, "$1");
+      html += `<blockquote class="md-callout${isSummary ? " md-summary" : ""}" style="${isSummary ? SUMMARY : CALLOUT}">${body}</blockquote>`;
       continue;
     }
 
