@@ -1,4 +1,5 @@
 import { getActiveCommission } from "./billing.js";
+import { paymentMatches } from "../utils/payment_match.js";
 import { sendEmail, purchaseDeliveryEmailHtml, ebookDeliveryEmailHtml } from "../utils/email.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
@@ -333,7 +334,7 @@ async function checkSalePayment(env, s, knownTxId = null, webhookPay = null) {
     .filter((v) => v !== undefined && v !== null)
     .map(Number);
 
-  if (pay.currency !== "XOF" || !candidates.includes(expected)) {
+  if (!paymentMatches(pay, expected, s.id)) {
     console.error("Vente SasPay incohérente", s.id, pay.currency, JSON.stringify(candidates), expected);
     await env.DB.prepare("UPDATE sales SET status = 'REVIEW' WHERE id = ? AND status = 'PENDING'")
       .bind(s.id)

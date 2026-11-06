@@ -1,6 +1,7 @@
 import { parseCookies } from "../utils/cookies.js";
 import { verifyJWT } from "../utils/jwt.js";
 import { PLANS, activatePlan } from "./billing.js";
+import { paymentMatches } from "../utils/payment_match.js";
 import { reconcilePendingSales, handleSaspayProductWebhook } from "./shop_payments.js";
 
 const SASPAY_BASE = "https://api.saspay.me/api/v1";
@@ -62,7 +63,7 @@ function safeEqual(a, b) {
 }
 
 /* knownTxId : id de transaction fourni par le webhook (évite de dépendre de la session) */
-async function checkPayment(env, p, knownTxId = null) {
+export async function checkPayment(env, p, knownTxId = null) {
   let txId = knownTxId;
 
   if (!txId) {
@@ -88,14 +89,21 @@ async function checkPayment(env, p, knownTxId = null) {
     console.error("Paiement abonnement illisible", p.id, txId, pRes.status, JSON.stringify(pBody));
     return "PENDING";
   }
-  if (pay.status !== "SUCCESS") return "PENDING";
+  if (pay.status !== "SUCCESS") {
+    // Échec définitif côté SasPay : on le garde visible (tableau admin) au lieu de le laisser « en attente »
+    if (/FAIL|CANCEL|EXPIR|REFUS|REJECT|DECLIN/i.test(String(pay.status || ""))) {
+      await env.DB.prepare("UPDATE payments SET status = 'FAILED' WHERE id = ? AND status = 'PENDING'")
+        .bind(p.id)
+        .run();
+      return "FAILED";
+    }
+    return "PENDING";
+  }
 
-  const expected = Number(p.amount);
-  const candidates = [pay.requested_amount, pay.amount, pay.net_amount]
-    .filter((v) => v !== undefined && v !== null)
-    .map(Number);
-  if (pay.currency !== "XOF" || !candidates.includes(expected)) {
-    console.error("Paiement SasPay incohérent", p.id, pay.currency, JSON.stringify(candidates), expected);
+  /* Toutes les monnaies sont acceptées. Le prix est fixé en FCFA à la création de la session ;
+     SasPay convertit si le client paie dans une autre devise. */
+  if (!paymentMatches(pay, Number(p.amount), p.id)) {
+    console.error("Paiement SasPay incohérent", p.id, pay.currency, JSON.stringify([pay.requested_amount, pay.amount, pay.net_amount]), p.amount);
     await env.DB.prepare("UPDATE payments SET status = 'REVIEW' WHERE id = ? AND status = 'PENDING'")
       .bind(p.id)
       .run();
@@ -112,7 +120,7 @@ async function checkPayment(env, p, knownTxId = null) {
 
   const claim = await env.DB.prepare(
     `UPDATE payments SET status = 'PAID', transaction_id = ?, paid_at = datetime('now')
-     WHERE id = ? AND status IN ('PENDING', 'REVIEW')`
+     WHERE id = ? AND status IN ('PENDING', 'REVIEW', 'FAILED')`
   )
     .bind(txId, p.id)
     .run();
@@ -287,7 +295,7 @@ export async function handleSaspayWebhook(request, env) {
       )
         .bind(data.metadata.payment_id)
         .first();
-      if (p && (p.status === "PENDING" || p.status === "REVIEW")) {
+      if (p && ["PENDING", "REVIEW", "FAILED"].includes(p.status)) {
         await checkPayment(env, p, data.id || null);
       }
     }
