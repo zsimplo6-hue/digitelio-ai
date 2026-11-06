@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Select } from "../components/ui/Field.jsx";
@@ -56,14 +57,15 @@ export default function Ideas() {
   }
 
   return (
-    <DashboardLayout title="Idées de produits">
+    <DashboardLayout>
       <div className="dg-settings-wrap" style={{ maxWidth: "44rem" }}>
-        <h1 className="text-2xl font-bold">Idées de produits</h1>
-        <p className="dg-page__subtitle">
-          Trouvez des niches adaptées à votre pays, puis créez l'eBook en un clic.
-        </p>
+        <PageHero
+          kicker="Inspiration"
+          title="Idées de produits"
+          subtitle="Trouvez des niches adaptées à votre pays, puis créez l'eBook en un clic."
+        />
 
-        <form onSubmit={generate} style={{ marginTop: 16 }}>
+        <form onSubmit={generate}>
           <Card>
             <div className="dg-field">
               <label className="dg-field__label">Pays ou public visé *</label>
@@ -114,20 +116,20 @@ export default function Ideas() {
               Ces idées sont générées par IA pour vous inspirer. Ce ne sont pas des données de marché : vérifiez
               la demande réelle avant de vous lancer.
             </p>
-            <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+            <div className="id-list">
               {ideas.map((idea, i) => (
-                <Card key={i}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <div key={i} className="id-card">
+                  <div className="id-top">
                     <span className="dg-badge dg-badge--brand">{idea.niche}</span>
                     <span className="dg-pill">{idea.type === "formation" ? "Formation" : "eBook"}</span>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>{idea.title}</div>
-                  <div style={{ fontSize: 14 }}>{idea.description}</div>
-                  <div className="dg-helper-text" style={{ marginTop: 0 }}>{idea.why}</div>
+                  <div className="id-title">{idea.title}</div>
+                  <div className="id-desc">{idea.description}</div>
+                  {idea.why && <div className="id-why">💡 {idea.why}</div>}
                   <Button variant="primary" size="sm" onClick={() => createFrom(idea)}>
                     Créer cet eBook
                   </Button>
-                </Card>
+                </div>
               ))}
             </div>
           </>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 
@@ -131,10 +132,11 @@ export default function Boutique() {
   return (
     <DashboardLayout>
       <div className="dg-settings-wrap" style={{ maxWidth: "50rem" }}>
-        <h1 className="text-2xl font-bold">🛍️ Ma boutique</h1>
-        <p className="dg-page__subtitle">
-          Votre vitrine publique pour vendre vos eBooks, formations et packs.
-        </p>
+        <PageHero
+          kicker="Vente en ligne"
+          title="Ma boutique"
+          subtitle="Votre vitrine publique pour vendre vos eBooks, formations et packs."
+        />
 
         {error && <div className="dg-alert dg-alert--error">{error}</div>}
 

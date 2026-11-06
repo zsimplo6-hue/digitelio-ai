@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -238,8 +239,7 @@ export default function Subscriptions() {
   return (
     <DashboardLayout>
       <div className="sb-page">
-        <h1 className="text-2xl font-bold">Abonnements</h1>
-        <p className="sb-muted">Votre plan, votre échéance et votre consommation.</p>
+        <PageHero kicker="Facturation" title="Abonnements" subtitle="Votre plan, votre échéance et votre consommation." />
 
         {error && (
           <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>

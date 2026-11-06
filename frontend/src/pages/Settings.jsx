@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { CURRENCIES, saveDefaultCurrency } from "../utils/currency.js";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -116,10 +117,7 @@ export default function Settings() {
   return (
     <DashboardLayout>
       <div className="dg-settings-wrap">
-        <div className="dg-settings-header">
-          <h1 className="dg-page__title">Paramètres</h1>
-          <p className="dg-page__subtitle">Gérez votre profil et vos préférences.</p>
-        </div>
+        <PageHero kicker="Compte" title="Paramètres" subtitle="Gérez votre profil et vos préférences." />
 
         {loading ? (
           <p className="dg-page__subtitle">Chargement...</p>

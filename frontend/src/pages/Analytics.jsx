@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Select } from "../components/ui/Field.jsx";
@@ -58,10 +59,11 @@ export default function Analytics() {
   return (
     <DashboardLayout>
       <div className="dg-settings-wrap" style={{ maxWidth: "46rem" }}>
-        <h1 className="text-2xl font-bold">Analytics</h1>
-        <p className="dg-page__subtitle">
-          Mesurez les visites de vos pages de vente et les clics sur le bouton d'achat.
-        </p>
+        <PageHero
+          kicker="Performance"
+          title="Analytics"
+          subtitle="Mesurez les visites de vos pages de vente et les clics sur le bouton d'achat."
+        />
 
         {error && <div className="dg-alert dg-alert--error">{error}</div>}
 

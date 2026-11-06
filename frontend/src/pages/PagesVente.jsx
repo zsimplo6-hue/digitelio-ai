@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { formatPrice } from "../utils/currency.js";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
@@ -48,10 +49,11 @@ export default function PagesVente() {
   return (
     <DashboardLayout>
       <div className="pv-page">
-        <h1 className="text-2xl font-bold">Pages de vente</h1>
-        <p className="pv-muted">
-          Suivez vos formations en vente, leurs apprenants et vos résultats.
-        </p>
+        <PageHero
+          kicker="Vente en ligne"
+          title="Pages de vente"
+          subtitle="Suivez vos formations en vente, leurs apprenants et vos résultats."
+        />
 
         {error && (
           <div className="mt-4 rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-500">{error}</div>

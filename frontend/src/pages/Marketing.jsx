@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8787";
 
@@ -130,11 +131,11 @@ export default function Marketing() {
   return (
     <DashboardLayout>
       <div className="mk-page">
-        <h1 className="text-2xl font-bold">Marketing digital</h1>
-        <p className="mk-muted">
-          Générez en quelques secondes vos textes de lancement, à partir de votre eBook ou de votre formation, pour les
-          publier avec votre lien Chariow, Maketou ou autre.
-        </p>
+        <PageHero
+          kicker="Marketing"
+          title="Marketing digital"
+          subtitle="Générez en quelques secondes vos textes de lancement, à partir de votre eBook ou de votre formation, pour les publier avec votre lien Chariow, Maketou ou autre."
+        />
 
         {loading ? (
           <p className="mk-muted" style={{ marginTop: "1.5rem" }}>Chargement...</p>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Input } from "../components/ui/Field.jsx";
@@ -90,12 +91,12 @@ export default function Wallet() {
   return (
     <DashboardLayout>
       <div className="dg-settings-wrap" style={{ maxWidth: "50rem" }}>
-        <Link to="/dashboard/boutique" style={{ fontSize: 13, color: "var(--dg-brand-solid)", textDecoration: "none", fontWeight: 600 }}>
-          ← Retour à ma boutique
-        </Link>
-
-        <h1 className="text-2xl font-bold dg-mt-6">💳 Wallet</h1>
-        <p className="dg-page__subtitle">Votre solde, vos ventes et vos retraits.</p>
+        <PageHero
+          kicker="Finances"
+          title="Wallet"
+          subtitle="Votre solde, vos ventes et vos retraits."
+          back={<Link to="/dashboard/boutique">← Retour à ma boutique</Link>}
+        />
 
         {error && <div className="dg-alert dg-alert--error">{error}</div>}
         {formSuccess && <div className="dg-alert dg-alert--success">{formSuccess}</div>}

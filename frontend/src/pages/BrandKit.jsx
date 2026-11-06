@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import TemplatePreview from "../components/TemplatePreview.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -114,15 +115,16 @@ export default function BrandKit() {
     <DashboardLayout>
       <style>{fontsImport(TEMPLATE_ORDER)}</style>
       <div className="dg-settings-wrap" style={{ maxWidth: "44rem" }}>
-        <h1 className="text-2xl font-bold">Mon style</h1>
-        <p className="dg-page__subtitle">
-          Remplissez les champs : ils s'écrivent en direct sur la couverture de vos eBooks.
-        </p>
+        <PageHero
+          kicker="Identité de marque"
+          title="Mon style"
+          subtitle="Remplissez les champs : ils s'écrivent en direct sur la couverture de vos eBooks."
+        />
 
         {loading ? (
           <p className="dg-page__subtitle">Chargement...</p>
         ) : (
-          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+          <div style={{ display: "grid", gap: 16 }}>
             <Card title="Aperçu de la couverture">
               <TemplatePreview
                 templateId={b.default_template}

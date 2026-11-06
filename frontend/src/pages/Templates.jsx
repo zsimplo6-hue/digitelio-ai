@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import TemplatePreview from "../components/TemplatePreview.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Button } from "../components/ui/Button.jsx";
@@ -121,15 +122,15 @@ export default function Templates() {
   }
 
   return (
-    <DashboardLayout title="Modèles">
+    <DashboardLayout>
       <style>{fontsImport(TEMPLATE_ORDER)}</style>
       <style>{formationFontsImport(FORMATION_ORDER)}</style>
       <div className="dg-settings-wrap" style={{ maxWidth: "56rem" }}>
-        <h1 className="text-2xl font-bold">Modèles d'eBooks</h1>
-        <p className="dg-page__subtitle">
-          6 mises en page premium, avec leurs propres polices et couleurs. Pour changer le modèle d'un eBook
-          existant, ouvrez-le puis choisissez « Modèle du livre ».
-        </p>
+        <PageHero
+          kicker="Bibliothèque de modèles"
+          title="Modèles d'eBooks"
+          subtitle="6 mises en page premium, avec leurs propres polices et couleurs. Pour changer le modèle d'un eBook existant, ouvrez-le puis choisissez « Modèle du livre »."
+        />
 
         {hasLocks && <LockBanner />}
         {err && <div className="dg-alert dg-alert--error">{err}</div>}

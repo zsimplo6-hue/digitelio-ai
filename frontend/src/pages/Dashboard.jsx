@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardLayout from "../components/DashboardLayout.jsx";
+import PageHero from "../components/ui/PageHero.jsx";
 import { formatPrice } from "../utils/currency.js";
 import { Card } from "../components/ui/Card.jsx";
 
@@ -90,10 +91,15 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="dg-settings-wrap" style={{ maxWidth: "46rem" }}>
-        <h1 className="text-2xl font-bold">
-          Bonjour, <span className="text-gradient">{user?.fullName || "..."}</span> 👋
-        </h1>
-        <p className="dg-page__subtitle">Voici un aperçu de votre activité sur Digitelio AI.</p>
+        <PageHero
+          kicker="Tableau de bord"
+          title={
+            <>
+              Bonjour, <span className="grad">{user?.fullName || "..."}</span> 👋
+            </>
+          }
+          subtitle="Voici un aperçu de votre activité sur Digitelio AI."
+        />
 
         {error && <div className="dg-alert dg-alert--error">{error}</div>}
 
