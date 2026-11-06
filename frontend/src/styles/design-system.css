@@ -555,3 +555,44 @@ html.dark .dg-btn--secondary:hover:not(:disabled) { background: #22223A; }
 html.dark .id-why { background: rgba(255,255,255,0.05); }
 html.dark .dg-plan-item__tag { background: rgba(124,58,237,0.2); }
 .dg-actions-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* ===== Tableau de bord : activité récente + compte (db-*) ===== */
+.db-panel { margin-top: .8rem; background: var(--dg-surface); border: 1px solid var(--dg-border-subtle); border-radius: 22px; padding: .35rem .35rem .45rem; box-shadow: 0 1px 2px rgba(16,16,40,.04), 0 12px 30px -20px rgba(16,16,40,.25); overflow: hidden; }
+.db-panel__head { display: flex; align-items: center; gap: .6rem; padding: .8rem .8rem .6rem; }
+.db-panel__head h3 { flex: 1; min-width: 0; margin: 0; font-size: .98rem; font-weight: 800; letter-spacing: -.01em; }
+.db-panel__ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-size: 1rem; background: linear-gradient(135deg, rgba(59,130,246,.16), rgba(139,92,246,.2)); }
+.db-panel__ic--gold { background: linear-gradient(135deg, rgba(245,166,35,.22), rgba(212,175,55,.2)); }
+.db-panel__all { flex: none; font-size: .78rem; font-weight: 700; color: var(--dg-brand-solid, #7C3AED); text-decoration: none; white-space: nowrap; }
+.db-item { display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; margin: 0 .25rem; border-radius: 16px; color: inherit; text-decoration: none; transition: background .15s ease, transform .15s ease; }
+a.db-item:hover { background: rgba(139,92,246,.07); transform: translateX(2px); }
+.db-item + .db-item { border-top: 1px solid var(--dg-border-subtle); border-radius: 0 0 16px 16px; }
+a.db-item + a.db-item:hover { border-radius: 16px; }
+.db-item__badge { flex: none; width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; font-size: 1.1rem; background: linear-gradient(135deg, rgba(59,130,246,.14), rgba(139,92,246,.2)); }
+.db-item__badge--gold { background: linear-gradient(135deg, rgba(245,166,35,.2), rgba(212,175,55,.18)); }
+.db-item__main { flex: 1; min-width: 0; }
+.db-item__title { font-weight: 700; font-size: .92rem; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.db-item__meta { margin-top: .15rem; font-size: .78rem; color: var(--dg-text-secondary); overflow-wrap: anywhere; }
+.db-item__side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: .25rem; }
+.db-item__date { font-size: .72rem; font-weight: 600; color: var(--dg-text-secondary); background: rgba(139,92,246,.08); padding: .2rem .55rem; border-radius: 999px; white-space: nowrap; }
+.db-account { margin-top: .8rem; border-radius: 24px; padding: 1.1rem; background: var(--dg-surface); border: 1px solid var(--dg-border-subtle); box-shadow: 0 1px 2px rgba(16,16,40,.04), 0 14px 34px -22px rgba(16,16,40,.3); position: relative; overflow: hidden; }
+.db-account::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #3B82F6, #8B5CF6, #D946EF); }
+.db-account__top { display: flex; align-items: center; gap: .85rem; padding-top: .3rem; }
+.db-account__av { flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.05rem; background: linear-gradient(135deg, #3B82F6, #8B5CF6); box-shadow: 0 10px 22px -10px rgba(139,92,246,.7); }
+.db-account__id { min-width: 0; }
+.db-account__name { font-weight: 800; font-size: 1.05rem; overflow-wrap: anywhere; }
+.db-account__mail { font-size: .85rem; color: var(--dg-text-secondary); overflow-wrap: anywhere; }
+.db-account__grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: 1rem; }
+.db-account__cell { background: rgba(139,92,246,.06); border: 1px solid var(--dg-border-subtle); border-radius: 16px; padding: .7rem .8rem; display: grid; gap: .25rem; min-width: 0; }
+.db-account__cell span { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--dg-text-secondary); }
+.db-account__cell b { font-size: .95rem; overflow-wrap: anywhere; }
+.db-plan { display: inline-block; width: fit-content; padding: .18rem .65rem; border-radius: 999px; font-size: .85rem !important; background: #ECEDF5; }
+.db-plan--pro { background: #E4EBFF; color: #2F55D4; }
+.db-plan--business { background: #EDE4FF; color: #6D28D9; }
+.db-plan--unlimited { background: #FFF3C4; color: #8A6A0A; }
+.db-account__actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+.db-btn { flex: 1 1 140px; text-align: center; padding: .75rem 1rem; border-radius: 14px; font-weight: 700; font-size: .88rem; text-decoration: none; color: inherit; border: 1px solid var(--dg-border-subtle); background: var(--dg-surface); }
+.db-btn--primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, #3B82F6, #8B5CF6); box-shadow: 0 12px 24px -14px rgba(139,92,246,.8); }
+html.dark .db-account__cell, html.dark .db-item__date { background: rgba(167,139,250,.12); }
+html.dark .db-plan { background: rgba(255,255,255,.1); color: #E5E7F5; }
+.db-item__side:empty { display: none; }
+a.db-item::after { content: "›"; flex: none; font-size: 1.4rem; line-height: 1; color: var(--dg-text-secondary); opacity: .6; }
