@@ -5,7 +5,7 @@ export default function Logo({ height = 36, className = "" }) {
 
   if (failed) {
     return (
-      <span className={`flex items-center gap-2 text-lg font-bold ${className}`}>
+      <span className={`flex flex-none items-center gap-2 whitespace-nowrap text-lg font-bold ${className}`}>
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-digi-gradient text-white">
           D
         </span>
