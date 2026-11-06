@@ -18,7 +18,7 @@ export default function TemplatePreview({
   const left = t.layout.cover === "left";
 
   return (
-    <div className="tp" style={{ ...vars, fontSize: size === "lg" ? 15 : 10 }}>
+    <div className="tp" style={{ ...vars, fontSize: size === "lg" ? "clamp(9px, 3vw, 15px)" : 10 }}>
       <div
         className={`tp-cover${t.layout.cover === "frame" ? " is-frame" : ""}`}
         style={{ alignItems: left ? "flex-start" : "center", textAlign: left ? "left" : "center" }}
