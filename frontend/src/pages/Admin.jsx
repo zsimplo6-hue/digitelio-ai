@@ -20,7 +20,29 @@ const dayOnly = (s) => {
   const d = toDate(s);
   return d ? d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "";
 };
-const PLAN = { free: "Gratuit", pro: "Pro", business: "Business", unlimited: "Illimité", expired: "Expiré" };
+const PLAN = { free: "Gratuit", pro: "Pro", business: "Business", unlimited: "Illimité", expired: "Expiré", gifted: "Offerts", internal: "Internes / test" };
+const ST = {
+  ACTIVATED: ["Plan activé", "ok"],
+  PAID: ["Payé · non activé", "warn"],
+  REVIEW: ["À vérifier", "warn"],
+  PENDING: ["En attente", "wait"],
+  FAILED: ["Échoué", "bad"],
+};
+const stateOf = (r) => {
+  if (r.status === "PENDING") {
+    const d = toDate(r.created_at);
+    if (d && Date.now() - d.getTime() > 3 * 3600 * 1000) return ["Abandonné", "wait"];
+  }
+  return ST[r.status] || [r.status, "wait"];
+};
+const FILTERS = [
+  ["all", "Tous"],
+  ["ok", "Activés"],
+  ["todo", "À traiter"],
+  ["pending", "En attente / abandonnés"],
+  ["failed", "Échoués"],
+  ["test", "Tests"],
+];
 const initials = (n, e) =>
   String(n || e || "?")
     .trim()
@@ -52,6 +74,9 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("subs");
   const [q, setQ] = useState("");
+  const [pf, setPf] = useState("all");
+  const [act, setAct] = useState("");
+  const [note, setNote] = useState("");
   const timer = useRef(null);
 
   async function load(force = false) {
@@ -91,6 +116,42 @@ export default function Admin() {
     };
   }, []);
 
+  async function payAction(action, r, extra = {}) {
+    if (action === "activate" && !window.confirm(`Activer le plan ${PLAN[r.plan] || r.plan} pour ${r.email} ?\nÀ faire seulement si le paiement est « Réussi » dans SasPay.`)) return;
+    setAct(r.id + action);
+    setNote("");
+    try {
+      const res = await fetch(`${API}/api/admin/payments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, id: r.id, ...extra }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Action impossible.");
+      if (action === "verify") setNote(json.status === "ACTIVATED" ? "✅ Paiement confirmé : plan activé." : `Résultat de la vérification : ${(ST[json.status] || [json.status])[0]}.`);
+      if (action === "activate") setNote("✅ Plan activé pour 30 jours.");
+      await load(true);
+    } catch (e) {
+      setNote("⚠️ " + e.message);
+    } finally {
+      setAct("");
+    }
+  }
+
+  const ledger = useMemo(() => {
+    const list = data?.ledger || [];
+    return list.filter((r) => {
+      if (pf === "test") return r.test;
+      if (r.test) return false;
+      if (pf === "ok") return r.status === "ACTIVATED";
+      if (pf === "todo") return r.status === "PAID" || r.status === "REVIEW";
+      if (pf === "pending") return r.status === "PENDING";
+      if (pf === "failed") return r.status === "FAILED";
+      return true;
+    });
+  }, [data, pf]);
+
   const users = useMemo(() => {
     const list = data?.users_list || [];
     const s = q.trim().toLowerCase();
@@ -116,11 +177,13 @@ export default function Admin() {
         { k: "free", n: p.free, c: "#B8BCD2" },
         { k: "pro", n: p.pro, c: "#6D8BFF" },
         { k: "business", n: p.business, c: "#8B5CF6" },
+        { k: "gifted", n: p.gifted, c: "#34d399" },
         { k: "unlimited", n: p.unlimited, c: "#D4AF37" },
+        { k: "internal", n: p.internal, c: "#9AA0B8" },
         { k: "expired", n: p.expired, c: "#F0A39B" },
       ]
     : [];
-  const alerts = data?.watch?.length || 0;
+  const alerts = data?.todo || 0;
 
   return (
     <div className="ad-root">
@@ -163,13 +226,17 @@ export default function Admin() {
           <>
             {alerts > 0 && (
               <div className="ad-alert">
-                <b>⚠️ {alerts} paiement(s) à surveiller</b>
+                <b>⚠️ {alerts} paiement(s) à traiter</b>
                 <span>
-                  Initiés ou payés chez SasPay mais pas encore activés. Le système les revérifie
-                  automatiquement ; ouvrez l'onglet « À surveiller » pour le détail.
+                  Payés ou à vérifier chez SasPay mais sans plan activé. Le système tente de les activer
+                  automatiquement ; sinon ouvrez-les pour les revérifier ou les activer.
                 </span>
+                <button type="button" className="ad-mini" onClick={() => { setTab("pay"); setPf("todo"); }}>
+                  Voir les paiements à traiter →
+                </button>
               </div>
             )}
+            {data.healed > 0 && <div className="ad-ok">✅ {data.healed} abonnement(s) activé(s) automatiquement à l'instant.</div>}
 
             <div className="ad-grid">
               <div className="ad-card">
@@ -186,20 +253,21 @@ export default function Admin() {
                 <div className="ad-v">{nb(data.paid_active)}</div>
                 <div className="ad-s">
                   Pro {nb(p.pro)} · Business {nb(p.business)} · {nb(p.expired)} expiré(s)
-                  {data.gifted_active > 0 && <> · dont {nb(data.gifted_active)} offert(s)/manuel(s)</>}
+                  {p.gifted > 0 && <> · + {nb(p.gifted)} offert(s)</>}
                 </div>
               </div>
               <div className="ad-card gold">
                 <div className="ad-ic">📈</div>
                 <div className="ad-k">Revenu mensuel estimé</div>
                 <div className="ad-v">{fcfa(data.mrr_xof)}</div>
-                <div className="ad-s">Annualisé : {fcfa(data.arr_xof)}</div>
+                <div className="ad-s">Abonnés payants actifs × prix du plan · annualisé : {fcfa(data.arr_xof)}</div>
               </div>
               <div className="ad-card gold">
                 <div className="ad-ic">💰</div>
                 <div className="ad-k">Total encaissé</div>
                 <div className="ad-v">{fcfa(data.revenue.total_xof)}</div>
-                <div className="ad-s">{nb(data.revenue.payments_count)} paiement(s) · 30 j : {fcfa(data.revenue.last_30d_xof)}</div>
+                <div className="ad-s">{nb(data.revenue.payments_count)} paiement(s) réussi(s) · 30 j : {fcfa(data.revenue.last_30d_xof)}</div>
+                {data.revenue.test_count > 0 && <div className="ad-s">Tests exclus : {fcfa(data.revenue.test_xof)}</div>}
               </div>
               <div className="ad-card">
                 <div className="ad-ic">⚡</div>
@@ -211,7 +279,7 @@ export default function Admin() {
                 <div className="ad-ic">🎯</div>
                 <div className="ad-k">Taux de conversion</div>
                 <div className="ad-v">{data.conversion_pct} %</div>
-                <div className="ad-s">Abonnés payants / inscrits{p.unlimited > 0 && <> · {nb(p.unlimited)} compte(s) illimité(s)</>}</div>
+                <div className="ad-s">Abonnés payants / inscrits{(p.unlimited + p.internal) > 0 && <> · {nb(p.unlimited + p.internal)} compte(s) interne(s) exclu(s)</>}</div>
               </div>
             </div>
 
@@ -266,9 +334,8 @@ export default function Admin() {
             <div className="ad-tabs" role="tablist">
               {[
                 ["subs", `Abonnés actifs (${data.subscribers.length})`],
-                ["pay", `Paiements (${data.revenue.payments_count})`],
+                ["pay", `Paiements (${data.ledger.filter((r) => !r.test).length})`],
                 ["users", `Utilisateurs (${nb(data.users.total)})`],
-                ["watch", `À surveiller (${alerts})`],
               ].map(([k, l]) => (
                 <button key={k} type="button" className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
                   {l}
@@ -317,21 +384,71 @@ export default function Admin() {
             )}
 
             {tab === "pay" && (
-              <div className="ad-list">
-                {data.recent_payments.length === 0 && (
-                  <div className="ad-muted">Aucun paiement enregistré pour l'instant.</div>
-                )}
-                {data.recent_payments.map((r, i) => (
-                  <div key={i} className="ad-row">
-                    <span className="ad-av gold">₣</span>
-                    <div className="ad-grow">
-                      <b>{r.email || "—"}</b>
-                      <div className="ad-s">{PLAN[r.plan] || r.plan} · {when(r.created_at)}</div>
-                    </div>
-                    <b>{fcfa(r.amount_xof)}</b>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="ad-tabs sm">
+                  {FILTERS.map(([k, l]) => (
+                    <button key={k} type="button" className={pf === k ? "on" : ""} onClick={() => setPf(k)}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                {note && <div className="ad-ok">{note}</div>}
+                <div className="ad-list">
+                  {ledger.length === 0 && <div className="ad-muted">Aucun paiement dans cette catégorie.</div>}
+                  {ledger.map((r) => {
+                    const [lab, tone] = stateOf(r);
+                    const canVerify = r.source === "saspay" && ["PENDING", "REVIEW", "FAILED"].includes(r.status);
+                    const canActivate = r.source === "saspay" && r.status !== "ACTIVATED";
+                    return (
+                      <div key={r.id} className="ad-pay">
+                        <div className="ad-pay-top">
+                          <span className={`ad-av ${tone === "ok" ? "gold" : tone === "warn" ? "warn" : ""}`}>
+                            {tone === "ok" ? "✓" : tone === "warn" ? "!" : tone === "bad" ? "×" : "…"}
+                          </span>
+                          <div className="ad-grow">
+                            <b>{r.name || r.email || "—"}</b>
+                            <div className="ad-s">{r.email}</div>
+                            <div className="ad-s">{PLAN[r.plan] || r.plan} · {when(r.created_at)}</div>
+                          </div>
+                          <div className="ad-end">
+                            <b>{fcfa(r.amount_xof)}</b>
+                            <span className={`ad-st ${tone}`}>{lab}</span>
+                          </div>
+                        </div>
+                        <div className="ad-pay-info">
+                          {r.status === "ACTIVATED" && (
+                            <span>
+                              {r.user_state === "active"
+                                ? `Plan actif${r.user_until ? ` jusqu'au ${dayOnly(r.user_until)}` : ""}`
+                                : r.user_state === "expired"
+                                ? "Plan expiré depuis"
+                                : "⚠️ Plan non actif sur le compte"}
+                            </span>
+                          )}
+                          {r.status === "REVIEW" && <span>Réussi chez SasPay mais montant/devise à contrôler.</span>}
+                          {r.status === "PENDING" && <span>Pas de confirmation de SasPay pour l'instant.</span>}
+                          {r.test && <span className="ad-tag">Test · exclu des chiffres</span>}
+                        </div>
+                        <div className="ad-acts">
+                          {canVerify && (
+                            <button type="button" className="ad-mini" disabled={!!act} onClick={() => payAction("verify", r)}>
+                              {act === r.id + "verify" ? "…" : "↻ Revérifier"}
+                            </button>
+                          )}
+                          {canActivate && (
+                            <button type="button" className="ad-mini strong" disabled={!!act} onClick={() => payAction("activate", r)}>
+                              {act === r.id + "activate" ? "…" : "✓ Activer le plan"}
+                            </button>
+                          )}
+                          <button type="button" className="ad-mini" disabled={!!act} onClick={() => payAction("test", r, { test: !r.test })}>
+                            {r.test ? "Compter comme réel" : "Marquer comme test"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
 
             {tab === "users" && (
@@ -354,7 +471,7 @@ export default function Admin() {
                         <div className="ad-s">Inscrit le {when(r.created_at)}</div>
                       </div>
                       <span className={`ad-tag ${r.state === "active" ? r.plan : r.state}`}>
-                        {r.state === "expired" ? "Expiré" : PLAN[r.plan]}
+                        {r.state === "expired" ? "Expiré" : r.state === "internal" ? "Interne / test" : r.state === "gifted" ? `${PLAN[r.plan]} offert` : PLAN[r.plan]}
                       </span>
                     </div>
                   ))}
@@ -365,28 +482,11 @@ export default function Admin() {
               </>
             )}
 
-            {tab === "watch" && (
-              <div className="ad-list">
-                {data.watch.length === 0 && <div className="ad-muted">✅ Aucun paiement en attente : tout est synchronisé.</div>}
-                {data.watch.map((r, i) => (
-                  <div key={i} className="ad-row">
-                    <span className="ad-av warn">!</span>
-                    <div className="ad-grow">
-                      <b>{r.email || "—"}</b>
-                      <div className="ad-s">{PLAN[r.plan] || r.plan} · {fcfa(r.amount_xof)} · {when(r.created_at)}</div>
-                    </div>
-                    <span className="ad-tag expired">
-                      {r.status === "PENDING" ? "En attente" : r.status === "REVIEW" ? "À vérifier" : "Payé, non activé"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
             <p className="ad-note">
               Source des chiffres : comptes (table des utilisateurs), paiements SasPay et ancien journal, fusionnés sans
               doublon. Les paiements en attente sont revérifiés automatiquement à chaque ouverture de cette page.
-              « Offert / manuel » = abonnement actif sans paiement enregistré (récompense d'affiliation ou activation manuelle).
+              Les comptes administrateur, illimités et de test, ainsi que les paiements marqués « test », sont exclus des chiffres.
+              « Offert » = abonnement actif sans paiement réel (récompense d'affiliation ou activation manuelle).
               Dernière mise à jour : {when(data.generated_at)}.
             </p>
           </>
@@ -460,6 +560,24 @@ function AdStyle() {
       .ad-tag.business { background: #EDE4FF; color: #6D28D9; }
       .ad-tag.unlimited { background: #FFF3C4; color: #8A6A0A; }
       .ad-tag.expired { background: #FDECEC; color: #B42318; }
+      .ad-tabs.sm { margin: .2rem 0 .8rem; }
+      .ad-tabs.sm button { font-size: .74rem; padding: .4rem .75rem; }
+      .ad-pay { background: #fff; border: 1px solid #E3E5EF; border-radius: 16px; padding: .8rem .9rem; display: grid; gap: .55rem; font-size: .88rem; }
+      .ad-pay-top { display: flex; align-items: center; gap: .75rem; }
+      .ad-pay-info { display: flex; flex-wrap: wrap; gap: .4rem .7rem; font-size: .76rem; color: #5B5E78; }
+      .ad-acts { display: flex; flex-wrap: wrap; gap: .4rem; }
+      .ad-mini { border: 1px solid #DADCEA; background: #fff; color: #3B3D58; font-weight: 700; font-size: .75rem; padding: .4rem .75rem; border-radius: 999px; cursor: pointer; }
+      .ad-mini.strong { background: linear-gradient(135deg,#3B82F6,#8B5CF6); color: #fff; border-color: transparent; }
+      .ad-mini:disabled { opacity: .55; }
+      .ad-alert .ad-mini { justify-self: start; margin-top: .3rem; }
+      .ad-st { font-size: .7rem; font-weight: 800; padding: .22rem .6rem; border-radius: 999px; white-space: nowrap; }
+      .ad-st.ok { background: #DDF7EA; color: #067647; }
+      .ad-st.warn { background: #FFF1D6; color: #9A5B00; }
+      .ad-st.wait { background: #ECEDF5; color: #4A4C66; }
+      .ad-st.bad { background: #FDECEC; color: #B42318; }
+      .ad-ok { padding: .65rem .9rem; border-radius: 14px; background: #E8F8EF; border: 1px solid #BFE8D0; color: #067647; font-size: .84rem; margin-bottom: .8rem; }
+      .ad-tag.gifted { background: #DDF7EA; color: #067647; }
+      .ad-tag.internal { background: #ECEDF5; color: #4A4C66; }
       .ad-muted { color: #6B6E88; font-size: .88rem; padding: .4rem .2rem; }
       .ad-alert { display: grid; gap: .2rem; padding: .85rem 1rem; border-radius: 16px; background: #FFF6E5; border: 1px solid #F3D08A; color: #7A4B00; margin-bottom: .9rem; font-size: .84rem; line-height: 1.5; }
       .ad-err { padding: .7rem 1rem; border-radius: 12px; background: #FDECEC; color: #B42318; border: 1px solid #F5C2C0; margin-bottom: 1rem; }
