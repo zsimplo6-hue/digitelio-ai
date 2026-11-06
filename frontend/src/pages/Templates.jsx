@@ -186,12 +186,13 @@ export default function Templates() {
           })}
         </div>
 
-        <h1 className="text-2xl font-bold" style={{ marginTop: 44 }}>Modèles de formations</h1>
-        <p className="dg-page__subtitle">
-          6 modèles ultra premium, différents de ceux des eBooks, pour le PDF de vos formations (couverture,
-          sommaire, modules). Pour changer le modèle d'une formation existante : ouvrez-la, puis « Modèle de la
-          formation ».
-        </p>
+        <div style={{ marginTop: 44 }}>
+          <PageHero
+            kicker="Bibliothèque de modèles"
+            title="Modèles de formations"
+            subtitle="6 modèles ultra premium, différents de ceux des eBooks, pour le PDF de vos formations (couverture, sommaire, modules). Pour changer le modèle d'une formation existante : ouvrez-la, puis « Modèle de la formation »."
+          />
+        </div>
 
         <div style={GRID}>
           {FORMATION_ORDER.map((id) => {

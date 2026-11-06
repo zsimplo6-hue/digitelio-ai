@@ -297,8 +297,8 @@ export default function Subscriptions() {
                   {USAGE_ROWS.map((r) => {
                     const used = data.usage[r.kind] || 0;
                     const limit = data.limits[r.kind] || 1;
-                    const pct = Math.min(100, Math.round((used / limit) * 100));
-                    const isFull = used >= limit;
+                    const pct = data.plan === "unlimited" ? 0 : Math.min(100, Math.round((used / limit) * 100));
+                    const isFull = data.plan !== "unlimited" && used >= limit;
                     const color = isFull
                       ? "linear-gradient(90deg,#ef4444,#f87171)"
                       : pct >= 80
@@ -312,7 +312,7 @@ export default function Subscriptions() {
                             {isFull && <span className="sb-full-tag">Limite atteinte</span>}
                           </span>
                           <span className="sb-usage-n">
-                            {n(used)} / {n(limit)}
+                            {data.plan === "unlimited" ? `${n(used)} · Illimité` : `${n(used)} / ${n(limit)}`}
                           </span>
                         </div>
                         <div className="sb-bar">
@@ -346,7 +346,7 @@ export default function Subscriptions() {
                     {active
                       ? `Vos compteurs repartent à zéro toutes les 30 jours à partir de votre paiement (prochaine remise à zéro : ${fmtDateTime(data.reset_at)}).`
                       : `Les compteurs repartent à zéro le ${fmtDateTime(data.reset_at)}.`}{" "}
-                    Limite d'apprenants : {n(data.limits.learners)} par formation.
+                    {data.plan === "unlimited" ? "Apprenants illimités." : `Limite d'apprenants : ${n(data.limits.learners)} par formation.`}
                   </div>
                 </div>
               )}
@@ -377,7 +377,7 @@ export default function Subscriptions() {
                 {data.plans.map((p, i) => {
                   const isFree = p.key === "free";
                   const isCurrent = active ? p.key === data.plan : isFree && status === "free";
-                  const lower = active && RANK[p.key] < RANK[data.plan];
+                  const lower = active && (data.plan === "unlimited" || RANK[p.key] < RANK[data.plan]);
                   const renew = active && p.key === data.plan;
                   const featured = p.key === "pro";
                   const { amount, unit } = splitPrice(p.price_text);
