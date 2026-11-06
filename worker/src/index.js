@@ -96,7 +96,7 @@ import {
   handleGetFormationStyle,
   handleSetFormationTemplate,
 } from "./routes/formation_styles.js";
-import { handleAdminStats } from "./routes/admin.js";
+import { handleAdminStats, handleAdminPaymentAction } from "./routes/admin.js";
 import {
   handleAffiliateSummary,
   handleAffiliateNotice,
@@ -218,6 +218,11 @@ async function route(request, env, ctx) {
       const rl = await limited(request, env, "admin", 120, 60);
       if (rl) return withCors(rl, request);
       return withCors(await handleAdminStats(request, env), request);
+    }
+    if (url.pathname === "/api/admin/payments" && request.method === "POST") {
+      const rl = await limited(request, env, "admin-pay", 60, 60);
+      if (rl) return withCors(rl, request);
+      return withCors(await handleAdminPaymentAction(request, env), request);
     }
 
     if (url.pathname === "/api/generate/ebook" && request.method === "POST") {
