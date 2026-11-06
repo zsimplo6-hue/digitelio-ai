@@ -42,29 +42,39 @@ export default function DashboardLayout({ title, children }) {
       </div>
 
       <div className="min-w-0 flex-1">
-        <header className="flex items-center justify-between gap-2 border-b border-digi-navy/5 px-4 py-4 dark:border-white/10 md:px-6">
-          <div className="flex items-center gap-3">
+        <header className="dl-header">
+          <div className="dl-left">
             <button
               onClick={() => setMenuOpen(true)}
               aria-label="Ouvrir le menu"
-              className="btn-secondary !px-3 !py-2 text-xl md:hidden"
+              className="dl-burger md:hidden"
             >
-              ☰
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
             </button>
-            <Logo height={34} />
+            <Logo height={32} />
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="hidden text-sm text-digi-navy/60 dark:text-white/60 sm:inline">
-              {user?.fullName}
-            </span>
+          <div className="dl-right">
+            {user?.fullName && (
+              <span className="dl-user" title={user.fullName}>
+                <i>{String(user.fullName).trim().charAt(0).toUpperCase()}</i>
+                <span>{user.fullName}</span>
+              </span>
+            )}
             <ThemeToggle />
-            <button onClick={handleLogout} className="btn-secondary text-sm">
-              Se déconnecter
+            <button onClick={handleLogout} className="dl-logout" aria-label="Se déconnecter" title="Se déconnecter">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M16 17l5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
+              <span>Se déconnecter</span>
             </button>
           </div>
         </header>
 
-        <main className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10">
+        <main className="dl-main mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
           {title && <h1 className="mb-6 text-2xl font-bold">{title}</h1>}
           {children}
         </main>
