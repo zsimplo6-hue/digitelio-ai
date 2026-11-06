@@ -55,6 +55,28 @@ export const PLANS = {
   },
 };
 
+/* Plan interne « Illimité » : jamais proposé à la vente, attribué par adresse email.
+   Les adresses viennent de la liste ci-dessous et, en option, de la variable UNLIMITED_EMAILS (séparées par des virgules). */
+export const UNLIMITED_EMAILS = ["michelinwendpanga@gmail.com"];
+const BIG = 1000000;
+export const UNLIMITED_PLAN = {
+  name: "Illimité",
+  price_text: "Illimité",
+  price_xof: 0,
+  limits: { ebook: BIG, formation: BIG, lesson: BIG, marketing: BIG, learners: BIG },
+  features: PAID_FEATURES,
+};
+export function isUnlimitedEmail(env, email) {
+  const list = [
+    ...UNLIMITED_EMAILS,
+    ...String(env?.UNLIMITED_EMAILS || "").split(","),
+  ]
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(String(email || "").trim().toLowerCase());
+}
+const planDef = (key) => (key === "unlimited" ? UNLIMITED_PLAN : PLANS[key]);
+
 export const PLAN_DAYS = 30;
 
 /* Commission Digitelio sur chaque vente de produit, selon le plan du vendeur */
@@ -62,6 +84,7 @@ export const COMMISSION_RATES = {
   free: 0.15,
   pro: 0.05,
   business: 0.03,
+  unlimited: 0.03,
 };
 
 /* ========================================================================= */
@@ -100,6 +123,7 @@ const toDb = (ms) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
 const toIso = (ms) => (ms === null || ms === undefined ? null : new Date(ms).toISOString());
 
 function subscriptionState(user, now = Date.now()) {
+  if (user && user.unlimited) return { status: "active", planKey: "unlimited", startMs: null, untilMs: null };
   const paid = user && user.plan && user.plan !== "free" && PLANS[user.plan];
   if (!paid) return { status: "free", planKey: "free", startMs: null, untilMs: null };
 
@@ -128,11 +152,13 @@ function usagePeriod(state, now = Date.now()) {
 }
 
 async function loadUser(env, userId) {
-  return env.DB.prepare(
+  const u = await env.DB.prepare(
     "SELECT email, plan, plan_started_at, plan_until FROM users WHERE id = ?"
   )
     .bind(userId)
     .first();
+  if (u) u.unlimited = isUnlimitedEmail(env, u.email);
+  return u;
 }
 
 function expiredResponse(state) {
@@ -163,7 +189,7 @@ function blockedResponse(planKey, what, limit, used, recurring) {
 
   return Response.json(
     {
-      error: `Limite du plan ${PLANS[planKey].name} atteinte : ${limit} ${what}.${reset} ${tail}`,
+      error: `Limite du plan ${planDef(planKey).name} atteinte : ${limit} ${what}.${reset} ${tail}`,
       code: "limit_reached",
       plan: planKey,
       limit,
@@ -193,7 +219,7 @@ export async function checkFeature(request, env, feature, value) {
   const state = subscriptionState(user);
   if (state.status === "expired") return expiredResponse(state);
 
-  const plan = PLANS[state.planKey];
+  const plan = planDef(state.planKey);
   const f = plan.features;
   const inList = (list, v) => list === "all" || list.includes(v);
   const upgrade = "Passez au plan Pro ou Business dans « Abonnements ».";
@@ -229,7 +255,7 @@ export async function checkQuota(request, env, kind) {
   }
 
   const period = usagePeriod(state);
-  const limit = PLANS[state.planKey].limits[kind];
+  const limit = planDef(state.planKey).limits[kind];
 
   const row = await env.DB.prepare(
     "SELECT count FROM usage_monthly WHERE user_id = ? AND month = ? AND kind = ?"
@@ -267,7 +293,7 @@ export async function checkLearners(request, env, formationId) {
   const state = subscriptionState(user);
   if (state.status === "expired") return expiredResponse(state);
 
-  const limit = PLANS[state.planKey].limits.learners;
+  const limit = planDef(state.planKey).limits.learners;
   const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM enrollments WHERE formation_id = ?")
     .bind(formationId)
     .first();
@@ -370,14 +396,14 @@ export async function handleBilling(request, env) {
     email: user.email,
     status: state.status,
     plan: state.planKey,
-    plan_name: PLANS[state.planKey].name,
+    plan_name: planDef(state.planKey).name,
     expired: state.status === "expired",
     expired_plan_name: state.expiredPlan ? PLANS[state.expiredPlan].name : null,
     started_at: toIso(state.startMs),
     until: toIso(state.untilMs),
     server_time: toIso(now),
-    limits: PLANS[state.planKey].limits,
-    features: PLANS[state.planKey].features,
+    limits: planDef(state.planKey).limits,
+    features: planDef(state.planKey).features,
     usage,
     reset_at: toIso(period.resetAtMs),
     plans: Object.entries(PLANS).map(([key, p]) => ({

@@ -132,7 +132,7 @@ async function checkPayment(env, p, knownTxId = null) {
   }
 }
 
-async function reconcilePending(env) {
+export async function reconcilePending(env) {
   const { results } = await env.DB.prepare(
     `SELECT id, user_id, plan, amount, session_id, status FROM payments
      WHERE status IN ('PENDING', 'REVIEW') AND session_id IS NOT NULL AND created_at > datetime('now', ?)
