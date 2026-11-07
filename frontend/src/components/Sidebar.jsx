@@ -51,6 +51,7 @@ const allLinks = [
   { to: "/dashboard/abonnements", label: "Abonnements", Icon: IconCreditCard },
   { to: "/dashboard/affiliation", label: "Affiliation", Icon: IconGift, badge: "NEW" },
   { to: "/dashboard/parametres", label: "Paramètres", Icon: IconSettings },
+  { to: "/aide", label: "Aide & support", Icon: IconSettings },
 ];
 
 const links = allLinks.filter((l) => SALES_ENABLED || !l.sales);

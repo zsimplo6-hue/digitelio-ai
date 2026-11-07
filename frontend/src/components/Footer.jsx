@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom";
+import { SUPPORT_EMAIL, mailTo } from "../data/support.js";
+
 export default function Footer() {
   return (
     <footer className="border-t border-digi-navy/5 bg-white dark:border-white/10 dark:bg-digi-navy">
@@ -18,26 +21,30 @@ export default function Footer() {
           <div>
             <h4 className="mb-3 font-semibold">Produit</h4>
             <ul className="space-y-2 text-sm text-digi-navy/60 dark:text-white/60">
-              <li><a href="#fonctionnalites" className="hover:text-digi-blue">Fonctionnalités</a></li>
-              <li><a href="#tarifs" className="hover:text-digi-blue">Tarifs</a></li>
-              <li><a href="#faq" className="hover:text-digi-blue">FAQ</a></li>
+              <li><a href="/#fonctionnalites" className="hover:text-digi-blue">Fonctionnalités</a></li>
+              <li><a href="/#tarifs" className="hover:text-digi-blue">Tarifs</a></li>
+              <li><Link to="/faq" className="hover:text-digi-blue">FAQ</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="mb-3 font-semibold">Entreprise</h4>
+            <h4 className="mb-3 font-semibold">Aide et support</h4>
             <ul className="space-y-2 text-sm text-digi-navy/60 dark:text-white/60">
-              <li><a href="#" className="hover:text-digi-blue">À propos</a></li>
-              <li><a href="#" className="hover:text-digi-blue">Contact</a></li>
-              <li><a href="#" className="hover:text-digi-blue">Blog</a></li>
+              <li><Link to="/aide" className="hover:text-digi-blue">Centre d'aide</Link></li>
+              <li><Link to="/faq" className="hover:text-digi-blue">Questions fréquentes</Link></li>
+              <li>
+                <a href={mailTo("Support Digitelio AI")} className="break-all hover:text-digi-blue">
+                  {SUPPORT_EMAIL}
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="mb-3 font-semibold">Légal</h4>
             <ul className="space-y-2 text-sm text-digi-navy/60 dark:text-white/60">
-              <li><a href="#" className="hover:text-digi-blue">Conditions d'utilisation</a></li>
-              <li><a href="#" className="hover:text-digi-blue">Confidentialité</a></li>
+              <li><Link to="/conditions" className="hover:text-digi-blue">Conditions d'utilisation</Link></li>
+              <li><Link to="/confidentialite" className="hover:text-digi-blue">Politique de confidentialité</Link></li>
             </ul>
           </div>
         </div>
