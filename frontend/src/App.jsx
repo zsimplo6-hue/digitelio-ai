@@ -27,6 +27,10 @@ import Templates from "./pages/Templates.jsx";
 import Ideas from "./pages/Ideas.jsx";
 import BrandKit from "./pages/BrandKit.jsx";
 import Admin from "./pages/Admin.jsx";
+import Faq from "./pages/Faq.jsx";
+import Help from "./pages/Help.jsx";
+import Terms from "./pages/Terms.jsx";
+import Privacy from "./pages/Privacy.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import SubscriptionGate from "./components/SubscriptionGate.jsx";
 
@@ -53,6 +57,10 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Pages publiques (sans connexion) */}
+      <Route path="/faq" element={<Faq />} />
+      <Route path="/aide" element={<Help />} />
+      <Route path="/conditions" element={<Terms />} />
+      <Route path="/confidentialite" element={<Privacy />} />
       <Route path="/formation/:id" element={<FormationPublic />} />
       <Route path="/learn/:token" element={<Learn />} />
       <Route path="/ebook/:id" element={<EbookPublic />} />
