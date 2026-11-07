@@ -1,6 +1,8 @@
 import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import Footer from "../components/Footer.jsx";
+import { Link } from "react-router-dom";
+import { SUPPORT_EMAIL, mailTo } from "../data/support.js";
 import heroPoster from "../utils/heroPoster.js";
 
 const categories = [
@@ -428,6 +430,47 @@ export default function Landing() {
               régulière en arabe : relisez bien le texte avant de le diffuser.
             </p>
           </details>
+        </div>
+        <p className="mt-6 text-center">
+          <Link to="/faq" className="font-semibold text-digi-blue hover:underline">
+            Voir toutes les questions →
+          </Link>
+        </p>
+      </section>
+
+      {/* AIDE ET SUPPORT */}
+      <section id="aide" className="mx-auto max-w-7xl px-6 pb-16">
+        <div className="sp-home">
+          <div className="sp-home__head">
+            <span className="sp-home__kicker">Aide et support</span>
+            <h2>Une question ? Nous sommes là pour vous aider.</h2>
+            <p>
+              Consultez la FAQ, parcourez le centre d'aide ou écrivez-nous directement : nous répondons
+              à chaque message.
+            </p>
+          </div>
+          <div className="sp-home__grid">
+            <Link to="/faq" className="sp-home__card">
+              <span>❓</span>
+              <b>FAQ</b>
+              <small>Les réponses aux questions les plus fréquentes.</small>
+            </Link>
+            <Link to="/aide" className="sp-home__card">
+              <span>🛟</span>
+              <b>Centre d'aide</b>
+              <small>Guides par thème et recherche rapide.</small>
+            </Link>
+            <a href={mailTo("Support Digitelio AI")} className="sp-home__card">
+              <span>✉️</span>
+              <b>Nous écrire</b>
+              <small className="break-all">{SUPPORT_EMAIL}</small>
+            </a>
+            <Link to="/conditions" className="sp-home__card">
+              <span>📜</span>
+              <b>Conditions d'utilisation</b>
+              <small>Vos droits et nos engagements.</small>
+            </Link>
+          </div>
         </div>
       </section>
 
